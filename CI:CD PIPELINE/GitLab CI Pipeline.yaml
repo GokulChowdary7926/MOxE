@@ -1,0 +1,129 @@
+# .gitlab-ci.yml
+
+stages:
+  - test
+  - build
+  - deploy
+
+variables:
+  NODE_VERSION: "18"
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+
+cache:
+  paths:
+    - backend/node_modules/
+    - frontend/node_modules/
+
+# Test Stage
+test-backend:
+  stage: test
+  image: node:$NODE_VERSION
+  services:
+    - postgres:15
+    - redis:7-alpine
+  variables:
+    DATABASE_URL: postgresql://postgres:postgres@postgres:5432/moxe_test
+    REDIS_URL: redis://redis:6379
+    JWT_SECRET: test-secret
+  before_script:
+    - cd backend
+    - npm ci
+  script:
+    - npm run lint
+    - npm test
+  artifacts:
+    paths:
+      - backend/coverage/
+    expire_in: 30 days
+
+test-frontend:
+  stage: test
+  image: node:$NODE_VERSION
+  before_script:
+    - cd frontend
+    - npm ci
+  script:
+    - npm run lint
+    - npm test -- --watchAll=false
+  artifacts:
+    paths:
+      - frontend/coverage/
+    expire_in: 30 days
+
+# Build Stage
+build-backend:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -f docker/Dockerfile.backend -t $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA .
+    - docker tag $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA $CI_REGISTRY_IMAGE/backend:latest
+    - docker push $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA
+    - docker push $CI_REGISTRY_IMAGE/backend:latest
+  only:
+    - main
+    - develop
+
+build-frontend:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -f docker/Dockerfile.frontend -t $CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHA .
+    - docker tag $CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHA $CI_REGISTRY_IMAGE/frontend:latest
+    - docker push $CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHA
+    - docker push $CI_REGISTRY_IMAGE/frontend:latest
+  only:
+    - main
+    - develop
+
+# Deploy Stage
+deploy-staging:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client
+    - eval $(ssh-agent -s)
+    - echo "$STAGING_SSH_KEY" | tr -d '\r' | ssh-add - > /dev/null
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+  script:
+    - ssh -o StrictHostKeyChecking=no $STAGING_HOST "
+        cd /opt/moxe &&
+        docker-compose pull &&
+        docker-compose up -d --remove-orphans &&
+        docker system prune -f
+      "
+  only:
+    - develop
+
+deploy-production:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client
+    - eval $(ssh-agent -s)
+    - echo "$PRODUCTION_SSH_KEY" | tr -d '\r' | ssh-add - > /dev/null
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+  script:
+    - ssh -o StrictHostKeyChecking=no $PRODUCTION_HOST "
+        cd /opt/moxe &&
+        docker exec moxe_postgres pg_dump -U moxe_user moxe > /tmp/backup_\$(date +%Y%m%d_%H%M%S).sql &&
+        docker-compose pull &&
+        docker-compose up -d --remove-orphans &&
+        docker system prune -f
+      "
+  only:
+    - main
+  when: manual
+  environment:
+    name: production
+    url: https://moxe.com

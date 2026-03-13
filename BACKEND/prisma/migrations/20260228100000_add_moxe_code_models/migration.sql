@@ -1,0 +1,1 @@
+-- No-op: moxe code models migration placeholder (table creation handled elsewhere or skipped).

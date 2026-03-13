@@ -1,0 +1,85 @@
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}', './pages/**/*.{js,jsx,ts,tsx}', './components/**/*.{js,jsx,ts,tsx}', './store/**/*.ts', './hooks/**/*.ts', './services/**/*.ts', './constants/**/*.ts'],
+  theme: {
+    extend: {
+      /* MOxE mobile-matching design tokens (Instagram dark default) */
+      colors: {
+        moxe: {
+          background: '#000000',
+          surface: '#111111',
+          text: '#ffffff',
+          textSecondary: '#8e8e8e',
+          border: '#262626',
+          primary: '#0095f6',
+          accent: '#e1306c',
+          success: '#00c853',
+          danger: '#ff5252',
+          warning: '#ffab00',
+          storyRing: '#f09433',
+          storyRing2: '#e1306c',
+          storyRing3: '#833ab4',
+          storyRing4: '#405de6',
+        },
+        ig: {
+          gradientStart: '#F58529',
+          gradientMid: '#DD2A7B',
+          gradientEnd: '#8134AF',
+          blue: '#0095F6',
+          background: '#FAFAFA',
+          darkBg: '#121212',
+          card: '#FFFFFF',
+          separator: '#DBDBDB',
+          text: '#262626',
+          textSecondary: '#8E8E8E',
+          storyRing: '#C13584',
+        },
+        moxeAccent: {
+          personal: '#262626',
+          business: '#00A86B',
+          creator: '#FFB800',
+          job: '#8A2BE2',
+        },
+      },
+      spacing: {
+        'moxe-xs': '4px',
+        'moxe-sm': '8px',
+        'moxe-md': '16px',
+        'moxe-lg': '24px',
+        'moxe-xl': '32px',
+      },
+      borderRadius: {
+        'moxe-sm': '4px',
+        'moxe-md': '8px',
+        'moxe-lg': '16px',
+      },
+      fontFamily: {
+        sans: ['system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+      },
+      fontSize: {
+        'moxe-caption': ['12px', { lineHeight: '1.4' }],
+        'moxe-body': ['14px', { lineHeight: '1.5' }],
+        'moxe-body-lg': ['16px', { lineHeight: '1.5' }],
+        'moxe-title': ['18px', { lineHeight: '1.3', fontWeight: '600' }],
+        'moxe-title-lg': ['20px', { lineHeight: '1.3', fontWeight: '600' }],
+        'moxe-headline': ['24px', { lineHeight: '1.2', fontWeight: '600' }],
+        'ig-caption': ['12px', { lineHeight: '1.4' }],
+        'ig-body': ['14px', { lineHeight: '1.5' }],
+        'ig-body-lg': ['16px', { lineHeight: '1.5' }],
+        'ig-title3': ['20px', { lineHeight: '1.3', fontWeight: '600' }],
+        'ig-title2': ['22px', { lineHeight: '1.3', fontWeight: '600' }],
+        'ig-title1': ['28px', { lineHeight: '1.2', fontWeight: '600' }],
+      },
+      backgroundImage: {
+        'ig-gradient': 'linear-gradient(90deg, #F58529 0%, #DD2A7B 50%, #8134AF 100%)',
+        'ig-gradient-vertical': 'linear-gradient(180deg, #F58529 0%, #DD2A7B 50%, #8134AF 100%)',
+        'moxe-story': 'linear-gradient(135deg, #f09433 0%, #e1306c 50%, #833ab4 100%)',
+      },
+      maxWidth: {
+        'ig-content': '470px',
+        'moxe-shell': '428px',
+      },
+    },
+  },
+  plugins: [],
+};

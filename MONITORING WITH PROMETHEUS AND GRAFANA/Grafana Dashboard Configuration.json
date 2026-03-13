@@ -1,0 +1,175 @@
+{
+  "dashboard": {
+    "title": "MOxE Platform Dashboard",
+    "panels": [
+      {
+        "title": "System Overview",
+        "panels": [
+          {
+            "title": "CPU Usage",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+                "legendFormat": "{{instance}}"
+              }
+            ]
+          },
+          {
+            "title": "Memory Usage",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100",
+                "legendFormat": "{{instance}}"
+              }
+            ]
+          },
+          {
+            "title": "Disk Usage",
+            "type": "gauge",
+            "targets": [
+              {
+                "expr": "100 - (node_filesystem_avail_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"} * 100)",
+                "legendFormat": "Disk Used %"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Application Metrics",
+        "panels": [
+          {
+            "title": "Request Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(http_requests_total[5m])) by (status)",
+                "legendFormat": "{{status}}"
+              }
+            ]
+          },
+          {
+            "title": "Response Time (95th percentile)",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+                "legendFormat": "95th percentile"
+              }
+            ]
+          },
+          {
+            "title": "Active Users",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "sum(active_users_total)"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Database Metrics",
+        "panels": [
+          {
+            "title": "Database Connections",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "pg_stat_database_numbackends",
+                "legendFormat": "connections"
+              }
+            ]
+          },
+          {
+            "title": "Query Duration",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(pg_stat_statements_total_time[5m]) / rate(pg_stat_statements_calls[5m])",
+                "legendFormat": "avg query time"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Redis Metrics",
+        "panels": [
+          {
+            "title": "Redis Memory",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "redis_memory_used_bytes",
+                "legendFormat": "used"
+              },
+              {
+                "expr": "redis_memory_max_bytes",
+                "legendFormat": "max"
+              }
+            ]
+          },
+          {
+            "title": "Redis Operations",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(redis_commands_processed_total[5m])",
+                "legendFormat": "commands/sec"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Business Metrics",
+        "panels": [
+          {
+            "title": "New Users",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "sum(increase(users_registered_total[24h]))"
+              }
+            ]
+          },
+          {
+            "title": "Posts Created",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "sum(increase(posts_created_total[24h]))"
+              }
+            ]
+          },
+          {
+            "title": "Messages Sent",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "sum(increase(messages_sent_total[24h]))"
+              }
+            ]
+          },
+          {
+            "title": "Revenue (24h)",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "sum(increase(revenue_total[24h]))"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    }
+  }
+}

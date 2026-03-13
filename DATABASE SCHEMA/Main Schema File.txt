@@ -1,0 +1,1357 @@
+// backend/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== ENUMS ====================
+
+enum AccountType {
+  PERSONAL
+  BUSINESS
+  CREATOR
+  JOB
+}
+
+enum SubscriptionTier {
+  FREE
+  STAR
+  THICK
+}
+
+enum ContentType {
+  POST
+  STORY
+  REEL
+  LIVE
+}
+
+enum PrivacyLevel {
+  PUBLIC
+  FOLLOWERS_ONLY
+  CLOSE_FRIENDS_ONLY
+  ONLY_ME
+}
+
+// ==================== USERS & ACCOUNTS ====================
+
+model User {
+  id                    String           @id @default(cuid())
+  phoneNumber           String           @unique
+  email                 String?          @unique
+  emailVerified         Boolean          @default(false)
+  password              String
+  dateOfBirth           DateTime
+  isVerified            Boolean          @default(false)
+  verificationLevel     String?          // "BASIC", "ID_VERIFIED", "BUSINESS_VERIFIED", etc.
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  
+  // Relations
+  accounts              Account[]
+  sessions              Session[]
+  securityLogs          SecurityLog[]
+  notifications         Notification[]
+  devices               Device[]
+  
+  @@index([phoneNumber])
+  @@index([email])
+}
+
+model Account {
+  id                    String           @id @default(cuid())
+  userId                String
+  username              String           @unique
+  displayName           String
+  accountType           AccountType
+  subscriptionTier      SubscriptionTier @default(FREE)
+  bio                   String?          @db.VarChar(300)
+  profilePhoto          String?
+  coverPhoto            String?
+  pronouns              String?
+  location              String?
+  website               String?          // For personal accounts (1 link)
+  isPrivate             Boolean          @default(false)
+  isActive              Boolean          @default(true)
+  deactivatedAt         DateTime?
+  verifiedBadge         Boolean          @default(false)
+  verifiedAt            DateTime?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  
+  // Business/Creator specific
+  businessCategory      String?
+  businessHours         Json?            // Store as JSON
+  contactEmail          String?
+  contactPhone          String?
+  contactAddress        String?
+  actionButtons         Json?            // Store button configurations
+  
+  // Job account specific
+  professionalHeadline  String?
+  professionalSection   Json?            // Experience, education, etc.
+  personalSection       Json?            // Personal bio, interests, etc.
+  skills                String[]
+  workplaceVerified     Boolean          @default(false)
+  openToOpportunities   Boolean          @default(false)
+  
+  // Monetization
+  subscriptionsEnabled  Boolean          @default(false)
+  badgesEnabled         Boolean          @default(false)
+  giftsEnabled          Boolean          @default(false)
+  payoutMethod          Json?
+  
+  // Relations
+  user                  User             @relation(fields: [userId], references: [id], onDelete: CASCADE)
+  links                 Link[]
+  posts                 Post[]
+  stories               Story[]
+  reels                 Reel[]
+  lives                 Live[]
+  followers             Follow[]         @relation("following")
+  following             Follow[]         @relation("follower")
+  closeFriends          CloseFriend[]
+  blockedUsers          Block[]
+  mutedUsers            Mute[]
+  restrictedUsers       Restrict[]
+  savedPosts            SavedPost[]
+  collections           Collection[]
+  notifications         Notification[]   @relation("recipient")
+  notificationsSent     Notification[]   @relation("sender")
+  messages              Message[]
+  groupMembers          GroupMember[]
+  groupAdmins           GroupAdmin[]
+  tags                  Tag[]
+  mentions              Mention[]
+  reactions             Reaction[]
+  comments              Comment[]
+  likes                 Like[]
+  views                 View[]
+  shares                Share[]
+  reports               Report[]
+  streaks               Streak[]
+  badges                Badge[]
+  achievements          Achievement[]
+  moodHistory           MoodHistory[]
+  locationHistory       LocationHistory[]
+  safeZones             SafeZone[]
+  emergencyContacts     EmergencyContact[]
+  
+  // MOxE Job (Track, Know, Flow)
+  jobPostings           JobPosting[]
+  jobApplications       JobApplication[]
+  pipelines             Pipeline[]
+  flowBoards            FlowBoard[]
+  salaryEntries         SalaryEntry[]
+  companyReviews        CompanyReview[]
+  careerResources       CareerResource[]
+  interviewPreps        InterviewPrep[]
+  
+  @@unique([userId, username])
+  @@index([username])
+  @@index([accountType])
+}
+
+model Link {
+  id                    String           @id @default(cuid())
+  accountId             String
+  url                   String
+  title                 String
+  displayText           String?
+  order                 Int              @default(0)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  
+  @@unique([accountId, order])
+}
+
+// ==================== FOLLOWS & RELATIONSHIPS ====================
+
+model Follow {
+  id                    String           @id @default(cuid())
+  followerId            String
+  followingId           String
+  isCloseFriend         Boolean          @default(false)
+  isFavorite            Boolean          @default(false)
+  notificationsEnabled  Boolean          @default(true)
+  createdAt             DateTime         @default(now())
+  
+  follower              Account          @relation("follower", fields: [followerId], references: [id], onDelete: CASCADE)
+  following             Account          @relation("following", fields: [followingId], references: [id], onDelete: CASCADE)
+  
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+model CloseFriend {
+  id                    String           @id @default(cuid())
+  accountId             String
+  friendId              String
+  createdAt             DateTime         @default(now())
+  
+  account               Account          @relation("account_close_friends", fields: [accountId], references: [id], onDelete: CASCADE)
+  friend                Account          @relation("friend_close_friends", fields: [friendId], references: [id], onDelete: CASCADE)
+  
+  @@unique([accountId, friendId])
+}
+
+model Block {
+  id                    String           @id @default(cuid())
+  blockerId             String
+  blockedId             String
+  createdAt             DateTime         @default(now())
+  
+  blocker               Account          @relation("blocker", fields: [blockerId], references: [id], onDelete: CASCADE)
+  blocked               Account          @relation("blocked", fields: [blockedId], references: [id], onDelete: CASCADE)
+  
+  @@unique([blockerId, blockedId])
+}
+
+model Mute {
+  id                    String           @id @default(cuid())
+  muterId               String
+  mutedId               String
+  mutePosts             Boolean          @default(true)
+  muteStories           Boolean          @default(true)
+  createdAt             DateTime         @default(now())
+  
+  muter                 Account          @relation("muter", fields: [muterId], references: [id], onDelete: CASCADE)
+  muted                 Account          @relation("muted", fields: [mutedId], references: [id], onDelete: CASCADE)
+  
+  @@unique([muterId, mutedId])
+}
+
+model Restrict {
+  id                    String           @id @default(cuid())
+  restrictorId          String
+  restrictedId          String
+  createdAt             DateTime         @default(now())
+  
+  restrictor            Account          @relation("restrictor", fields: [restrictorId], references: [id], onDelete: CASCADE)
+  restricted            Account          @relation("restricted", fields: [restrictedId], references: [id], onDelete: CASCADE)
+  
+  @@unique([restrictorId, restrictedId])
+}
+
+// ==================== CONTENT ====================
+
+model Post {
+  id                    String           @id @default(cuid())
+  accountId             String
+  contentType           ContentType       @default(POST)
+  media                 Json[]            // Array of media objects
+  caption               String?           @db.VarChar(2200)
+  location              String?
+  privacy               PrivacyLevel      @default(PUBLIC)
+  allowComments         Boolean           @default(true)
+  hideLikeCount         Boolean           @default(false)
+  screenshotProtection  Boolean           @default(false)
+  isArchived            Boolean           @default(false)
+  isDeleted             Boolean           @default(false)
+  deletedAt             DateTime?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  
+  // For carousel
+  isCarousel            Boolean           @default(false)
+  carouselItems         Json?             // Order and metadata
+  
+  // For scheduled posts (professional accounts)
+  isScheduled           Boolean           @default(false)
+  scheduledFor          DateTime?
+  
+  // Relations
+  account               Account           @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  tags                  Tag[]
+  mentions              Mention[]
+  postHashtags          PostHashtag[]
+  likes                 Like[]
+  comments              Comment[]
+  views                 View[]
+  shares                Share[]
+  saves                 SavedPost[]
+  reports               Report[]
+  
+  @@index([accountId])
+  @@index([createdAt])
+  @@index([privacy])
+}
+
+model Story {
+  id                    String           @id @default(cuid())
+  accountId             String
+  media                 String            // URL to media
+  type                  String            // "photo", "video", "text", "boomerang"
+  duration              Int               @default(24) // hours until expiration
+  expiresAt             DateTime
+  privacy               PrivacyLevel      @default(PUBLIC)
+  isCloseFriendsOnly    Boolean           @default(false)
+  allowReplies          Boolean           @default(true)
+  allowReshares         Boolean           @default(true)
+  music                 Json?             // Music sticker data
+  stickers              Json[]            // Array of stickers
+  textOverlay           Json?             // Text elements
+  drawings              Json?             // Drawing data
+  viewedCount           Int               @default(0)
+  replyCount            Int               @default(0)
+  createdAt             DateTime          @default(now())
+  
+  // Relations
+  account               Account           @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  viewers               StoryView[]
+  replies               StoryReply[]
+  highlights            HighlightItem[]
+  
+  @@index([accountId])
+  @@index([expiresAt])
+}
+
+model StoryView {
+  id                    String           @id @default(cuid())
+  storyId               String
+  viewerId              String
+  viewedAt              DateTime         @default(now())
+  
+  story                 Story            @relation(fields: [storyId], references: [id], onDelete: CASCADE)
+  viewer                Account          @relation(fields: [viewerId], references: [id], onDelete: CASCADE)
+  
+  @@unique([storyId, viewerId])
+}
+
+model StoryReply {
+  id                    String           @id @default(cuid())
+  storyId               String
+  replierId             String
+  message               String
+  createdAt             DateTime         @default(now())
+  
+  story                 Story            @relation(fields: [storyId], references: [id], onDelete: CASCADE)
+  replier               Account          @relation(fields: [replierId], references: [id], onDelete: CASCADE)
+}
+
+model Highlight {
+  id                    String           @id @default(cuid())
+  accountId             String
+  name                  String
+  coverImage            String
+  order                 Int              @default(0)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  items                 HighlightItem[]
+}
+
+model HighlightItem {
+  id                    String           @id @default(cuid())
+  highlightId           String
+  storyId               String
+  order                 Int              @default(0)
+  addedAt               DateTime         @default(now())
+  
+  highlight             Highlight        @relation(fields: [highlightId], references: [id], onDelete: CASCADE)
+  story                 Story            @relation(fields: [storyId], references: [id], onDelete: CASCADE)
+}
+
+model Reel {
+  id                    String           @id @default(cuid())
+  accountId             String
+  video                 String
+  thumbnail             String
+  caption               String?          @db.VarChar(2200)
+  audio                 Json?            // Audio metadata
+  duration              Int               // in seconds
+  music                 String?           // Song ID
+  musicStart            Int?              // Start position
+  speed                 Float?            @default(1.0)
+  effects               Json[]            // Applied effects
+  captions              Json?             // Auto-generated captions
+  privacy               PrivacyLevel      @default(PUBLIC)
+  allowComments         Boolean           @default(true)
+  hideLikeCount         Boolean           @default(false)
+  isScheduled           Boolean           @default(false)
+  scheduledFor          DateTime?
+  views                 Int               @default(0)
+  likes                 Int               @default(0)
+  comments              Int               @default(0)
+  shares                Int               @default(0)
+  saves                 Int               @default(0)
+  createdAt             DateTime          @default(now())
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  reelsLike             ReelLike[]
+  reelsComment          ReelComment[]
+  reelsView             ReelView[]
+  
+  @@index([accountId])
+  @@index([createdAt])
+}
+
+model Live {
+  id                    String           @id @default(cuid())
+  accountId             String
+  title                 String
+  description           String?
+  scheduledFor          DateTime?
+  startedAt             DateTime?
+  endedAt               DateTime?
+  status                String           @default("SCHEDULED") // SCHEDULED, LIVE, ENDED
+  privacy               PrivacyLevel      @default(PUBLIC)
+  isSubscriberOnly      Boolean           @default(false)
+  maxViewers            Int?
+  currentViewers        Int               @default(0)
+  totalViewers          Int               @default(0)
+  badgesEnabled         Boolean           @default(true)
+  giftsEnabled          Boolean           @default(true)
+  recording             String?           // URL to recording
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  liveViewers           LiveViewer[]
+  liveComments          LiveComment[]
+  liveBadges            LiveBadge[]
+  liveGifts             LiveGift[]
+  
+  @@index([accountId])
+  @@index([status])
+}
+
+model LiveViewer {
+  id                    String           @id @default(cuid())
+  liveId                String
+  viewerId              String
+  joinedAt              DateTime         @default(now())
+  leftAt                DateTime?
+  
+  live                  Live             @relation(fields: [liveId], references: [id], onDelete: CASCADE)
+  viewer                Account          @relation(fields: [viewerId], references: [id], onDelete: CASCADE)
+}
+
+model LiveComment {
+  id                    String           @id @default(cuid())
+  liveId                String
+  commenterId           String
+  message               String
+  createdAt             DateTime         @default(now())
+  
+  live                  Live             @relation(fields: [liveId], references: [id], onDelete: CASCADE)
+  commenter             Account          @relation(fields: [commenterId], references: [id], onDelete: CASCADE)
+}
+
+model LiveBadge {
+  id                    String           @id @default(cuid())
+  liveId                String
+  buyerId               String
+  tier                  String           // "BRONZE", "SILVER", "GOLD"
+  amount                Float
+  purchaseId            String
+  createdAt             DateTime         @default(now())
+  
+  live                  Live             @relation(fields: [liveId], references: [id], onDelete: CASCADE)
+  buyer                 Account          @relation(fields: [buyerId], references: [id], onDelete: CASCADE)
+}
+
+model LiveGift {
+  id                    String           @id @default(cuid())
+  liveId                String
+  giverId               String
+  giftType              String           // "HEART", "STAR", "CROWN", "TROPHY"
+  amount                Float
+  message               String?
+  purchaseId            String
+  createdAt             DateTime         @default(now())
+  
+  live                  Live             @relation(fields: [liveId], references: [id], onDelete: CASCADE)
+  giver                 Account          @relation(fields: [giverId], references: [id], onDelete: CASCADE)
+}
+
+// ==================== ENGAGEMENT ====================
+
+model Like {
+  id                    String           @id @default(cuid())
+  accountId             String
+  postId                String?
+  commentId             String?
+  reelId                String?
+  createdAt             DateTime         @default(now())
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  post                  Post?            @relation(fields: [postId], references: [id], onDelete: CASCADE)
+  comment               Comment?          @relation(fields: [commentId], references: [id], onDelete: CASCADE)
+  reel                  Reel?            @relation(fields: [reelId], references: [id], onDelete: CASCADE)
+  
+  @@unique([accountId, postId])
+  @@unique([accountId, commentId])
+  @@unique([accountId, reelId])
+}
+
+model Comment {
+  id                    String           @id @default(cuid())
+  accountId             String
+  postId                String?
+  reelId                String?
+  parentId              String?          // For replies
+  content               String           @db.VarChar(500)
+  isPinned              Boolean          @default(false)
+  isHidden              Boolean          @default(false)
+  likes                 Int              @default(0)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  post                  Post?            @relation(fields: [postId], references: [id], onDelete: CASCADE)
+  reel                  Reel?            @relation(fields: [reelId], references: [id], onDelete: CASCADE)
+  parent                Comment?          @relation("comment_replies", fields: [parentId], references: [id])
+  replies               Comment[]         @relation("comment_replies")
+  likesRelation         Like[]
+  
+  @@index([postId])
+  @@index([reelId])
+  @@index([createdAt])
+}
+
+model View {
+  id                    String           @id @default(cuid())
+  accountId             String
+  postId                String?
+  storyId               String?
+  reelId                String?
+  liveId                String?
+  viewedAt              DateTime         @default(now())
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  post                  Post?            @relation(fields: [postId], references: [id], onDelete: CASCADE)
+  story                 Story?           @relation(fields: [storyId], references: [id], onDelete: CASCADE)
+  reel                  Reel?            @relation(fields: [reelId], references: [id], onDelete: CASCADE)
+  live                  Live?            @relation(fields: [liveId], references: [id], onDelete: CASCADE)
+  
+  @@unique([accountId, postId])
+  @@unique([accountId, storyId])
+  @@unique([accountId, reelId])
+  @@unique([accountId, liveId])
+}
+
+model Share {
+  id                    String           @id @default(cuid())
+  accountId             String
+  postId                String?
+  reelId                String?
+  storyId               String?
+  sharedTo              String           // "DM", "STORY", "FEED", "EXTERNAL"
+  recipientId           String?          // For DMs
+  createdAt             DateTime         @default(now())
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  post                  Post?            @relation(fields: [postId], references: [id], onDelete: CASCADE)
+  reel                  Reel?            @relation(fields: [reelId], references: [id], onDelete: CASCADE)
+  story                 Story?           @relation(fields: [storyId], references: [id], onDelete: CASCADE)
+}
+
+model Tag {
+  id                    String           @id @default(cuid())
+  accountId             String
+  postId                String?
+  storyId               String?
+  reelId                String?
+  x                     Float?            // Position on media
+  y                     Float?
+  createdAt             DateTime         @default(now())
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  post                  Post?            @relation(fields: [postId], references: [id], onDelete: CASCADE)
+  story                 Story?           @relation(fields: [storyId], references: [id], onDelete: CASCADE)
+  reel                  Reel?            @relation(fields: [reelId], references: [id], onDelete: CASCADE)
+  
+  @@unique([accountId, postId])
+  @@unique([accountId, storyId])
+  @@unique([accountId, reelId])
+}
+
+model Mention {
+  id                    String           @id @default(cuid())
+  accountId             String
+  postId                String?
+  commentId             String?
+  storyId               String?
+  reelId                String?
+  createdAt             DateTime         @default(now())
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  post                  Post?            @relation(fields: [postId], references: [id], onDelete: CASCADE)
+  comment               Comment?         @relation(fields: [commentId], references: [id], onDelete: CASCADE)
+  story                 Story?           @relation(fields: [storyId], references: [id], onDelete: CASCADE)
+  reel                  Reel?            @relation(fields: [reelId], references: [id], onDelete: CASCADE)
+}
+
+model Reaction {
+  id                    String           @id @default(cuid())
+  accountId             String
+  messageId             String
+  emoji                 String
+  createdAt             DateTime         @default(now())
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  message               Message          @relation(fields: [messageId], references: [id], onDelete: CASCADE)
+  
+  @@unique([accountId, messageId])
+}
+
+// ==================== SAVED & COLLECTIONS ====================
+
+model SavedPost {
+  id                    String           @id @default(cuid())
+  accountId             String
+  postId                String
+  collectionId          String?
+  savedAt               DateTime         @default(now())
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  post                  Post             @relation(fields: [postId], references: [id], onDelete: CASCADE)
+  collection            Collection?       @relation(fields: [collectionId], references: [id])
+  
+  @@unique([accountId, postId])
+}
+
+model Collection {
+  id                    String           @id @default(cuid())
+  accountId             String
+  name                  String
+  coverImage            String?
+  order                 Int              @default(0)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  savedPosts            SavedPost[]
+  
+  @@unique([accountId, name])
+}
+
+// ==================== MESSAGING ====================
+
+model Message {
+  id                    String           @id @default(cuid())
+  senderId              String
+  content               String
+  media                 Json[]?           // Attachments
+  messageType           String            @default("TEXT") // TEXT, VOICE, IMAGE, VIDEO, GIF, STICKER
+  isVanish              Boolean           @default(false)
+  vanishAt              DateTime?
+  readAt                DateTime?
+  deliveredAt           DateTime?
+  createdAt             DateTime          @default(now())
+  
+  // For group messages
+  groupId               String?
+  isGroupMessage        Boolean           @default(false)
+  
+  // For replies
+  replyToId             String?
+  
+  sender                Account           @relation(fields: [senderId], references: [id], onDelete: CASCADE)
+  group                 Group?            @relation(fields: [groupId], references: [id], onDelete: CASCADE)
+  replyTo               Message?          @relation("message_replies")
+  replies               Message[]         @relation("message_replies")
+  recipients            MessageRecipient[]
+  reactions             Reaction[]
+}
+
+model MessageRecipient {
+  id                    String           @id @default(cuid())
+  messageId             String
+  recipientId           String
+  isRead                Boolean          @default(false)
+  readAt                DateTime?
+  isDelivered           Boolean          @default(false)
+  deliveredAt           DateTime?
+  isHidden              Boolean          @default(false)
+  
+  message               Message          @relation(fields: [messageId], references: [id], onDelete: CASCADE)
+  recipient             Account          @relation(fields: [recipientId], references: [id], onDelete: CASCADE)
+  
+  @@unique([messageId, recipientId])
+}
+
+model Group {
+  id                    String           @id @default(cuid())
+  name                  String
+  photo                 String?
+  createdBy             String
+  isActive              Boolean          @default(true)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  
+  creator               Account          @relation(fields: [createdBy], references: [id])
+  members               GroupMember[]
+  admins                GroupAdmin[]
+  messages              Message[]
+}
+
+model GroupMember {
+  id                    String           @id @default(cuid())
+  groupId               String
+  accountId             String
+  joinedAt              DateTime         @default(now())
+  
+  group                 Group            @relation(fields: [groupId], references: [id], onDelete: CASCADE)
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  
+  @@unique([groupId, accountId])
+}
+
+model GroupAdmin {
+  id                    String           @id @default(cuid())
+  groupId               String
+  accountId             String
+  addedAt               DateTime         @default(now())
+  
+  group                 Group            @relation(fields: [groupId], references: [id], onDelete: CASCADE)
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  
+  @@unique([groupId, accountId])
+}
+
+// ==================== NOTIFICATIONS ====================
+
+model Notification {
+  id                    String           @id @default(cuid())
+  recipientId           String
+  senderId              String?
+  type                  String            // LIKE, COMMENT, MESSAGE, FOLLOW, TAG, MENTION, etc.
+  content               String?
+  read                  Boolean           @default(false)
+  readAt                DateTime?
+  data                  Json?             // Additional data
+  createdAt             DateTime          @default(now())
+  
+  recipient             Account           @relation("recipient", fields: [recipientId], references: [id], onDelete: CASCADE)
+  sender                Account?          @relation("sender", fields: [senderId], references: [id])
+  
+  @@index([recipientId])
+  @@index([createdAt])
+}
+
+// ==================== DISCOVERY & EXPLORATION ====================
+
+model Hashtag {
+  id                    String           @id @default(cuid())
+  name                  String           @unique
+  postCount             Int              @default(0)
+  createdAt             DateTime         @default(now())
+  
+  posts                 PostHashtag[]
+}
+
+model PostHashtag {
+  id                    String           @id @default(cuid())
+  postId                String
+  hashtagId             String
+  
+  post                  Post             @relation(fields: [postId], references: [id], onDelete: CASCADE)
+  hashtag               Hashtag          @relation(fields: [hashtagId], references: [id], onDelete: CASCADE)
+  
+  @@unique([postId, hashtagId])
+}
+
+// ==================== SAFETY & SECURITY ====================
+
+model Report {
+  id                    String           @id @default(cuid())
+  reporterId            String
+  reportedAccountId     String?
+  reportedPostId        String?
+  reportedCommentId     String?
+  reason                String
+  description           String?
+  status                String           @default("PENDING") // PENDING, REVIEWED, RESOLVED, DISMISSED
+  resolvedAt            DateTime?
+  createdAt             DateTime         @default(now())
+  
+  reporter              Account          @relation("reporter", fields: [reporterId], references: [id], onDelete: CASCADE)
+  reportedAccount       Account?         @relation("reported_account", fields: [reportedAccountId], references: [id])
+  reportedPost          Post?            @relation(fields: [reportedPostId], references: [id])
+  reportedComment       Comment?         @relation(fields: [reportedCommentId], references: [id])
+}
+
+model SafeZone {
+  id                    String           @id @default(cuid())
+  accountId             String
+  name                  String
+  latitude              Float
+  longitude             Float
+  radius                Int               // in meters
+  isActive              Boolean          @default(true)
+  createdAt             DateTime         @default(now())
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+}
+
+model EmergencyContact {
+  id                    String           @id @default(cuid())
+  accountId             String
+  contactId             String
+  relationship          String
+  isPrimary             Boolean          @default(false)
+  notificationMethods   String[]          // SMS, PUSH, CALL
+  createdAt             DateTime         @default(now())
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  contact               Account          @relation("emergency_contact", fields: [contactId], references: [id])
+  
+  @@unique([accountId, contactId])
+}
+
+model HangoutSession {
+  id                    String           @id @default(cuid())
+  accountId             String
+  startedAt             DateTime
+  endsAt                DateTime
+  checkInInterval       Int               // minutes
+  lastCheckIn           DateTime?
+  status                String           @default("ACTIVE") // ACTIVE, COMPLETED, ALERTED
+  createdAt             DateTime         @default(now())
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+}
+
+// ==================== LOCATION & MAP ====================
+
+model LocationHistory {
+  id                    String           @id @default(cuid())
+  accountId             String
+  latitude              Float
+  longitude             Float
+  accuracy              Float?
+  timestamp             DateTime         @default(now())
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  
+  @@index([accountId])
+  @@index([timestamp])
+}
+
+model LocationShare {
+  id                    String           @id @default(cuid())
+  accountId             String
+  sharedWithId          String
+  latitude              Float
+  longitude             Float
+  expiresAt             DateTime
+  createdAt             DateTime         @default(now())
+  
+  account               Account          @relation("sharer", fields: [accountId], references: [id], onDelete: CASCADE)
+  sharedWith            Account          @relation("sharee", fields: [sharedWithId], references: [id], onDelete: CASCADE)
+}
+
+// ==================== GAMIFICATION & STREAKS ====================
+
+model Streak {
+  id                    String           @id @default(cuid())
+  accountId             String
+  type                  String            // "GYM", "MEDITATION", "READING", "STUDY", etc.
+  currentCount          Int               @default(0)
+  longestCount          Int               @default(0)
+  lastCheckIn           DateTime?
+  updatedAt             DateTime         @updatedAt
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  
+  @@unique([accountId, type])
+}
+
+model Badge {
+  id                    String           @id @default(cuid())
+  accountId             String
+  type                  String
+  name                  String
+  description           String?
+  imageUrl              String
+  awardedAt             DateTime         @default(now())
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+}
+
+model Achievement {
+  id                    String           @id @default(cuid())
+  accountId             String
+  type                  String
+  name                  String
+  description           String?
+  progress              Int               @default(0)
+  target                Int
+  completed             Boolean           @default(false)
+  completedAt           DateTime?
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+}
+
+model Challenge {
+  id                    String           @id @default(cuid())
+  name                  String
+  description           String
+  type                  String
+  startDate             DateTime
+  endDate               DateTime
+  createdBy             String?
+  isPublic              Boolean          @default(true)
+  createdAt             DateTime         @default(now())
+  
+  creator               Account?         @relation(fields: [createdBy], references: [id])
+  participants          ChallengeParticipant[]
+}
+
+model ChallengeParticipant {
+  id                    String           @id @default(cuid())
+  challengeId           String
+  accountId             String
+  progress              Int               @default(0)
+  joinedAt              DateTime         @default(now())
+  
+  challenge             Challenge        @relation(fields: [challengeId], references: [id], onDelete: CASCADE)
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  
+  @@unique([challengeId, accountId])
+}
+
+model MoodHistory {
+  id                    String           @id @default(cuid())
+  accountId             String
+  mood                  String
+  note                  String?
+  timestamp             DateTime         @default(now())
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+}
+
+// ==================== SHOPPING & COMMERCE ====================
+
+model Product {
+  id                    String           @id @default(cuid())
+  accountId             String
+  name                  String
+  description           String?
+  price                 Float
+  compareAtPrice        Float?
+  images                String[]
+  inventory             Int?
+  sku                   String?
+  isDigital             Boolean          @default(false)
+  isActive              Boolean          @default(true)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  variants              ProductVariant[]
+  tags                  ProductTag[]
+  orders                OrderItem[]
+}
+
+model ProductVariant {
+  id                    String           @id @default(cuid())
+  productId             String
+  name                  String            // "Size", "Color", etc.
+  value                 String            // "Large", "Red", etc.
+  price                 Float?
+  inventory             Int?
+  
+  product               Product          @relation(fields: [productId], references: [id], onDelete: CASCADE)
+}
+
+model ProductTag {
+  id                    String           @id @default(cuid())
+  productId             String
+  postId                String?
+  storyId               String?
+  reelId                String?
+  x                     Float?
+  y                     Float?
+  
+  product               Product          @relation(fields: [productId], references: [id], onDelete: CASCADE)
+  post                  Post?            @relation(fields: [postId], references: [id])
+  story                 Story?           @relation(fields: [storyId], references: [id])
+  reel                  Reel?            @relation(fields: [reelId], references: [id])
+}
+
+model Order {
+  id                    String           @id @default(cuid())
+  buyerId               String
+  sellerId              String
+  total                 Float
+  status                String           @default("PENDING") // PENDING, PAID, SHIPPED, DELIVERED, CANCELLED
+  paymentMethod         String?
+  paymentId             String?
+  shippingAddress       Json?
+  trackingNumber        String?
+  notes                 String?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  
+  buyer                 Account          @relation("buyer", fields: [buyerId], references: [id])
+  seller                Account          @relation("seller", fields: [sellerId], references: [id])
+  items                 OrderItem[]
+}
+
+model OrderItem {
+  id                    String           @id @default(cuid())
+  orderId               String
+  productId             String
+  variantId             String?
+  quantity              Int
+  priceAtPurchase       Float
+  
+  order                 Order            @relation(fields: [orderId], references: [id], onDelete: CASCADE)
+  product               Product          @relation(fields: [productId], references: [id])
+}
+
+// ==================== SUBSCRIPTIONS & PAYMENTS ====================
+
+model Subscription {
+  id                    String           @id @default(cuid())
+  subscriberId          String
+  creatorId             String
+  tier                  String            // "MONTHLY_1", "MONTHLY_5", etc.
+  price                 Float
+  status                String           @default("ACTIVE") // ACTIVE, CANCELLED, EXPIRED
+  startDate             DateTime
+  endDate               DateTime?
+  cancelAt              DateTime?
+  paymentMethod         String?
+  stripeSubscriptionId  String?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  
+  subscriber            Account          @relation("subscriber", fields: [subscriberId], references: [id])
+  creator               Account          @relation("creator", fields: [creatorId], references: [id])
+}
+
+model Payment {
+  id                    String           @id @default(cuid())
+  accountId             String
+  amount                Float
+  type                  String            // "SUBSCRIPTION", "BADGE", "GIFT", "PRODUCT"
+  referenceId           String?           // subscriptionId, orderId, etc.
+  status                String           @default("PENDING")
+  stripePaymentId       String?
+  createdAt             DateTime         @default(now())
+  
+  account               Account          @relation(fields: [accountId], references: [id])
+}
+
+// ==================== DRAFTS & SCHEDULING ====================
+
+model Draft {
+  id                    String           @id @default(cuid())
+  accountId             String
+  type                  String            // "POST", "STORY", "REEL"
+  content               Json
+  media                 Json[]?
+  expiresAt             DateTime
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+}
+
+// ==================== SESSIONS & SECURITY ====================
+
+model Session {
+  id                    String           @id @default(cuid())
+  userId                String
+  token                 String           @unique
+  deviceId              String?
+  deviceName            String?
+  deviceType            String?
+  ipAddress             String?
+  location              String?
+  expiresAt             DateTime
+  isActive              Boolean          @default(true)
+  lastActive            DateTime          @default(now())
+  createdAt             DateTime         @default(now())
+  
+  user                  User             @relation(fields: [userId], references: [id], onDelete: CASCADE)
+}
+
+model Device {
+  id                    String           @id @default(cuid())
+  userId                String
+  deviceId              String           @unique
+  deviceName            String?
+  deviceType            String?
+  pushToken             String?
+  isTrusted             Boolean          @default(false)
+  lastUsed              DateTime         @default(now())
+  createdAt             DateTime         @default(now())
+  
+  user                  User             @relation(fields: [userId], references: [id], onDelete: CASCADE)
+}
+
+model SecurityLog {
+  id                    String           @id @default(cuid())
+  userId                String
+  action                String            // "LOGIN", "LOGOUT", "PASSWORD_CHANGE", "2FA_ENABLE", etc.
+  ipAddress             String?
+  deviceInfo            String?
+  location              String?
+  status                String            // "SUCCESS", "FAILURE"
+  details               Json?
+  createdAt             DateTime         @default(now())
+  
+  user                  User             @relation(fields: [userId], references: [id], onDelete: CASCADE)
+}
+
+// ==================== ANALYTICS & INSIGHTS ====================
+
+model AnalyticsEvent {
+  id                    String           @id @default(cuid())
+  accountId             String
+  eventType             String
+  contentType           String?
+  contentId             String?
+  metadata              Json?
+  timestamp             DateTime         @default(now())
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  
+  @@index([accountId])
+  @@index([eventType])
+  @@index([timestamp])
+}
+
+// ==================== MOxE JOB – TRACK (Jira-like) ====================
+
+model JobPosting {
+  id                    String           @id @default(cuid())
+  title                 String
+  companyName           String
+  companyId             String?           // Optional link to Company (Know)
+  location              String?
+  locationType          String?           // REMOTE, ONSITE, HYBRID
+  description           String?           @db.Text
+  requirements          String?           @db.Text
+  salaryMin             Float?
+  salaryMax             Float?
+  salaryCurrency        String?           @default("USD")
+  salaryVisibility      String?           // SHOW, RANGE, HIDDEN
+  postedById            String           // Recruiter/hiring manager account
+  pipelineId            String?
+  status                String           @default("OPEN")   // OPEN, CLOSED, DRAFT
+  applicationCount     Int              @default(0)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  
+  postedBy              Account          @relation(fields: [postedById], references: [id], onDelete: CASCADE)
+  company               Company?         @relation(fields: [companyId], references: [id])
+  pipeline              Pipeline?        @relation(fields: [pipelineId], references: [id])
+  applications         JobApplication[]
+  
+  @@index([postedById])
+  @@index([companyId])
+  @@index([status])
+}
+
+model Pipeline {
+  id                    String           @id @default(cuid())
+  accountId             String           // Recruiter/agency owner
+  name                  String
+  description           String?
+  isDefault             Boolean          @default(false)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  stages                PipelineStage[]
+  jobPostings           JobPosting[]
+  
+  @@index([accountId])
+}
+
+model PipelineStage {
+  id                    String           @id @default(cuid())
+  pipelineId            String
+  name                  String           // e.g. Applied, Screen, Interview, Offer
+  order                 Int              @default(0)
+  color                 String?
+  createdAt             DateTime         @default(now())
+  
+  pipeline              Pipeline         @relation(fields: [pipelineId], references: [id], onDelete: CASCADE)
+  applications          JobApplication[]
+  
+  @@unique([pipelineId, order])
+  @@index([pipelineId])
+}
+
+model JobApplication {
+  id                    String           @id @default(cuid())
+  accountId             String           // Applicant (job seeker)
+  jobPostingId          String
+  pipelineStageId       String?
+  coverLetter           String?          @db.Text
+  resumeUrl             String?
+  status                String           @default("APPLIED")  // APPLIED, SCREENING, INTERVIEW, OFFER, REJECTED, WITHDRAWN
+  appliedAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  notes                 String?          @db.Text              // Recruiter notes
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  jobPosting            JobPosting       @relation(fields: [jobPostingId], references: [id], onDelete: CASCADE)
+  pipelineStage         PipelineStage?   @relation(fields: [pipelineStageId], references: [id])
+  flowCards             FlowCard[]
+  
+  @@unique([accountId, jobPostingId])
+  @@index([accountId])
+  @@index([jobPostingId])
+  @@index([status])
+}
+
+// ==================== MOxE JOB – KNOW (Confluence-like) ====================
+
+model Company {
+  id                    String           @id @default(cuid())
+  name                  String
+  slug                  String           @unique
+  logo                  String?
+  website               String?
+  industry              String?
+  size                  String?          // e.g. 1-10, 11-50, 51-200
+  headquarters          String?
+  description           String?         @db.Text
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  
+  jobPostings           JobPosting[]
+  reviews               CompanyReview[]
+  salaryEntries         SalaryEntry[]
+  interviewPreps        InterviewPrep[]
+  careerResources       CareerResource[]
+  
+  @@index([slug])
+  @@index([name])
+}
+
+model CompanyReview {
+  id                    String           @id @default(cuid())
+  accountId             String
+  companyId             String
+  rating                Int              // 1-5
+  pros                  String?          @db.Text
+  cons                  String?          @db.Text
+  summary               String?          @db.VarChar(500)
+  isAnonymous           Boolean          @default(false)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  company               Company          @relation(fields: [companyId], references: [id], onDelete: CASCADE)
+  
+  @@unique([accountId, companyId])
+  @@index([companyId])
+}
+
+model SalaryEntry {
+  id                    String           @id @default(cuid())
+  accountId             String
+  companyId             String
+  role                  String
+  amount                Float
+  currency              String           @default("USD")
+  period                String           @default("YEAR")   // YEAR, MONTH, HOUR
+  experienceLevel       String?          // ENTRY, MID, SENIOR
+  isAnonymous           Boolean          @default(false)
+  createdAt             DateTime         @default(now())
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  company               Company          @relation(fields: [companyId], references: [id], onDelete: CASCADE)
+  
+  @@index([companyId])
+  @@index([accountId])
+}
+
+model CareerResource {
+  id                    String           @id @default(cuid())
+  companyId             String?
+  accountId             String?          // If user-created
+  title                 String
+  content               String           @db.Text
+  type                  String           @default("ARTICLE")  // ARTICLE, INTERVIEW_PREP, SALARY_GUIDE
+  isPublic              Boolean          @default(true)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  
+  company               Company?         @relation(fields: [companyId], references: [id], onDelete: CASCADE)
+  account               Account?         @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  
+  @@index([companyId])
+  @@index([accountId])
+}
+
+model InterviewPrep {
+  id                    String           @id @default(cuid())
+  accountId             String
+  companyId             String?
+  jobPostingId          String?
+  title                 String
+  content               String           @db.Text
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  company               Company?         @relation(fields: [companyId], references: [id], onDelete: CASCADE)
+  
+  @@index([accountId])
+  @@index([companyId])
+}
+
+// ==================== MOxE JOB – FLOW (Trello-like) ====================
+
+model FlowBoard {
+  id                    String           @id @default(cuid())
+  accountId             String
+  name                  String
+  description           String?
+  order                 Int              @default(0)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  
+  account               Account          @relation(fields: [accountId], references: [id], onDelete: CASCADE)
+  columns               FlowColumn[]
+  
+  @@index([accountId])
+}
+
+model FlowColumn {
+  id                    String           @id @default(cuid())
+  boardId               String
+  name                  String           // e.g. Wishlist, Applied, Interview, Offer
+  order                 Int              @default(0)
+  createdAt             DateTime         @default(now())
+  
+  board                 FlowBoard         @relation(fields: [boardId], references: [id], onDelete: CASCADE)
+  cards                 FlowCard[]
+  
+  @@index([boardId])
+}
+
+model FlowCard {
+  id                    String           @id @default(cuid())
+  columnId               String
+  jobApplicationId      String?          // Optional link to Track application
+  title                 String           // Job title (or custom)
+  companyName           String?
+  jobPostingUrl         String?
+  notes                 String?          @db.Text
+  order                 Int              @default(0)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  
+  column                FlowColumn       @relation(fields: [columnId], references: [id], onDelete: CASCADE)
+  jobApplication        JobApplication?  @relation(fields: [jobApplicationId], references: [id], onDelete: SET_NULL)
+  
+  @@index([columnId])
+}

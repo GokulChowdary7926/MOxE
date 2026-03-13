@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Logs and cache
+*.log
+npm-debug.log*
+.cache
+.vite/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Prisma
+BACKEND/prisma/migrations/**/migration_lock.toml
+
+# Optional: uncomment if you don't want to track these
+# FRONTEND/dist/
+# BACKEND/dist/

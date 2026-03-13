@@ -1,0 +1,4316 @@
+// backend/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== ENUMS ====================
+
+enum AccountType {
+  PERSONAL
+  BUSINESS
+  CREATOR
+  JOB
+}
+
+enum SubscriptionTier {
+  FREE
+  STAR
+  THICK
+}
+
+enum ContentType {
+  POST
+  STORY
+  REEL
+  LIVE
+}
+
+enum PrivacyLevel {
+  PUBLIC
+  FOLLOWERS_ONLY
+  CLOSE_FRIENDS_ONLY
+  ONLY_ME
+}
+
+enum SearchVisibility {
+  EVERYONE
+  FOLLOWERS_ONLY
+  NO_ONE
+}
+
+// ==================== USERS & ACCOUNTS ====================
+
+model User {
+  id                String   @id @default(cuid())
+  phoneNumber       String   @unique
+  email             String?  @unique
+  emailVerified     Boolean  @default(false)
+  password          String
+  dateOfBirth       DateTime
+  isVerified        Boolean  @default(false)
+  verificationLevel String? // "BASIC", "ID_VERIFIED", "BUSINESS_VERIFIED", etc.
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  accounts     Account[]
+  sessions     Session[]
+  securityLogs SecurityLog[]
+  devices      Device[]
+
+  @@index([phoneNumber])
+  @@index([email])
+}
+
+model PhoneVerification {
+  id         String   @id @default(cuid())
+  phoneNumber String
+  code       String   // 6-digit
+  expiresAt  DateTime
+  attempts   Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([phoneNumber])
+  @@index([expiresAt])
+}
+
+model EmailVerification {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([expiresAt])
+  @@index([userId])
+}
+
+model Video {
+  id              String   @id @default(cuid())
+  accountId       String
+  title           String   @db.VarChar(200)
+  description     String?  @db.VarChar(5000)
+  url             String   @db.VarChar(500)
+  fileSize        Int
+  durationSeconds Int?
+  visibility      String   @db.VarChar(20) @default("private") // private | unlisted | public
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@index([accountId, createdAt])
+}
+
+model Account {
+  id               String           @id @default(cuid())
+  userId           String
+  username         String           @unique
+  displayName      String
+  accountType      AccountType
+  subscriptionTier SubscriptionTier @default(FREE)
+  bio              String?          @db.VarChar(300)
+  profilePhoto     String?
+  coverPhoto       String?
+  pronouns         String?
+  location         String?
+  website          String? // For personal accounts (1 link)
+  isPrivate        Boolean          @default(false)
+  isActive         Boolean          @default(true)
+  deactivatedAt    DateTime?
+  verifiedBadge    Boolean          @default(false)
+  verifiedAt       DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  // Personal account privacy & guide (roadmap)
+  usernameChangedAt        DateTime?
+  searchVisibility         SearchVisibility?  @default(EVERYONE)
+  showActivityStatus       Boolean            @default(true)
+  lastActiveAt             DateTime?
+  storyArchiveEnabled      Boolean            @default(false)
+  hideProfileVisits        Boolean            @default(false)
+  anonymousStoryViewsUsed  Int                @default(0)
+  anonymousStoryViewsResetAt DateTime?
+  defaultStoryAllowReplies Boolean?           @default(true)
+  defaultStoryAllowReshares Boolean?          @default(true)
+  nearbyEnabled             Boolean           @default(false)
+  nearbyQueryCountToday     Int               @default(0)   // 3.1 daily limit for getNearby
+  nearbyQueryResetAt        DateTime?         // midnight reset
+  nearbyPostCountToday      Int               @default(0)   // 4.1.1 nearby messaging posts (1 free/day paid, then $0.50 each)
+  nearbyPostResetAt         DateTime?         // midnight reset for post count
+  // Per-type notification preferences (Guide 1.7): likes, comments, dms, mentions, follows, storyReplies
+  notificationPrefs Json?   // { likes?: boolean, comments?: boolean, dms?: boolean, mentions?: boolean, follows?: boolean, storyReplies?: boolean } default all true
+  // Quiet mode (Guide 1.7.2): silence notifications during window
+  quietModeEnabled  Boolean  @default(false)
+  quietModeStart    String?  @db.VarChar(5)  // e.g. "22:00"
+  quietModeEnd      String?  @db.VarChar(5)  // e.g. "07:00"
+  quietModeDays     Json?    // [0,1,2,3,4,5,6] 0=Sun
+  // Hidden words (1.6.5): filter comments and DM requests containing these words
+  hiddenWords             Json?    // string[] – words/phrases to hide
+  hiddenWordsCommentFilter Boolean @default(false)
+  hiddenWordsDMFilter     Boolean  @default(false)
+  // Creator 14.1: advanced comment filter sensitivity (LOW, MEDIUM, HIGH)
+  commentFilterSensitivity String? @db.VarChar(20)
+
+  // Business/Creator specific
+  businessCategory         String?
+  businessHours            Json? // Store as JSON
+  contactEmail             String?
+  contactPhone             String?
+  contactBookingLink       String?   @db.VarChar(500) // Guide 8.1.3
+  contactWhatsApp          String?   @db.VarChar(50)
+  contactAddress           String?
+  actionButtons            Json? // Store button configurations
+  sellerTermsAcceptedAt    DateTime? // Seller responsibility acknowledgment (Guide 3.10)
+  // Shop setup (Guide 3.5.2)
+  shopBannerUrl            String?
+  featuredProductIds       Json?    // string[] – product IDs to feature on shop
+  // 2.20 Custom domain (paid): e.g. shop.example.com; verify via CNAME
+  customDomain             String?  @db.VarChar(253)
+  customDomainVerifiedAt   DateTime?
+  // Seller verification (Guide 3.6.x) – PAN, GSTIN, bank for verified seller
+  pan                      String?  @db.VarChar(20)
+  gstin                    String?  @db.VarChar(20)
+  bankDetails              Json?    // { last4?, bankName?, verifiedAt? }
+
+  // Job account specific
+  professionalHeadline String?
+  professionalSection  Json? // Experience, education, etc.
+  personalSection      Json? // Personal bio, interests, etc.
+  skills               String[]
+  workplaceVerified    Boolean  @default(false)
+  openToOpportunities  Boolean  @default(false)
+
+  // Monetization
+  subscriptionsEnabled     Boolean @default(false)
+  subscriptionTierOffers   Json?   // Creator: [{ key, name, price, perks? }] e.g. MONTHLY_299, MONTHLY_499
+  subscriptionWelcomeMessage String? @db.VarChar(1000) // Guide 9.1.1: auto-DM to new subscribers
+  badgesEnabled             Boolean @default(false)
+  giftsEnabled         Boolean @default(false)
+  payoutMethod         Json?
+  storageBytesUsed     Int      @default(0) // 1GB free, 5GB paid (4.2)
+
+  // Relations
+  user                       User               @relation(fields: [userId], references: [id])
+  links                      Link[]
+  posts                      Post[]
+  postsAsCoAuthor            Post[]             @relation("PostCoAuthor")
+  stories                    Story[]
+  reels                      Reel[]
+  lives                      Live[]
+  followers                  Follow[]           @relation("following")
+  following                  Follow[]           @relation("follower")
+  followRequestsSent         FollowRequest[]    @relation("follow_requests_sent")
+  followRequestsReceived     FollowRequest[]    @relation("follow_requests_received")
+  closeFriends               CloseFriend[]      @relation("account_close_friends")
+  closeFriendsAsFriend       CloseFriend[]      @relation("friend_close_friends")
+  blockedUsers               Block[]            @relation("blocker")
+  blockedByUsers             Block[]            @relation("blocked")
+  mutedUsers                 Mute[]             @relation("muter")
+  mutedByUsers               Mute[]             @relation("muted")
+  restrictedUsers            Restrict[]         @relation("restrictor")
+  restrictedByUsers          Restrict[]         @relation("restricted")
+  limitInteractionSetting    LimitInteractionSetting?
+  savedPosts                 SavedPost[]
+  collections                Collection[]
+  notifications              Notification[]     @relation("recipient")
+  notificationsSent          Notification[]     @relation("sender")
+  messages                   Message[]
+  groupMembers               GroupMember[]
+  groupAdmins                GroupAdmin[]
+  tags                       Tag[]
+  mentions                   Mention[]
+  reactions                  Reaction[]
+  comments                   Comment[]
+  likes                      Like[]
+  reelsLike                  ReelLike[]
+  storyLikes                 StoryLike[]
+  storyPollVotes              StoryPollVote[]
+  storyReminders              StoryReminder[]
+  storyQuestions              StoryQuestion[]
+  storyEmojiRatings           StoryEmojiRating[]
+  reelsComment               ReelComment[]
+  reelsView                  ReelView[]
+  views                      View[]
+  shares                     Share[]
+  reportsAsReporter          Report[]           @relation("reporter")
+  reportsAsReported          Report[]           @relation("reported_account")
+  jobAIHistory               JobAIAudit[]
+  streaks                    Streak[]
+  badges                     Badge[]
+  achievements               Achievement[]
+  moodHistory                MoodHistory[]
+  locationHistory            LocationHistory[]
+  safeZones                  SafeZone[]
+  emergencyContacts          EmergencyContact[]
+  emergencyContactsAsContact EmergencyContact[] @relation("emergency_contact")
+  locationSharesAsSharer     LocationShare[]    @relation("sharer")
+  locationSharesAsSharee     LocationShare[]    @relation("sharee")
+  ordersAsBuyer              Order[]            @relation("buyer")
+  ordersAsSeller             Order[]            @relation("seller")
+  sellerCoupons              SellerCoupon[]     @relation("seller_coupons")
+  reviewsAsSeller            Review[]           @relation("reviews_as_seller")
+  reviewsAsReviewer          Review[]           @relation("reviews_as_reviewer")
+  payouts                    Payout[]
+  subscriptionsAsSubscriber  Subscription[]     @relation("subscriber")
+  subscriptionsAsCreator     Subscription[]     @relation("creator")
+  videos                     Video[]
+  // Ads / campaigns owned by this account (Business / Creator).
+  adCampaigns                AdCampaign[]
+  adAudiences                AdAudience[]
+  adFraudSignals             AdFraudSignal[]
+  adFraudBlocks              AdFraudBlock[]
+  // Ads billing (credits / invoices / limits)
+  adBilling                  AdBillingAccount?
+
+  // MOxE Job (Track, Know, Flow)
+  jobPostings              JobPosting[]
+  jobPostingsAsHiringManager JobPosting[]  @relation("JobPostingHiringManager")
+  jobPostingsAsRecruiter     JobPosting[]  @relation("JobPostingRecruiter")
+  jobApplications          JobApplication[]
+  jobApplicationsDecidedBy  JobApplication[] @relation("JobApplicationDecidedBy")
+  recruitmentCandidatesAdded RecruitmentCandidate[]
+  interviewsCreated        Interview[]
+  interviewFeedbacks       InterviewFeedback[]
+  interviewInterviewers    InterviewInterviewer[]
+  offersCreated            Offer[]
+  workProjects             WorkProject[]
+
+  // MOxE ACCESS (organizations / directory)
+  orgMemberships           OrgUser[]
+  orgInvitesSent           OrgInvitation[]      @relation("OrgInvitationSender")
+  orgInvitesReceived       OrgInvitation[]      @relation("OrgInvitationRecipient")
+  workProjectMemberships   WorkProjectMember[]
+  workTasksAssigned        WorkTask[]         @relation("WorkTaskAssignee")
+  workTaskComments         WorkTaskComment[]
+  workTaskAttachments      WorkTaskAttachment[]
+  pipelines                Pipeline[]
+  flowBoards               FlowBoard[]
+  flowBoardMembers         FlowBoardMember[]
+  flowBoardInvitesCreated  FlowBoardInvite[] @relation("FlowBoardInviteInvitedBy")
+  flowCardMembers          FlowCardMember[]
+  flowCommentsAuthored     FlowComment[]    @relation("FlowCommentAuthor")
+  flowAttachmentsUploaded  FlowAttachment[]
+  trackProjects            TrackProject[]
+  trackProjectMemberships  TrackProjectMember[]
+  trackProjectsAsLead      TrackProject[]       @relation("TrackProjectLead")
+  trackIssuesAssigned      TrackIssue[]         @relation("TrackIssueAssignee")
+  trackIssuesCreated       TrackIssue[]         @relation("TrackIssueCreator")
+  trackAttachmentsUploaded TrackAttachment[]
+  salaryEntries            SalaryEntry[]
+  companyReviews       CompanyReview[]
+  careerResources      CareerResource[]
+  interviewPreps       InterviewPrep[]
+  knowledgeSpacesOwned KnowledgeSpace[]       @relation("KnowledgeSpaceOwner")
+  knowledgeSpacePermissions KnowledgeSpacePermission[]
+  knowledgePagesCreated KnowledgePage[]       @relation("KnowledgePageCreator")
+  knowledgePagesUpdated KnowledgePage[]       @relation("KnowledgePageUpdater")
+  knowledgePageVersions KnowledgePageVersion[]
+  knowledgePageComments KnowledgePageComment[]
+  knowledgePageAttachmentsUploaded KnowledgePageAttachment[]
+  knowledgePagePermissions KnowledgePagePermission[]
+  // MOxE TEAMS relations (JobTeam member/inviter)
+  jobTeamMemberships   JobTeam[]            @relation("JobTeamMember")
+  jobTeamInvitesSent   JobTeam[]            @relation("JobTeamInviter")
+  codeReposOwned       CodeRepository[]       @relation("CodeRepoOwner")
+  codeRepoCollaborators CodeRepoCollaborator[]
+  codeCommitsAuthored  CodeCommit[]           @relation("CodeCommitAuthor")
+  codePullRequestsAuthored CodePullRequest[]  @relation("CodePRAuthor")
+  codePRReviewers      CodePRReviewer[]
+  codePRComments       CodePRComment[]
+  statusPagesOwned     StatusPage[]    @relation("StatusPageOwner")
+  statusIncidentsAuthored StatusIncident[] @relation("StatusIncidentAuthor")
+  statusIncidentUpdatesAuthored StatusIncidentUpdate[] @relation("StatusIncidentUpdateAuthor")
+  hideStoryFrom        HideStoryFrom[]  @relation("hide_story_owner")
+  hideStoryFromViewer  HideStoryFrom[]  @relation("hide_story_from")
+  StoryView            StoryView[]
+  StoryReply           StoryReply[]
+  ArchivedStory        ArchivedStory[]
+  Highlight            Highlight[]
+  LiveViewer           LiveViewer[]
+  LiveComment          LiveComment[]
+  LiveBadge            LiveBadge[]
+  LiveGift             LiveGift[]
+  MessageRecipient     MessageRecipient[]
+  pollVotes                 PollVote[]
+  pinnedChats          PinnedChat[]        @relation("pinned_chats_owner")
+  pinnedChatsAsOther   PinnedChat[]        @relation("pinned_chats_other")
+  conversationMutesOwner ConversationMute[] @relation("conversation_mutes_owner")
+  conversationMutesPeer  ConversationMute[] @relation("conversation_mutes_peer")
+  conversationLabelsOwner ConversationLabel[] @relation("conversation_labels_owner")
+  conversationLabelsPeer  ConversationLabel[] @relation("conversation_labels_peer")
+  messageTemplates        MessageTemplate[]
+  autoResponseRules       AutoResponseRule[]
+  creatorConnectionsOwner CreatorConnection[]  @relation("creator_connections_owner")
+  creatorConnectionsPeer  CreatorConnection[]  @relation("creator_connections_peer")
+  brandCampaignApplications BrandCampaignApplication[]
+  reelBonuses            ReelBonus[]
+  Group                Group[]
+  HangoutSession       HangoutSession[]
+  Challenge            Challenge[]
+  ChallengeParticipant ChallengeParticipant[]
+  Product              Product[]
+  Payment              Payment[]
+  Draft                Draft[]
+  AnalyticsEvent       AnalyticsEvent[]
+  promotions           Promotion[]
+  businessMemberships  BusinessMember[]    @relation("business_owner")
+  businessMemberOf     BusinessMember[]     @relation("member_account")
+  businessQuickReplies BusinessQuickReply[]
+  businessTeamActivities BusinessTeamActivity[] @relation("business_team_owner")
+  productCollections   ProductCollection[]
+  productWishlists     ProductWishlist[]
+  carts                Cart[]
+  verificationRequests VerificationRequest[]
+
+  // Premium: messaging blocked users
+  premiumMessageGrantsSent     PremiumMessageGrant[]     @relation("premium_grants_sent")
+  premiumMessageGrantsReceived PremiumMessageGrant[]     @relation("premium_grants_received")
+  premiumBlockedMessagesSent   PremiumBlockedMessage[]    @relation("premium_blocked_sent")
+  premiumBlockedMessagesReceived PremiumBlockedMessage[]  @relation("premium_blocked_received")
+  lifestyleStrikes             LifestyleStrike[]
+  profileViewsAsOwner          ProfileView[]             @relation("profile_owner")
+  profileViewsAsViewer         ProfileView[]             @relation("profile_viewer")
+  anonymousSpacesCreated       AnonymousSpace[]
+  anonymousPosts               AnonymousPost[]
+  anonymousVotes               AnonymousVote[]
+  anonymousComments            AnonymousComment[]
+  proximityAlertsAsOwner       ProximityAlert[]          @relation("proximity_alerts_owner")
+  proximityAlertsAsTarget      ProximityAlert[]          @relation("proximity_alerts_target")
+  atlasObjectives              AtlasObjective[]
+  atlasProgressUpdates         AtlasProgressUpdate[]
+  translationSessionsAsCaller TranslationSession[]      @relation("translation_caller")
+  translationSessionsAsCallee TranslationSession[]     @relation("translation_callee")
+  translationUsage             TranslationUsage[]
+  nearbyPostCharges            NearbyPostCharge[]
+  alertSchedules               AlertSchedule[]
+  alertScheduleParticipants    AlertScheduleParticipant[]
+  alertDeliveries              AlertDelivery[]
+  flowCardReminders            FlowCardReminder[]
+  buildPipelines               BuildPipeline[]
+  services                     Service[]
+  serviceOwnerships            ServiceOwner[]
+  strategyPlans                JobStrategyPlan[]
+  jobIntegrations              JobIntegration[]
+  jobTeams                     JobTeam[]
+
+  @@unique([userId, username])
+  @@index([username])
+  @@index([accountType])
+}
+
+model Link {
+  id           String   @id @default(cuid())
+  accountId    String
+  url          String
+  title        String
+  displayText  String?
+  linkCategory String?  // Website, Shop, Menu, Book, Catering, etc.
+  order        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@unique([accountId, order])
+}
+
+// ==================== FOLLOWS & RELATIONSHIPS ====================
+
+model Follow {
+  id                   String   @id @default(cuid())
+  followerId           String
+  followingId          String
+  isCloseFriend        Boolean  @default(false)
+  isFavorite           Boolean  @default(false)
+  notificationsEnabled Boolean  @default(true)
+  createdAt            DateTime @default(now())
+
+  follower  Account @relation("follower", fields: [followerId], references: [id])
+  following Account @relation("following", fields: [followingId], references: [id])
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+// When a user follows a private account, a request is created until the account owner approves/declines.
+model FollowRequest {
+  id          String   @id @default(cuid())
+  requesterId String   // who wants to follow
+  accountId   String   // the private account that receives the request
+  createdAt   DateTime @default(now())
+
+  requester Account @relation("follow_requests_sent", fields: [requesterId], references: [id], onDelete: Cascade)
+  account   Account @relation("follow_requests_received", fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, accountId])
+  @@index([accountId])
+}
+
+model CloseFriend {
+  id        String   @id @default(cuid())
+  accountId String
+  friendId  String
+  createdAt DateTime @default(now())
+
+  account Account @relation("account_close_friends", fields: [accountId], references: [id])
+  friend  Account @relation("friend_close_friends", fields: [friendId], references: [id])
+
+  @@unique([accountId, friendId])
+}
+
+model Block {
+  id                   String    @id @default(cuid())
+  blockerId            String
+  blockedId            String
+  blockFutureAccounts  Boolean   @default(false)
+  expiresAt            DateTime? // null = permanent; set for temporary block (e.g. 7 days)
+  createdAt            DateTime  @default(now())
+
+  blocker Account @relation("blocker", fields: [blockerId], references: [id])
+  blocked Account @relation("blocked", fields: [blockedId], references: [id])
+
+  @@unique([blockerId, blockedId])
+}
+
+// ==================== PREMIUM: MESSAGING BLOCKED USERS ====================
+// Premium (Star/Thick) users can send limited messages to users who blocked them.
+// 2 grants per 28-day period; 14-day messaging window per grant; 150 chars (optional paid extension).
+
+model PremiumMessageGrant {
+  id                   String   @id @default(cuid())
+  senderAccountId      String
+  recipientAccountId   String
+  grantedAt            DateTime @default(now())
+  expiresAt            DateTime // 28 days from grant (period end)
+  remainingDays        Int      @default(14) // days left in 14-day messaging window
+  status               String   @default("active") // active, used, expired
+
+  senderAccount   Account @relation("premium_grants_sent", fields: [senderAccountId], references: [id])
+  recipientAccount Account @relation("premium_grants_received", fields: [recipientAccountId], references: [id])
+  messages        PremiumBlockedMessage[]
+
+  @@unique([senderAccountId, recipientAccountId])
+  @@index([senderAccountId])
+  @@index([recipientAccountId])
+  @@index([expiresAt])
+}
+
+model PremiumBlockedMessage {
+  id                String   @id @default(cuid())
+  grantId           String
+  senderId          String
+  recipientId       String
+  content           String   @db.VarChar(500) // 150 base + optional paid 150
+  characterCount   Int
+  paidExtension     Boolean  @default(false)
+  sentAt            DateTime @default(now())
+  dailyMessageCount Int     @default(1) // per-day limit within grant
+
+  grant    PremiumMessageGrant           @relation(fields: [grantId], references: [id])
+  sender   Account                       @relation("premium_blocked_sent", fields: [senderId], references: [id])
+  recipient Account                      @relation("premium_blocked_received", fields: [recipientId], references: [id])
+  actions  PremiumMessageRecipientAction[]
+
+  @@index([grantId])
+  @@index([recipientId])
+  @@index([sentAt])
+}
+
+model PremiumMessageRecipientAction {
+  id            String   @id @default(cuid())
+  messageId     String
+  action        String   // viewed, reblocked, reported, unblocked
+  actionedAt    DateTime @default(now())
+  reportReason  String?  @db.VarChar(50)
+  reportDetails String?  @db.Text
+
+  message PremiumBlockedMessage @relation(fields: [messageId], references: [id])
+
+  @@index([messageId])
+}
+
+model LifestyleStrike {
+  id                    String    @id @default(cuid())
+  accountId             String
+  strikeType            String    // PREMIUM_MESSAGE_ABUSE
+  grantedAt             DateTime  @default(now())
+  expiresAt             DateTime? // null = permanent until next tier change
+  reason                String?   @db.Text
+  associatedMessageId   String?
+
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
+  @@index([strikeType])
+}
+
+model Mute {
+  id          String   @id @default(cuid())
+  muterId     String
+  mutedId     String
+  mutePosts   Boolean  @default(true)
+  muteStories Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  muter Account @relation("muter", fields: [muterId], references: [id])
+  muted Account @relation("muted", fields: [mutedId], references: [id])
+
+  @@unique([muterId, mutedId])
+}
+
+model Restrict {
+  id           String   @id @default(cuid())
+  restrictorId String
+  restrictedId String
+  createdAt    DateTime @default(now())
+
+  restrictor Account @relation("restrictor", fields: [restrictorId], references: [id])
+  restricted Account @relation("restricted", fields: [restrictedId], references: [id])
+
+  @@unique([restrictorId, restrictedId])
+}
+
+model LimitInteractionSetting {
+  id           String    @id @default(cuid())
+  accountId    String    @unique
+  commentsFrom String    @default("everyone")
+  dmsFrom      String    @default("everyone")
+  duration     String    @default("24h")
+  expiresAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}
+
+// ==================== CONTENT ====================
+
+model Post {
+  id                   String       @id @default(cuid())
+  accountId            String
+  contentType          ContentType  @default(POST)
+  media                Json // Array of media objects
+  caption              String?      @db.VarChar(2200)
+  altText              String?      @db.VarChar(500) // Accessibility; guide 2.1.7
+  location             String?
+  privacy              PrivacyLevel @default(PUBLIC)
+  allowComments        Boolean      @default(true)
+  hideLikeCount        Boolean      @default(false)
+  screenshotProtection Boolean      @default(false)
+  isArchived           Boolean      @default(false)
+  isDeleted            Boolean      @default(false)
+  deletedAt            DateTime?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  // For carousel
+  isCarousel    Boolean @default(false)
+  carouselItems Json? // Order and metadata
+
+  // For scheduled posts (professional accounts)
+  isScheduled  Boolean   @default(false)
+  scheduledFor DateTime?
+  isMature     Boolean   @default(false) // Hide from minors in feed
+
+  // Creator: subscriber-only content (Guide 9.1.2)
+  isSubscriberOnly   Boolean @default(false)
+  subscriberTierKeys Json?   // optional tier keys that can view; null = any subscriber
+
+  // Collab post (Guide 12.1)
+  coAuthorId String?
+
+  // Branded content (Guide 9.5)
+  brandedContentBrandId String?
+  brandedContentDisclosure Boolean @default(false)
+
+  // Relations
+  account      Account       @relation(fields: [accountId], references: [id])
+  coAuthor     Account?      @relation("PostCoAuthor", fields: [coAuthorId], references: [id], onDelete: SetNull)
+  tags         Tag[]
+  mentions     Mention[]
+  postHashtags PostHashtag[]
+  likes        Like[]
+  comments     Comment[]
+  views        View[]
+  shares       Share[]
+  saves        SavedPost[]
+  reports      Report[]
+  ProductTag   ProductTag[]
+  adCampaigns  AdCampaign[]
+
+  @@index([accountId])
+  @@index([createdAt])
+  @@index([privacy])
+}
+
+model Story {
+  id                 String       @id @default(cuid())
+  accountId          String
+  media              String // URL to media
+  type               String // "photo", "video", "text", "boomerang"
+  duration           Int          @default(24) // hours until expiration
+  expiresAt          DateTime
+  privacy            PrivacyLevel @default(PUBLIC)
+  isCloseFriendsOnly Boolean      @default(false)
+  allowReplies       Boolean      @default(true)
+  allowReshares      Boolean      @default(true)
+  music              Json? // Music sticker data
+  stickers           Json // Array of stickers
+  textOverlay        Json? // Text elements
+  drawings           Json? // Drawing data
+  viewedCount            Int          @default(0)
+  replyCount             Int          @default(0)
+  screenshotProtection   Boolean      @default(false)
+  isMature               Boolean      @default(false) // Hide from minors in feed
+  isSubscriberOnly       Boolean      @default(false) // Creator 9.1.2
+  subscriberTierKeys     Json?
+  isScheduled            Boolean      @default(false) // Guide 11.4.2
+  scheduledFor           DateTime?
+  createdAt              DateTime     @default(now())
+
+  // Relations
+  account    Account         @relation(fields: [accountId], references: [id])
+  viewers    StoryView[]
+  replies    StoryReply[]
+  likes      StoryLike[]
+  pollVotes       StoryPollVote[]
+  reminders       StoryReminder[]
+  storyQuestions  StoryQuestion[]
+  emojiRatings    StoryEmojiRating[]
+  addYoursParentId String?
+  addYoursParent   Story?   @relation("AddYoursResponses", fields: [addYoursParentId], references: [id], onDelete: SetNull)
+  addYoursResponses Story[] @relation("AddYoursResponses")
+  highlights HighlightItem[]
+  View       View[]
+  Share      Share[]
+  Tag        Tag[]
+  Mention    Mention[]
+  ProductTag ProductTag[]
+  reports    Report[]
+
+  @@index([accountId])
+  @@index([expiresAt])
+  @@index([addYoursParentId])
+}
+
+model StoryReminder {
+  id        String   @id @default(cuid())
+  accountId String  // viewer who asked to be reminded
+  storyId   String
+  notifyAt  DateTime
+  eventName String? // from countdown sticker
+  createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  story   Story   @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, accountId])
+  @@index([storyId])
+  @@index([accountId])
+  @@index([notifyAt])
+}
+
+model HideStoryFrom {
+  id            String   @id @default(cuid())
+  accountId     String   // story owner (my account)
+  hiddenFromId  String   // account that won't see my stories
+  createdAt     DateTime @default(now())
+
+  account    Account @relation("hide_story_owner", fields: [accountId], references: [id], onDelete: Cascade)
+  hiddenFrom Account @relation("hide_story_from", fields: [hiddenFromId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, hiddenFromId])
+  @@index([accountId])
+}
+
+model StoryView {
+  id       String   @id @default(cuid())
+  storyId  String
+  viewerId String
+  viewedAt DateTime @default(now())
+
+  story  Story   @relation(fields: [storyId], references: [id])
+  viewer Account @relation(fields: [viewerId], references: [id])
+
+  @@unique([storyId, viewerId])
+}
+
+model StoryReply {
+  id        String   @id @default(cuid())
+  storyId   String
+  replierId String
+  message   String
+  createdAt DateTime @default(now())
+
+  story   Story   @relation(fields: [storyId], references: [id])
+  replier Account @relation(fields: [replierId], references: [id])
+}
+
+model StoryLike {
+  id        String   @id @default(cuid())
+  storyId   String
+  accountId String
+  createdAt DateTime @default(now())
+
+  story   Story   @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, accountId])
+  @@index([storyId])
+  @@index([accountId])
+}
+
+model StoryPollVote {
+  id           String   @id @default(cuid())
+  storyId      String
+  accountId    String
+  stickerIndex Int      // index in story.stickers array
+  optionIndex  Int
+  createdAt    DateTime @default(now())
+
+  story   Story   @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, accountId, stickerIndex])
+  @@index([storyId])
+}
+
+model StoryQuestion {
+  id          String    @id @default(cuid())
+  storyId     String
+  accountId   String    // viewer who asked
+  question    String
+  createdAt   DateTime  @default(now())
+  answerStoryId String?  // when creator posts answer as story
+
+  story   Story   @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([storyId])
+  @@index([accountId])
+}
+
+model StoryEmojiRating {
+  id           String   @id @default(cuid())
+  storyId      String
+  accountId    String
+  stickerIndex Int
+  value        Int      // 1-10
+  createdAt    DateTime @default(now())
+
+  story   Story   @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, accountId, stickerIndex])
+  @@index([storyId])
+}
+
+model ProfileView {
+  id              String   @id @default(cuid())
+  profileOwnerId  String
+  viewerId        String
+  viewedAt        DateTime @default(now())
+  isAnonymous     Boolean  @default(false)
+
+  profileOwner Account @relation("profile_owner", fields: [profileOwnerId], references: [id], onDelete: Cascade)
+  viewer       Account @relation("profile_viewer", fields: [viewerId], references: [id], onDelete: Cascade)
+
+  @@index([profileOwnerId])
+  @@index([viewerId])
+  @@index([viewedAt])
+}
+
+model Highlight {
+  id         String   @id @default(cuid())
+  accountId  String
+  name       String
+  coverImage String
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  account Account         @relation(fields: [accountId], references: [id])
+  items   HighlightItem[]
+}
+
+model ArchivedStory {
+  id         String   @id @default(cuid())
+  accountId  String
+  media      String
+  type       String
+  storyId    String?  // original story id before archive
+  archivedAt DateTime @default(now())
+  metadata   Json?    // stickers, textOverlay, etc.
+
+  account        Account         @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  highlightItems HighlightItem[]
+
+  @@index([accountId])
+  @@index([archivedAt])
+}
+
+model HighlightItem {
+  id                String   @id @default(cuid())
+  highlightId       String
+  storyId           String?
+  archivedStoryId   String?
+  order             Int      @default(0)
+  addedAt           DateTime @default(now())
+
+  highlight     Highlight     @relation(fields: [highlightId], references: [id], onDelete: Cascade)
+  story         Story?        @relation(fields: [storyId], references: [id], onDelete: SetNull)
+  archivedStory ArchivedStory? @relation(fields: [archivedStoryId], references: [id], onDelete: SetNull)
+}
+
+model Reel {
+  id            String       @id @default(cuid())
+  accountId     String
+  video         String
+  thumbnail     String
+  caption       String?      @db.VarChar(2200)
+  audio         Json? // Audio metadata
+  duration      Int // in seconds
+  music         String? // Song ID
+  musicStart    Int? // Start position
+  speed         Float?       @default(1.0)
+  effects       Json // Applied effects
+  captions      Json? // Auto-generated captions
+  privacy       PrivacyLevel @default(PUBLIC)
+  allowComments Boolean      @default(true)
+  hideLikeCount Boolean      @default(false)
+  isScheduled   Boolean      @default(false)
+  scheduledFor  DateTime?
+  isSubscriberOnly Boolean   @default(false) // Creator 9.1.2
+  subscriberTierKeys Json?
+  views         Int          @default(0)
+  likes         Int          @default(0)
+  comments      Int          @default(0)
+  shares        Int          @default(0)
+  saves         Int          @default(0)
+  createdAt     DateTime     @default(now())
+
+  account      Account       @relation(fields: [accountId], references: [id])
+  reelsLike    ReelLike[]
+  reelsComment ReelComment[]
+  reelsView    ReelView[]
+  Like         Like[]
+  Comment      Comment[]
+  View         View[]
+  Share        Share[]
+  Tag          Tag[]
+  Mention      Mention[]
+  ProductTag   ProductTag[]
+
+  @@index([accountId])
+  @@index([createdAt])
+}
+
+model ReelLike {
+  id        String   @id @default(cuid())
+  accountId String
+  reelId    String
+  createdAt DateTime @default(now())
+  account   Account  @relation(fields: [accountId], references: [id])
+  reel      Reel     @relation(fields: [reelId], references: [id])
+
+  @@unique([accountId, reelId])
+  @@index([reelId])
+}
+
+model ReelComment {
+  id        String   @id @default(cuid())
+  accountId String
+  reelId    String
+  content   String   @db.VarChar(500)
+  createdAt DateTime @default(now())
+  account   Account  @relation(fields: [accountId], references: [id])
+  reel      Reel     @relation(fields: [reelId], references: [id])
+
+  @@index([reelId])
+}
+
+model ReelView {
+  id        String   @id @default(cuid())
+  accountId String
+  reelId    String
+  viewedAt  DateTime @default(now())
+  account   Account  @relation(fields: [accountId], references: [id])
+  reel      Reel     @relation(fields: [reelId], references: [id])
+
+  @@unique([accountId, reelId])
+  @@index([reelId])
+}
+
+model Live {
+  id               String       @id @default(cuid())
+  accountId        String
+  title            String
+  description      String?
+  scheduledFor     DateTime?
+  startedAt        DateTime?
+  endedAt          DateTime?
+  status           String       @default("SCHEDULED") // SCHEDULED, LIVE, ENDED
+  privacy          PrivacyLevel @default(PUBLIC)
+  isSubscriberOnly Boolean      @default(false)
+  maxViewers       Int?
+  currentViewers   Int          @default(0)
+  totalViewers     Int          @default(0)
+  badgesEnabled    Boolean      @default(true)
+  giftsEnabled     Boolean      @default(true)
+  recording        String? // URL to recording
+
+  account      Account       @relation(fields: [accountId], references: [id])
+  liveViewers  LiveViewer[]
+  liveComments LiveComment[]
+  liveBadges   LiveBadge[]
+  liveGifts    LiveGift[]
+  liveProducts LiveProduct[]
+  View         View[]
+
+  @@index([accountId])
+  @@index([status])
+}
+
+model LiveProduct {
+  id                  String   @id @default(cuid())
+  liveId              String
+  productId           String
+  sortOrder           Int      @default(0)
+  isPinned            Boolean  @default(false)
+  liveDiscountPercent Float?   // e.g. 15 = 15% off during live
+  createdAt           DateTime @default(now())
+
+  live    Live    @relation(fields: [liveId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([liveId, productId])
+  @@index([liveId])
+}
+
+model LiveViewer {
+  id       String    @id @default(cuid())
+  liveId   String
+  viewerId String
+  joinedAt DateTime  @default(now())
+  leftAt   DateTime?
+
+  live   Live    @relation(fields: [liveId], references: [id])
+  viewer Account @relation(fields: [viewerId], references: [id])
+}
+
+model LiveComment {
+  id          String   @id @default(cuid())
+  liveId      String
+  commenterId String
+  message     String
+  createdAt   DateTime @default(now())
+
+  live      Live    @relation(fields: [liveId], references: [id])
+  commenter Account @relation(fields: [commenterId], references: [id])
+}
+
+model LiveBadge {
+  id         String   @id @default(cuid())
+  liveId     String
+  buyerId    String
+  tier       String // "BRONZE", "SILVER", "GOLD"
+  amount     Float
+  purchaseId String
+  createdAt  DateTime @default(now())
+
+  live  Live    @relation(fields: [liveId], references: [id])
+  buyer Account @relation(fields: [buyerId], references: [id])
+}
+
+model LiveGift {
+  id         String   @id @default(cuid())
+  liveId     String
+  giverId    String
+  giftType   String // "HEART", "STAR", "CROWN", "TROPHY"
+  amount     Float
+  message    String?
+  purchaseId String
+  createdAt  DateTime @default(now())
+
+  live  Live    @relation(fields: [liveId], references: [id])
+  giver Account @relation(fields: [giverId], references: [id])
+}
+
+// ==================== ENGAGEMENT ====================
+
+model Like {
+  id        String   @id @default(cuid())
+  accountId String
+  postId    String?
+  commentId String?
+  reelId    String?
+  createdAt DateTime @default(now())
+
+  account Account  @relation(fields: [accountId], references: [id])
+  post    Post?    @relation(fields: [postId], references: [id])
+  comment Comment? @relation(fields: [commentId], references: [id])
+  reel    Reel?    @relation(fields: [reelId], references: [id])
+
+  @@unique([accountId, postId])
+  @@unique([accountId, commentId])
+  @@unique([accountId, reelId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  accountId String
+  postId    String?
+  reelId    String?
+  parentId  String? // For replies
+  content   String   @db.VarChar(500)
+  isPinned  Boolean  @default(false)
+  isHidden  Boolean  @default(false)
+  likes     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  account       Account   @relation(fields: [accountId], references: [id])
+  post          Post?     @relation(fields: [postId], references: [id])
+  reel          Reel?     @relation(fields: [reelId], references: [id])
+  parent        Comment?  @relation("comment_replies", fields: [parentId], references: [id])
+  replies       Comment[] @relation("comment_replies")
+  likesRelation Like[]
+  Mention       Mention[]
+  Report        Report[]
+
+  @@index([postId])
+  @@index([reelId])
+  @@index([createdAt])
+}
+
+model View {
+  id        String   @id @default(cuid())
+  accountId String
+  postId    String?
+  storyId   String?
+  reelId    String?
+  liveId    String?
+  viewedAt  DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id])
+  post    Post?   @relation(fields: [postId], references: [id])
+  story   Story?  @relation(fields: [storyId], references: [id])
+  reel    Reel?   @relation(fields: [reelId], references: [id])
+  live    Live?   @relation(fields: [liveId], references: [id])
+
+  @@unique([accountId, postId])
+  @@unique([accountId, storyId])
+  @@unique([accountId, reelId])
+  @@unique([accountId, liveId])
+}
+
+model Share {
+  id          String   @id @default(cuid())
+  accountId   String
+  postId      String?
+  reelId      String?
+  storyId     String?
+  sharedTo    String // "DM", "STORY", "FEED", "EXTERNAL"
+  recipientId String? // For DMs
+  createdAt   DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id])
+  post    Post?   @relation(fields: [postId], references: [id])
+  reel    Reel?   @relation(fields: [reelId], references: [id])
+  story   Story?  @relation(fields: [storyId], references: [id])
+}
+
+model Tag {
+  id        String   @id @default(cuid())
+  accountId String
+  postId    String?
+  storyId   String?
+  reelId    String?
+  x         Float? // Position on media
+  y         Float?
+  createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id])
+  post    Post?   @relation(fields: [postId], references: [id])
+  story   Story?  @relation(fields: [storyId], references: [id])
+  reel    Reel?   @relation(fields: [reelId], references: [id])
+
+  @@unique([accountId, postId])
+  @@unique([accountId, storyId])
+  @@unique([accountId, reelId])
+}
+
+model Mention {
+  id        String   @id @default(cuid())
+  accountId String
+  postId    String?
+  commentId String?
+  storyId   String?
+  reelId    String?
+  createdAt DateTime @default(now())
+
+  account Account  @relation(fields: [accountId], references: [id])
+  post    Post?    @relation(fields: [postId], references: [id])
+  comment Comment? @relation(fields: [commentId], references: [id])
+  story   Story?   @relation(fields: [storyId], references: [id])
+  reel    Reel?    @relation(fields: [reelId], references: [id])
+}
+
+model Reaction {
+  id        String   @id @default(cuid())
+  accountId String
+  messageId String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id])
+  message Message @relation(fields: [messageId], references: [id])
+
+  @@unique([accountId, messageId])
+}
+
+// ==================== SAVED & COLLECTIONS ====================
+
+model SavedPost {
+  id           String   @id @default(cuid())
+  accountId    String
+  postId       String
+  collectionId String?
+  savedAt      DateTime @default(now())
+
+  account    Account     @relation(fields: [accountId], references: [id])
+  post       Post        @relation(fields: [postId], references: [id])
+  collection Collection? @relation(fields: [collectionId], references: [id])
+
+  @@unique([accountId, postId])
+}
+
+model Collection {
+  id         String   @id @default(cuid())
+  accountId  String
+  name       String
+  coverImage String?
+  order      Int      @default(0)
+  shareToken String?  @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  account    Account     @relation(fields: [accountId], references: [id])
+  savedPosts SavedPost[]
+
+  @@unique([accountId, name])
+}
+
+// ==================== MESSAGING ====================
+
+model Message {
+  id          String    @id @default(cuid())
+  senderId    String
+  content     String
+  media       Json? // Attachments
+  messageType String    @default("TEXT") // TEXT, VOICE, IMAGE, VIDEO, GIF, STICKER, POLL
+  isVanish    Boolean   @default(false)
+  vanishAt    DateTime?
+  readAt      DateTime?
+  deliveredAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  // For group messages
+  groupId        String?
+  isGroupMessage Boolean @default(false)
+
+  // For replies
+  replyToId String?
+
+  sender     Account            @relation(fields: [senderId], references: [id])
+  group      Group?             @relation(fields: [groupId], references: [id])
+  replyTo    Message?           @relation("message_replies", fields: [messageId], references: [id])
+  replies    Message[]          @relation("message_replies")
+  recipients MessageRecipient[]
+  reactions  Reaction[]
+  messageId  String?
+  pollVotes  PollVote[]
+  mediaExpirations MediaExpiration[]
+}
+
+model MessageRecipient {
+  id          String    @id @default(cuid())
+  messageId   String
+  recipientId String
+  isRead      Boolean   @default(false)
+  readAt      DateTime?
+  isDelivered Boolean   @default(false)
+  deliveredAt DateTime?
+  isHidden    Boolean   @default(false)
+  mutedUntil  DateTime? // Mute conversation; guide 5.2.2
+
+  message   Message @relation(fields: [messageId], references: [id])
+  recipient Account @relation(fields: [recipientId], references: [id])
+
+  @@unique([messageId, recipientId])
+}
+
+// Group polls in DMs (1.1): one vote per recipient per poll; options in Message.media { options: string[] }
+model PollVote {
+  id          String   @id @default(cuid())
+  messageId   String
+  accountId   String
+  optionIndex Int      // 0-based index into options array
+  createdAt   DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, accountId])
+  @@index([messageId])
+}
+
+model PinnedChat {
+  id         String   @id @default(cuid())
+  accountId  String
+  otherId    String
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  account Account @relation("pinned_chats_owner", fields: [accountId], references: [id], onDelete: Cascade)
+  other   Account @relation("pinned_chats_other", fields: [otherId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, otherId])
+  @@index([accountId])
+}
+
+model ConversationMute {
+  id         String    @id @default(cuid())
+  accountId  String
+  peerId     String
+  mutedUntil DateTime
+  createdAt  DateTime  @default(now())
+
+  account Account @relation("conversation_mutes_owner", fields: [accountId], references: [id], onDelete: Cascade)
+  peer    Account @relation("conversation_mutes_peer", fields: [peerId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, peerId])
+  @@index([accountId])
+}
+
+// Business inbox labels (2.46): categorize DMs (e.g. support, sales)
+model ConversationLabel {
+  id        String   @id @default(cuid())
+  accountId String
+  peerId    String
+  label     String   @db.VarChar(50) // e.g. "support", "sales", "general"
+  createdAt DateTime @default(now())
+
+  account Account @relation("conversation_labels_owner", fields: [accountId], references: [id], onDelete: Cascade)
+  peer    Account @relation("conversation_labels_peer", fields: [peerId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, peerId, label])
+  @@index([accountId])
+  @@index([accountId, label])
+}
+
+// Creator 13.2: Quick reply templates (/rates, /thanks, etc.)
+model MessageTemplate {
+  id        String   @id @default(cuid())
+  accountId String
+  shortcut  String   @db.VarChar(32)  // e.g. "rates", "thanks"
+  body      String   @db.VarChar(2000)
+  category  String?  @db.VarChar(50) // optional grouping
+  createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  @@unique([accountId, shortcut])
+  @@index([accountId])
+}
+
+// Creator 13.3: Auto-response rules (keyword, first message, after hours, vacation)
+model AutoResponseRule {
+  id        String   @id @default(cuid())
+  accountId String
+  type      String   @db.VarChar(32) // KEYWORD, FIRST_MESSAGE, AFTER_HOURS, VACATION
+  trigger   String?  @db.VarChar(200) // keyword or null for first/after-hours/vacation
+  message   String   @db.VarChar(2000)
+  isActive  Boolean  @default(true)
+  priority  Int      @default(0) // order of evaluation
+  createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  @@index([accountId])
+}
+
+// Creator 12.2: Creator network connection (follow-like for creators)
+model CreatorConnection {
+  id          String   @id @default(cuid())
+  creatorId   String   // account that owns the network entry
+  peerId      String   // connected creator
+  status      String   @default("PENDING") // PENDING, ACCEPTED
+  createdAt   DateTime @default(now())
+
+  creator Account @relation("creator_connections_owner", fields: [creatorId], references: [id], onDelete: Cascade)
+  peer    Account @relation("creator_connections_peer", fields: [peerId], references: [id], onDelete: Cascade)
+  @@unique([creatorId, peerId])
+  @@index([creatorId])
+}
+
+// Creator 12.3: Brand marketplace campaign
+model BrandCampaign {
+  id          String    @id @default(cuid())
+  brandId     String    // account id of brand (or external ref)
+  title       String
+  description String?
+  niche       String?   // category filter
+  compensationMin Float?
+  compensationMax Float?
+  status      String    @default("OPEN") // OPEN, CLOSED
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  applications BrandCampaignApplication[]
+  @@index([status])
+  @@index([niche])
+}
+
+model BrandCampaignApplication {
+  id         String   @id @default(cuid())
+  campaignId String
+  creatorId  String
+  status     String   @default("PENDING") // PENDING, ACCEPTED, REJECTED
+  message    String?
+  createdAt  DateTime @default(now())
+
+  campaign BrandCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  creator  Account      @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  @@unique([campaignId, creatorId])
+  @@index([creatorId])
+}
+
+// Creator 9.4: Invite-only Reel bonus program
+model ReelBonus {
+  id           String   @id @default(cuid())
+  creatorId     String
+  month        String   // "2025-01"
+  targetViews  Int
+  actualViews  Int      @default(0)
+  bonusAmount  Float    @default(0)
+  status       String   @default("PENDING") // PENDING, PAID
+  createdAt    DateTime @default(now())
+
+  creator Account @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  @@unique([creatorId, month])
+  @@index([creatorId])
+}
+
+// Creator 11.1: Trending audio for Reels (usage count)
+model TrendingAudio {
+  id          String   @id @default(cuid())
+  externalId  String   @unique // e.g. song id from provider
+  title       String
+  artist      String?
+  usageCount  Int      @default(0)
+  genre       String?
+  updatedAt   DateTime @updatedAt
+  @@index([usageCount])
+  @@index([genre])
+}
+
+model Group {
+  id        String   @id @default(cuid())
+  name      String
+  photo     String?
+  createdBy String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  creator  Account       @relation(fields: [createdBy], references: [id])
+  members  GroupMember[]
+  admins   GroupAdmin[]
+  messages Message[]
+}
+
+model GroupMember {
+  id        String   @id @default(cuid())
+  groupId   String
+  accountId String
+  joinedAt  DateTime @default(now())
+
+  group   Group   @relation(fields: [groupId], references: [id])
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@unique([groupId, accountId])
+}
+
+model GroupAdmin {
+  id        String   @id @default(cuid())
+  groupId   String
+  accountId String
+  addedAt   DateTime @default(now())
+
+  group   Group   @relation(fields: [groupId], references: [id])
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@unique([groupId, accountId])
+}
+
+// ==================== NOTIFICATIONS ====================
+
+model Notification {
+  id          String    @id @default(cuid())
+  recipientId String
+  senderId    String?
+  type        String // LIKE, COMMENT, MESSAGE, FOLLOW, TAG, MENTION, etc.
+  content     String?
+  read        Boolean   @default(false)
+  readAt      DateTime?
+  data        Json? // Additional data
+  createdAt   DateTime  @default(now())
+
+  recipient Account  @relation("recipient", fields: [recipientId], references: [id])
+  sender    Account? @relation("sender", fields: [senderId], references: [id])
+
+  @@index([recipientId])
+  @@index([createdAt])
+}
+
+// ==================== DISCOVERY & EXPLORATION ====================
+
+model Hashtag {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  postCount Int      @default(0)
+  createdAt DateTime @default(now())
+
+  posts PostHashtag[]
+}
+
+model PostHashtag {
+  id        String @id @default(cuid())
+  postId    String
+  hashtagId String
+
+  post    Post    @relation(fields: [postId], references: [id])
+  hashtag Hashtag @relation(fields: [hashtagId], references: [id])
+
+  @@unique([postId, hashtagId])
+}
+
+// ==================== SAFETY & SECURITY ====================
+
+model Report {
+  id                      String    @id @default(cuid())
+  reporterId              String
+  reportedAccountId       String?
+  reportedPostId          String?
+  reportedCommentId       String?
+  reportedStoryId         String?
+  reportedAnonymousPostId String?
+  reportedReviewId        String?
+  reason                  String
+  description             String?
+  status                  String    @default("PENDING") // PENDING, REVIEWED, RESOLVED, DISMISSED
+  resolvedAt              DateTime?
+  createdAt               DateTime  @default(now())
+
+  reporter               Account        @relation("reporter", fields: [reporterId], references: [id])
+  reportedAccount        Account?       @relation("reported_account", fields: [reportedAccountId], references: [id])
+  reportedPost           Post?          @relation(fields: [reportedPostId], references: [id])
+  reportedComment        Comment?       @relation(fields: [reportedCommentId], references: [id])
+  reportedStory          Story?         @relation(fields: [reportedStoryId], references: [id], onDelete: SetNull)
+  reportedAnonymousPost  AnonymousPost? @relation("reported_anonymous_post", fields: [reportedAnonymousPostId], references: [id])
+  reportedReview         Review?        @relation(fields: [reportedReviewId], references: [id], onDelete: SetNull)
+}
+
+model AnonymousSpace {
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.VarChar(500)
+  isPublic    Boolean  @default(true)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy Account        @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  posts     AnonymousPost[]
+
+  @@index([createdById])
+  @@index([isPublic])
+}
+
+model AnonymousPost {
+  id        String   @id @default(cuid())
+  spaceId   String
+  accountId String   // author, for moderation only; not shown in API
+  content   String   @db.Text
+  mediaUrl  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  space    AnonymousSpace   @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  author   Account          @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  votes    AnonymousVote[]
+  comments AnonymousComment[]
+  reports  Report[]         @relation("reported_anonymous_post")
+
+  @@index([spaceId])
+  @@index([accountId])
+  @@index([createdAt])
+}
+
+model AnonymousComment {
+  id        String   @id @default(cuid())
+  postId    String
+  accountId String   // for moderation only; not shown in API
+  content   String   @db.VarChar(1000)
+  parentId  String?  // optional reply-to
+  createdAt DateTime @default(now())
+
+  post   AnonymousPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([accountId])
+}
+
+model AnonymousVote {
+  id        String   @id @default(cuid())
+  postId    String
+  accountId String
+  direction Int      // 1 or -1
+  createdAt DateTime @default(now())
+
+  post    AnonymousPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  account Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, accountId])
+  @@index([postId])
+}
+
+model SafeZone {
+  id        String   @id @default(cuid())
+  accountId String
+  name      String
+  latitude  Float
+  longitude Float
+  radius    Int // in meters
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id])
+}
+
+model EmergencyContact {
+  id                  String   @id @default(cuid())
+  accountId           String
+  contactId           String
+  relationship        String
+  isPrimary           Boolean  @default(false)
+  notificationMethods String[] // SMS, PUSH, CALL
+  createdAt           DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id])
+  contact Account @relation("emergency_contact", fields: [contactId], references: [id])
+
+  @@unique([accountId, contactId])
+}
+
+model HangoutSession {
+  id              String    @id @default(cuid())
+  accountId       String
+  startedAt       DateTime
+  endsAt          DateTime
+  checkInInterval Int // minutes
+  lastCheckIn     DateTime?
+  status          String    @default("ACTIVE") // ACTIVE, COMPLETED, ALERTED
+  createdAt       DateTime  @default(now())
+
+  account Account @relation(fields: [accountId], references: [id])
+}
+
+// ==================== REAL-TIME TRANSLATION (4.3.1) ====================
+// Paid tier (STAR/THICK) only. Tracks sessions and usage for billing.
+
+model TranslationSession {
+  id               String    @id @default(cuid())
+  callerId         String    // account who started translation
+  calleeId         String    // other participant
+  sourceLang       String    // e.g. "en-US"
+  targetLang       String    // e.g. "es-ES"
+  synthesizeSpeech Boolean   @default(false)
+  status           String    @default("active") // active, ended
+  startedAt        DateTime  @default(now())
+  endedAt          DateTime?
+
+  caller Account @relation("translation_caller", fields: [callerId], references: [id])
+  callee Account @relation("translation_callee", fields: [calleeId], references: [id])
+
+  @@index([callerId])
+  @@index([calleeId])
+  @@index([status])
+}
+
+model TranslationUsage {
+  id           String   @id @default(cuid())
+  accountId    String   // account that used translation (caller)
+  sessionId    String
+  durationSecs Int      // seconds of audio processed
+  createdAt    DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
+  @@index([createdAt])
+}
+
+// ==================== LOCATION & MAP ====================
+
+model LocationHistory {
+  id        String   @id @default(cuid())
+  accountId String
+  latitude  Float
+  longitude Float
+  accuracy  Float?
+  timestamp DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
+  @@index([timestamp])
+}
+
+// 4.1.1 Nearby messaging over-limit: $0.50 per post after 1 free/day (paid tier)
+model NearbyPostCharge {
+  id        String   @id @default(cuid())
+  accountId String
+  amountCents Int   @default(50)  // $0.50
+  createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([createdAt])
+}
+
+model LocationShare {
+  id           String   @id @default(cuid())
+  accountId    String
+  sharedWithId String
+  latitude     Float
+  longitude    Float
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  account    Account @relation("sharer", fields: [accountId], references: [id])
+  sharedWith Account @relation("sharee", fields: [sharedWithId], references: [id])
+}
+
+model ProximityAlert {
+  id               String    @id @default(cuid())
+  accountId        String    // who receives the alert
+  targetAccountId  String    // who we monitor
+  radiusMeters     Int       @default(500)
+  cooldownMinutes  Int       @default(30)
+  lastTriggeredAt  DateTime?
+  isActive         Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  account       Account @relation("proximity_alerts_owner", fields: [accountId], references: [id], onDelete: Cascade)
+  targetAccount Account @relation("proximity_alerts_target", fields: [targetAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, targetAccountId])
+  @@index([accountId])
+  @@index([targetAccountId])
+}
+
+// ==================== GAMIFICATION & STREAKS ====================
+
+model Streak {
+  id           String    @id @default(cuid())
+  accountId    String
+  type         String // "GYM", "MEDITATION", "READING", "STUDY", etc.
+  currentCount Int       @default(0)
+  longestCount Int       @default(0)
+  lastCheckIn  DateTime?
+  updatedAt    DateTime  @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@unique([accountId, type])
+}
+
+model Badge {
+  id          String   @id @default(cuid())
+  accountId   String
+  type        String
+  name        String
+  description String?
+  imageUrl    String
+  awardedAt   DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id])
+}
+
+model Achievement {
+  id          String    @id @default(cuid())
+  accountId   String
+  type        String
+  name        String
+  description String?
+  progress    Int       @default(0)
+  target      Int
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+
+  account Account @relation(fields: [accountId], references: [id])
+}
+
+model Challenge {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  type        String
+  startDate   DateTime
+  endDate     DateTime
+  createdBy   String?
+  isPublic    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  creator      Account?               @relation(fields: [createdBy], references: [id])
+  participants ChallengeParticipant[]
+}
+
+model ChallengeParticipant {
+  id          String   @id @default(cuid())
+  challengeId String
+  accountId   String
+  progress    Int      @default(0)
+  joinedAt    DateTime @default(now())
+
+  challenge Challenge @relation(fields: [challengeId], references: [id])
+  account   Account   @relation(fields: [accountId], references: [id])
+
+  @@unique([challengeId, accountId])
+}
+
+model MoodHistory {
+  id        String   @id @default(cuid())
+  accountId String
+  mood      String
+  note      String?
+  timestamp DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id])
+}
+
+// ==================== SHOPPING & COMMERCE ====================
+
+model Product {
+  id             String   @id @default(cuid())
+  accountId      String
+  name           String
+  description    String?
+  price          Float
+  compareAtPrice Float?
+  images         String[]
+  inventory      Int?
+  sku            String?
+  isDigital      Boolean  @default(false)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  account       Account        @relation(fields: [accountId], references: [id])
+  variants      ProductVariant[]
+  tags          ProductTag[]
+  orders        OrderItem[]
+  liveProducts  LiveProduct[]
+  collectionItems ProductCollectionItem[]
+  wishlistedBy  ProductWishlist[]
+  cartItems     CartItem[]
+}
+
+model ProductVariant {
+  id        String @id @default(cuid())
+  productId String
+  name      String // "Size", "Color", etc.
+  value     String // "Large", "Red", etc.
+  price     Float?
+  inventory Int?
+
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model ProductTag {
+  id        String  @id @default(cuid())
+  productId String
+  postId    String?
+  storyId   String?
+  reelId    String?
+  x         Float?
+  y         Float?
+
+  product Product @relation(fields: [productId], references: [id])
+  post    Post?   @relation(fields: [postId], references: [id])
+  story   Story?  @relation(fields: [storyId], references: [id])
+  reel    Reel?   @relation(fields: [reelId], references: [id])
+}
+
+// Product tag click tracking (Guide 3.5.1)
+model ProductTagClick {
+  id        String   @id @default(cuid())
+  productId String
+  postId    String?
+  storyId   String?
+  reelId    String?
+  viewerId  String
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+  @@index([viewerId])
+  @@index([createdAt])
+}
+
+model Order {
+  id              String    @id @default(cuid())
+  buyerId         String?   // null for guest checkout
+  sellerId        String
+  total           Float
+  status          String    @default("PENDING") // PENDING, PAID, SHIPPED, DELIVERED, CANCELLED
+  liveId          String?   // set when order placed during Live Shopping
+  paymentMethod   String?
+  paymentId       String?
+  shippingAddress Json?
+  trackingNumber  String?
+  notes           String?
+  guestEmail      String?   // for guest checkout
+  guestName       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  // Returns (seller pays return shipping per guide)
+  returnStatus    String?   // PENDING, APPROVED, SHIPPED, RECEIVED, REFUNDED
+  returnRequestedAt DateTime?
+  returnLabelUrl  String?   // prepaid return label (seller-provided)
+  returnTrackingNumber String?
+  returnReceivedAt DateTime?
+  refundedAt      DateTime?
+  couponCode      String?   // discount code applied at checkout (Guide 3.5.4)
+  discountAmount  Float?   // amount discounted (so total = subtotal - discountAmount)
+
+  buyer   Account?    @relation("buyer", fields: [buyerId], references: [id])
+  seller  Account     @relation("seller", fields: [sellerId], references: [id])
+  items   OrderItem[]
+  reviews Review[]
+}
+
+model OrderItem {
+  id              String  @id @default(cuid())
+  orderId         String
+  productId       String
+  variantId       String?
+  quantity        Int
+  priceAtPurchase Float
+
+  order   Order   @relation(fields: [orderId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+}
+
+// Seller-created discount codes for checkout (Guide 3.5.4 applyCoupon)
+model SellerCoupon {
+  id          String    @id @default(cuid())
+  sellerId    String
+  code        String    @db.VarChar(50)
+  type        String    // PERCENT | FIXED
+  value       Float     // e.g. 10 for 10%, or 50 for ₹50 off
+  minOrder    Float?    // minimum order amount to apply
+  expiresAt   DateTime?
+  usageLimit  Int?     // max redemptions; null = unlimited
+  usedCount   Int      @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  seller Account @relation("seller_coupons", fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@unique([sellerId, code])
+  @@index([sellerId])
+  @@index([expiresAt])
+}
+
+// ==================== CUSTOMER REVIEWS (Guide 3.2.2) ====================
+
+model Review {
+  id         String    @id @default(cuid())
+  sellerId   String
+  orderId    String
+  reviewerId String
+  rating     Int       // 1-5
+  text       String?   @db.VarChar(2000)
+  media      String[]  // optional photo/video URLs
+  replyText  String?   @db.VarChar(1000)
+  repliedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  seller   Account  @relation("reviews_as_seller", fields: [sellerId], references: [id], onDelete: Cascade)
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  reviewer Account  @relation("reviews_as_reviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
+  reports  Report[]
+
+  @@unique([orderId, reviewerId])
+  @@index([sellerId])
+  @@index([reviewerId])
+}
+
+// ==================== SELLER SETTLEMENTS (Guide 3.8) ====================
+
+model Payout {
+  id            String    @id @default(cuid())
+  sellerId      String
+  periodStart   DateTime
+  periodEnd     DateTime
+  totalSales    Float
+  commissionPct Float     @default(10)
+  commissionAmt Float
+  feesAmt       Float     @default(0)
+  returnDeductions Float  @default(0)
+  netAmount     Float
+  status        String    @default("PENDING") // PENDING, PROCESSING, PAID, FAILED
+  paidAt        DateTime?
+  referenceId   String?   // bank/gateway reference
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  seller Account @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([sellerId])
+  @@index([periodEnd])
+}
+
+// ==================== SUBSCRIPTIONS & PAYMENTS ====================
+
+model Subscription {
+  id                   String    @id @default(cuid())
+  subscriberId         String
+  creatorId            String
+  tier                 String // "MONTHLY_1", "MONTHLY_5", etc.
+  price                Float
+  status               String    @default("ACTIVE") // ACTIVE, CANCELLED, EXPIRED
+  startDate            DateTime
+  endDate              DateTime?
+  cancelAt             DateTime?
+  paymentMethod        String?
+  stripeSubscriptionId String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  subscriber Account @relation("subscriber", fields: [subscriberId], references: [id])
+  creator    Account @relation("creator", fields: [creatorId], references: [id])
+}
+
+model Payment {
+  id              String   @id @default(cuid())
+  accountId       String
+  amount          Float
+  type            String // "SUBSCRIPTION", "BADGE", "GIFT", "PRODUCT"
+  referenceId     String? // subscriptionId, orderId, etc.
+  status          String   @default("PENDING")
+  stripePaymentId String?
+  createdAt       DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id])
+}
+
+// ==================== DRAFTS & SCHEDULING ====================
+
+model Draft {
+  id        String   @id @default(cuid())
+  accountId String
+  type      String // "POST", "STORY", "REEL"
+  content   Json
+  media     Json?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id])
+}
+
+// ==================== SESSIONS & SECURITY ====================
+
+model Session {
+  id         String   @id @default(cuid())
+  userId     String
+  token      String   @unique
+  deviceId   String?
+  deviceName String?
+  deviceType String?
+  ipAddress  String?
+  location   String?
+  expiresAt  DateTime
+  isActive   Boolean  @default(true)
+  lastActive DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Device {
+  id         String   @id @default(cuid())
+  userId     String
+  deviceId   String   @unique
+  deviceName String?
+  deviceType String?
+  pushToken  String?
+  isTrusted  Boolean  @default(false)
+  lastUsed   DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model SecurityLog {
+  id         String   @id @default(cuid())
+  userId     String
+  action     String // "LOGIN", "LOGOUT", "PASSWORD_CHANGE", "2FA_ENABLE", etc.
+  ipAddress  String?
+  deviceInfo String?
+  location   String?
+  status     String // "SUCCESS", "FAILURE"
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+// ==================== BUSINESS ACCOUNT (Sections 3–10) ====================
+
+model Promotion {
+  id          String    @id @default(cuid())
+  accountId   String
+  name        String
+  objective   String    // REACH, ENGAGEMENT, TRAFFIC, CONVERSIONS
+  postId      String?
+  reelId      String?
+  budgetCents Int
+  budgetType  String    @default("DAILY") // DAILY, TOTAL
+  status      String    @default("DRAFT")  // DRAFT, ACTIVE, PAUSED, ENDED
+  startAt     DateTime?
+  endAt       DateTime?
+  targeting   Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id])
+  events   PromotionEvent[]
+
+  @@index([accountId])
+  @@index([status])
+}
+
+model PromotionEvent {
+  id          String   @id @default(cuid())
+  promotionId String
+  eventType   String   // IMPRESSION, CLICK
+  viewerId    String?
+  createdAt   DateTime @default(now())
+
+  promotion Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+
+  @@index([promotionId])
+  @@index([createdAt])
+}
+
+model BusinessMember {
+  id                  String   @id @default(cuid())
+  businessAccountId   String
+  memberAccountId     String
+  role                String   @default("MEMBER") // OWNER, ADMIN, MEMBER, VIEWER
+  joinedAt            DateTime @default(now())
+  invitedBy           String?
+
+  businessAccount Account @relation("business_owner", fields: [businessAccountId], references: [id], onDelete: Cascade)
+  memberAccount   Account @relation("member_account", fields: [memberAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([businessAccountId, memberAccountId])
+  @@index([businessAccountId])
+}
+
+model BusinessQuickReply {
+  id        String   @id @default(cuid())
+  accountId String
+  shortcut  String   @db.VarChar(50)
+  message   String   @db.VarChar(500)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+}
+
+// Shop collections (Guide 3.5.2) – seller groups products
+model ProductCollection {
+  id        String   @id @default(cuid())
+  accountId String
+  name      String   @db.VarChar(100)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  account  Account                  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  items    ProductCollectionItem[]
+
+  @@index([accountId])
+}
+
+model ProductCollectionItem {
+  id           String   @id @default(cuid())
+  collectionId String
+  productId    String
+  order        Int      @default(0)
+
+  collection ProductCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  product    Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, productId])
+  @@index([collectionId])
+  @@index([productId])
+}
+
+// Buyer wishlist (Guide 3.11)
+model ProductWishlist {
+  id        String   @id @default(cuid())
+  accountId String
+  productId String
+  createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, productId])
+  @@index([accountId])
+  @@index([productId])
+}
+
+// Multi-seller cart (2.42): one cart per account; items from multiple sellers
+model Cart {
+  id        String   @id @default(cuid())
+  accountId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  account Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  items   CartItem[]
+
+  @@unique([accountId])
+  @@index([accountId])
+}
+
+model CartItem {
+  id         String   @id @default(cuid())
+  cartId     String
+  productId  String
+  quantity   Int     @default(1)
+  priceAtAdd Float   // snapshot at add time
+
+  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, productId])
+  @@index([cartId])
+  @@index([productId])
+}
+
+// Team activity log (Guide 3.8.3)
+model BusinessTeamActivity {
+  id                  String   @id @default(cuid())
+  businessAccountId   String
+  actorId             String
+  action              String   // INVITE, REMOVE, ROLE_CHANGE
+  targetType          String   // member, etc.
+  targetId            String?
+  metadata            Json?
+  createdAt           DateTime @default(now())
+
+  businessAccount Account @relation("business_team_owner", fields: [businessAccountId], references: [id], onDelete: Cascade)
+
+  @@index([businessAccountId])
+  @@index([createdAt])
+}
+
+model VerificationRequest {
+  id          String    @id @default(cuid())
+  accountId   String
+  documentUrl String?
+  notes       String?   @db.Text
+  status      String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  reviewedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([status])
+}
+
+// ==================== ANALYTICS & INSIGHTS ====================
+
+model AnalyticsEvent {
+  id          String   @id @default(cuid())
+  accountId   String
+  eventType   String
+  contentType String?
+  contentId   String?
+  metadata    Json?
+  timestamp   DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
+  @@index([eventType])
+  @@index([timestamp])
+}
+
+model ScreenshotLog {
+  id          String   @id @default(cuid())
+  contentId   String
+  contentType String   // POST, STORY
+  viewerId    String
+  ownerId    String
+  createdAt   DateTime @default(now())
+
+  @@index([ownerId])
+  @@index([contentId])
+}
+
+model SupportTicket {
+  id          String   @id @default(cuid())
+  accountId   String
+  subject     String   @db.VarChar(200)
+  message     String   @db.Text
+  category    String?  @default("general") // general, seller, billing, etc.
+  isPriority  Boolean  @default(false) // Star tier
+  status      String   @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED, CLOSED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  replies     SupportTicketReply[]
+
+  @@index([accountId])
+  @@index([status])
+  @@index([category])
+  @@index([isPriority])
+}
+
+model SupportTicketReply {
+  id        String   @id @default(cuid())
+  ticketId  String
+  accountId String?  // null if staff reply
+  message   String   @db.Text
+  isStaff   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+}
+
+// ==================== MOxE JOB – TRACK (Jira-like) ====================
+
+model JobPosting {
+  id               String    @id @default(cuid())
+  title            String
+  slug             String?   // URL-friendly slug for job posting (derived from title)
+  companyName      String
+  companyId        String?   // Optional link to Company (Know)
+  department       String?   // Requisition department
+  location         String?
+  locationType     String?   // REMOTE, ONSITE, HYBRID
+  description      String?   @db.Text
+  descriptionFormat String?  // plain, markdown, html
+  requirements     String?   @db.Text
+  requirementsStructured Json?  // { education: [{text,type}], experience: [], skills: [], certifications: [], languages: [], softSkills: [] }
+  salaryMin        Float?
+  salaryMax        Float?
+  salaryCurrency   String?   @default("USD")
+  salaryVisibility String?   // SHOW, RANGE, HIDDEN
+  bonusPercent     Float?    // Bonus target % of base
+  equityEligible   Boolean?   @default(false)
+  postedById       String    // Recruiter/hiring manager account
+  hiringManagerId  String?   // Hiring manager (Account)
+  recruiterId      String?   // Recruiter owner (Account)
+  pipelineId       String?
+  status           String    @default("DRAFT") // DRAFT, OPEN, CLOSED
+  publishedAt      DateTime?
+  publishedDestinations Json?  // e.g. ["LinkedIn", "Indeed"] – where job was published (stub for external boards)
+  expiresAt        DateTime?
+  applicationCount Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  postedBy        Account                @relation(fields: [postedById], references: [id])
+  hiringManager   Account?               @relation("JobPostingHiringManager", fields: [hiringManagerId], references: [id])
+  recruiter       Account?               @relation("JobPostingRecruiter", fields: [recruiterId], references: [id])
+  company         Company?               @relation(fields: [companyId], references: [id])
+  pipeline        Pipeline?              @relation(fields: [pipelineId], references: [id])
+  applications    JobApplication[]
+  recruitmentCandidates RecruitmentCandidate[]
+  offers         Offer[]
+
+  @@index([postedById])
+  @@index([hiringManagerId])
+  @@index([recruiterId])
+  @@index([companyId])
+  @@index([status])
+  @@index([slug])
+  @@unique([slug])
+}
+
+model Pipeline {
+  id          String   @id @default(cuid())
+  accountId   String // Recruiter/agency owner
+  name        String
+  description String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  account     Account         @relation(fields: [accountId], references: [id])
+  stages      PipelineStage[]
+  jobPostings JobPosting[]
+
+  @@index([accountId])
+}
+
+model PipelineStage {
+  id         String   @id @default(cuid())
+  pipelineId String
+  name       String // e.g. Applied, Screen, Interview, Offer
+  order      Int      @default(0)
+  color      String?
+  createdAt  DateTime @default(now())
+
+  pipeline             Pipeline             @relation(fields: [pipelineId], references: [id])
+  applications         JobApplication[]
+  recruitmentCandidates RecruitmentCandidate[]
+
+  @@unique([pipelineId, order])
+  @@index([pipelineId])
+}
+
+model JobApplication {
+  id               String    @id @default(cuid())
+  accountId        String    // Applicant (job seeker)
+  jobPostingId     String
+  pipelineStageId  String?
+  coverLetter      String?   @db.Text
+  resumeUrl        String?
+  status           String    @default("APPLIED") // APPLIED, SCREENING, INTERVIEW, OFFER, REJECTED, WITHDRAWN
+  source           String?   // Application source (e.g. LinkedIn, Referral)
+  rating           Int?      // 1-5 recruiter rating
+  ratingComment    String?   @db.Text // Optional justification for rating
+  decision         String?   // ADVANCE, REJECT, OFFER, HOLD
+  decisionReason   String?   @db.Text
+  decidedAt        DateTime?
+  decidedById      String?
+  appliedAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  notes            String?   @db.Text // Recruiter notes
+
+  account       Account        @relation(fields: [accountId], references: [id])
+  jobPosting    JobPosting     @relation(fields: [jobPostingId], references: [id])
+  pipelineStage PipelineStage? @relation(fields: [pipelineStageId], references: [id])
+  decidedBy     Account?       @relation("JobApplicationDecidedBy", fields: [decidedById], references: [id])
+  flowCards     FlowCard[]
+  interviews    Interview[]
+  offers        Offer[]
+
+  @@unique([accountId, jobPostingId])
+  @@index([accountId])
+  @@index([jobPostingId])
+  @@index([status])
+}
+
+model RecruitmentCandidate {
+  id               String   @id @default(cuid())
+  jobPostingId     String
+  email            String
+  firstName        String
+  lastName         String
+  phone            String?
+  currentCompany   String?
+  currentTitle     String?
+  resumeUrl        String?
+  linkedInUrl      String?
+  portfolioUrl     String?
+  coverLetter      String?  @db.Text
+  source           String?
+  pipelineStageId  String?
+  status           String   @default("ADDED") // ADDED, SCREENING, INTERVIEW, OFFER, REJECTED
+  rating           Int?    // 1-5
+  ratingComment    String?  @db.Text // Optional justification for rating
+  notes            String?  @db.Text
+  addedById        String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  jobPosting   JobPosting     @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  pipelineStage PipelineStage? @relation(fields: [pipelineStageId], references: [id])
+  addedBy      Account        @relation(fields: [addedById], references: [id])
+  interviews   Interview[]
+  offers       Offer[]
+
+  @@unique([jobPostingId, email])
+  @@index([jobPostingId])
+  @@index([addedById])
+}
+
+model Interview {
+  id                    String   @id @default(cuid())
+  jobApplicationId      String?  // Site applicant
+  recruitmentCandidateId String? // Recruiter-added candidate
+  type                  String   // PHONE, VIDEO, IN_PERSON
+  round                 Int      @default(1)
+  scheduledAt           DateTime
+  durationMinutes       Int?
+  locationOrLink        String?  @db.Text // Location or video link
+  feedbackFormType      String?  // TECHNICAL, BEHAVIORAL, HIRING_MANAGER, PANEL, EXECUTIVE
+  reminderHoursBefore   Json?    // e.g. [24, 1] for 24h and 1h before interview
+  status                String   @default("SCHEDULED") // SCHEDULED, COMPLETED, CANCELLED
+  createdById           String
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  jobApplication       JobApplication?      @relation(fields: [jobApplicationId], references: [id], onDelete: Cascade)
+  recruitmentCandidate RecruitmentCandidate? @relation(fields: [recruitmentCandidateId], references: [id], onDelete: Cascade)
+  createdBy            Account             @relation(fields: [createdById], references: [id])
+  feedbacks            InterviewFeedback[]
+  interviewers         InterviewInterviewer[]
+
+  @@index([jobApplicationId])
+  @@index([recruitmentCandidateId])
+  @@index([createdById])
+}
+
+model InterviewInterviewer {
+  id          String   @id @default(cuid())
+  interviewId String
+  accountId   String
+  createdAt   DateTime @default(now())
+
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  account   Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([interviewId, accountId])
+  @@index([interviewId])
+  @@index([accountId])
+}
+
+model InterviewFeedback {
+  id             String   @id @default(cuid())
+  interviewId    String
+  accountId      String   // Interviewer who submitted
+  rating         Int?     // 1-5
+  recommendation String?  // HIRE, NO_HIRE, STRONG_YES, YES, NO
+  comment        String?  @db.Text
+  submittedAt    DateTime @default(now())
+
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  account   Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([interviewId, accountId])
+  @@index([interviewId])
+  @@index([accountId])
+}
+
+// ==================== MOxE TRACK Recruiter – Offer ====================
+
+model Offer {
+  id                    String    @id @default(cuid())
+  jobApplicationId      String?   // Site applicant
+  recruitmentCandidateId String?  // Recruiter-added candidate
+  jobPostingId          String    // For quick access
+  title                 String?   // e.g. "Offer – Software Engineer"
+  body                  String    @db.Text // Offer letter content
+  compensationSummary   String?   @db.Text // e.g. "Base $120k, bonus 10%, equity 0.1%"
+  proposedStartDate     DateTime? // Proposed start date
+  expiresAt             DateTime? // Offer expiry (candidate must respond by)
+  status                String    @default("DRAFT") // DRAFT, SENT, ACCEPTED, DECLINED
+  sentAt                DateTime?
+  respondedAt           DateTime?
+  createdById           String
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  jobApplication       JobApplication?      @relation(fields: [jobApplicationId], references: [id], onDelete: Cascade)
+  recruitmentCandidate RecruitmentCandidate? @relation(fields: [recruitmentCandidateId], references: [id], onDelete: Cascade)
+  jobPosting           JobPosting            @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  createdBy            Account              @relation(fields: [createdById], references: [id])
+
+  @@index([jobApplicationId])
+  @@index([recruitmentCandidateId])
+  @@index([jobPostingId])
+  @@index([createdById])
+  @@index([status])
+}
+
+// ==================== MOxE WORK – Business Project Planning ====================
+
+model WorkProject {
+  id          String    @id @default(cuid())
+  accountId   String    // Owner
+  name        String    // 3-100 chars
+  slug        String    @unique // URL-friendly
+  projectType String    @default("INTERNAL") // CAMPAIGN, EVENT, INITIATIVE, PRODUCT_LAUNCH, INTERNAL, PERSONAL
+  startDate   DateTime?
+  endDate     DateTime?
+  budgetAmount Float?
+  budgetCurrency String?  @default("USD")
+  budgetBreakdown Json?   // e.g. { "Creative": 150000, "Media": 250000 }
+  goals       Json?     // [{ objective, keyResults[], targetDate, ownerId? }]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  account  Account            @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  members  WorkProjectMember[]
+  taskLists WorkTaskList[]
+  @@index([accountId])
+  @@index([slug])
+}
+
+model WorkProjectMember {
+  id         String   @id @default(cuid())
+  projectId String
+  accountId  String
+  role       String   @default("MEMBER") // LEAD, MEMBER, CONTRIBUTOR, STAKEHOLDER, APPROVER
+  createdAt  DateTime @default(now())
+
+  project WorkProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  account Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  @@unique([projectId, accountId])
+  @@index([projectId])
+  @@index([accountId])
+}
+
+model WorkTaskList {
+  id         String   @id @default(cuid())
+  projectId String
+  name       String
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  project WorkProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   WorkTask[]
+  @@index([projectId])
+}
+
+model WorkTask {
+  id          String    @id @default(cuid())
+  taskListId  String
+  title       String    // max 200
+  description String?   @db.Text
+  assignedToId String?
+  dueDate     DateTime?
+  priority    String    @default("MEDIUM") // HIGH, MEDIUM, LOW
+  status      String    @default("TO_DO")  // TO_DO, IN_PROGRESS, DONE
+  progress    Int       @default(0)        // 0-100
+  completedAt DateTime?
+  order       Int       @default(0)
+  startDate   DateTime? // for Gantt
+  durationDays Int?     // for Gantt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  taskList     WorkTaskList           @relation(fields: [taskListId], references: [id], onDelete: Cascade)
+  assignedTo   Account?               @relation("WorkTaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  checklist    WorkTaskChecklistItem[]
+  comments     WorkTaskComment[]
+  attachments  WorkTaskAttachment[]
+  dependenciesOut WorkTaskDependency[] @relation("WorkTaskPredecessor")
+  dependenciesIn  WorkTaskDependency[] @relation("WorkTaskSuccessor")
+  @@index([taskListId])
+  @@index([assignedToId])
+  @@index([status])
+}
+
+model WorkTaskChecklistItem {
+  id        String   @id @default(cuid())
+  taskId    String
+  text      String   @db.Text
+  completed Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  task WorkTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  @@index([taskId])
+}
+
+model WorkTaskDependency {
+  id             String   @id @default(cuid())
+  predecessorId  String   // Task that must complete first
+  successorId    String   // Task that depends
+  dependencyType String   @default("FINISH_TO_START") // FINISH_TO_START, START_TO_START, FINISH_TO_FINISH, START_TO_FINISH
+  createdAt      DateTime @default(now())
+
+  predecessor WorkTask @relation("WorkTaskPredecessor", fields: [predecessorId], references: [id], onDelete: Cascade)
+  successor   WorkTask @relation("WorkTaskSuccessor", fields: [successorId], references: [id], onDelete: Cascade)
+  @@unique([predecessorId, successorId])
+  @@index([predecessorId])
+  @@index([successorId])
+}
+
+model WorkTaskComment {
+  id        String   @id @default(cuid())
+  taskId    String
+  accountId String
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  task    WorkTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  account Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  @@index([taskId])
+  @@index([accountId])
+}
+
+model WorkTaskAttachment {
+  id          String   @id @default(cuid())
+  taskId      String
+  accountId   String
+  fileUrl     String   @db.Text
+  fileName    String?
+  createdAt   DateTime @default(now())
+
+  task    WorkTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  account Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  @@index([taskId])
+  @@index([accountId])
+}
+
+// ==================== MOxE TRACK – Agile (Projects, Issues, Sprints, Boards) ====================
+
+model TrackProject {
+  id             String   @id @default(cuid())
+  accountId      String   // Owner (JOB account)
+  name           String
+  template       String   @default("KANBAN") // SCRUM, KANBAN, BUG_TRACKING, CUSTOM
+  leadAccountId  String?  // Project lead
+  description    String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  account        Account              @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  lead           Account?             @relation("TrackProjectLead", fields: [leadAccountId], references: [id])
+  members        TrackProjectMember[]
+  columns        TrackBoardColumn[]
+  issues         TrackIssue[]
+  sprints        TrackSprint[]
+  labels         TrackLabel[]
+  atlasObjectives AtlasObjective[]
+
+  @@index([accountId])
+  @@index([leadAccountId])
+}
+
+model TrackProjectMember {
+  id        String   @id @default(cuid())
+  projectId String
+  accountId String
+  role      String   @default("MEMBER") // ADMIN, MEMBER, VIEWER
+  createdAt DateTime @default(now())
+
+  project TrackProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  account Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, accountId])
+  @@index([projectId])
+  @@index([accountId])
+}
+
+model TrackBoardColumn {
+  id        String   @id @default(cuid())
+  projectId String
+  name      String   // e.g. To Do, In Progress, Review, Done
+  order     Int      @default(0)
+  wipLimit  Int?     // Max issues in column (optional)
+  createdAt DateTime @default(now())
+
+  project TrackProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  issues  TrackIssue[]
+
+  @@index([projectId])
+}
+
+model TrackIssue {
+  id           String    @id @default(cuid())
+  projectId    String
+  parentIssueId String?  // For sub-tasks / split issues
+  issueType    String    @default("TASK") // EPIC, STORY, TASK, BUG, SUBTASK
+  summary      String
+  description  String?   @db.Text
+  assigneeId   String?
+  priority     String    @default("MEDIUM") // HIGHEST, HIGH, MEDIUM, LOW, LOWEST
+  storyPoints  Int?      // Valid: 1,2,3,5,8,13,21
+  sprintId     String?
+  columnId     String    // Current status column
+  dueDate      DateTime?
+  rank         Int       @default(0) // Backlog order
+  archivedAt   DateTime? // When set, excluded from active board/backlog
+  createdById  String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  project      TrackProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parentIssue  TrackIssue?      @relation("IssueHierarchy", fields: [parentIssueId], references: [id], onDelete: SetNull)
+  childIssues  TrackIssue[]     @relation("IssueHierarchy")
+  assignee     Account?         @relation("TrackIssueAssignee", fields: [assigneeId], references: [id])
+  creator      Account          @relation("TrackIssueCreator", fields: [createdById], references: [id])
+  column       TrackBoardColumn @relation(fields: [columnId], references: [id])
+  sprint       TrackSprint?     @relation(fields: [sprintId], references: [id])
+  issueLabels  TrackIssueLabel[]
+  attachments  TrackAttachment[]
+  atlasLinks   AtlasKeyResultIssueLink[]
+
+  @@index([projectId])
+  @@index([assigneeId])
+  @@index([sprintId])
+  @@index([columnId])
+  @@index([parentIssueId])
+  @@index([archivedAt])
+}
+
+model TrackSprint {
+  id        String   @id @default(cuid())
+  projectId String
+  name      String
+  startDate DateTime?
+  endDate   DateTime?
+  goal      String?  @db.Text
+  status    String   @default("FUTURE") // FUTURE, ACTIVE, COMPLETED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project TrackProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  issues  TrackIssue[]
+
+  @@index([projectId])
+  @@index([status])
+}
+
+model TrackLabel {
+  id        String   @id @default(cuid())
+  projectId String
+  name      String
+  color     String?  @default("#6B7280")
+  createdAt DateTime @default(now())
+
+  project      TrackProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  issueLabels  TrackIssueLabel[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+model TrackIssueLabel {
+  id      String @id @default(cuid())
+  issueId String
+  labelId String
+
+  issue TrackIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  label TrackLabel @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@unique([issueId, labelId])
+  @@index([issueId])
+  @@index([labelId])
+}
+
+model TrackAttachment {
+  id          String   @id @default(cuid())
+  issueId     String
+  url         String   @db.Text
+  fileName    String
+  fileSize    Int      @default(0)
+  uploadedById String
+  createdAt   DateTime @default(now())
+
+  issue     TrackIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  uploadedBy Account   @relation(fields: [uploadedById], references: [id])
+
+  @@index([issueId])
+}
+
+// ==================== MOxE JOB – KNOW (Confluence-like) ====================
+
+model Company {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  logo         String?
+  website      String?
+  industry     String?
+  size         String? // e.g. 1-10, 11-50, 51-200
+  headquarters String?
+  description  String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  jobPostings     JobPosting[]
+  reviews         CompanyReview[]
+  salaryEntries   SalaryEntry[]
+  interviewPreps  InterviewPrep[]
+  careerResources CareerResource[]
+
+  @@index([slug])
+  @@index([name])
+}
+
+model CompanyReview {
+  id          String   @id @default(cuid())
+  accountId   String
+  companyId   String
+  rating      Int // 1-5
+  pros        String?  @db.Text
+  cons        String?  @db.Text
+  summary     String?  @db.VarChar(500)
+  isAnonymous Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id])
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([accountId, companyId])
+  @@index([companyId])
+}
+
+// ==================== MOxE JOB – ALERT (On-call Scheduling) ====================
+
+model AlertSchedule {
+  id             String   @id @default(cuid())
+  accountId      String   // Owner (JOB account)
+  name           String   @db.VarChar(100)
+  timezone       String   @db.VarChar(64)
+  rotationType   String   @db.VarChar(20) // WEEKLY, DAILY, CUSTOM
+  handoffDay     Int?     // 0–6 (Sun–Sat) for weekly rotations
+  handoffTime    String   @db.VarChar(5)  // "HH:MM" in schedule timezone
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  account        Account                    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  participants   AlertScheduleParticipant[]
+  rules          AlertRule[]
+
+  @@index([accountId])
+}
+
+model AlertScheduleParticipant {
+  id          String   @id @default(cuid())
+  scheduleId  String
+  accountId   String
+  position    Int      @default(0)   // order in rotation
+  isSecondary Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  schedule AlertSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  account  Account       @relation(fields: [accountId], references: [id])
+
+  @@index([scheduleId])
+  @@index([accountId])
+}
+
+model AlertRule {
+  id                  String   @id @default(cuid())
+  scheduleId          String
+  name                String   @db.VarChar(200)
+  condition           Json     // condition expression / payload filter
+  severity            String   @db.VarChar(20) // CRITICAL, WARNING, INFO
+  escalationConfig    Json?    // escalation steps
+  notificationMethods Json?    // { sms?, phone?, push?, email? }
+  quietHoursConfig    Json?    // quiet hours settings
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  schedule AlertSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  events   AlertEvent[]
+
+  @@index([scheduleId])
+}
+
+model AlertEvent {
+  id             String   @id @default(cuid())
+  ruleId         String
+  triggeredAt    DateTime @default(now())
+  payload        Json?
+  acknowledgedAt DateTime?
+  acknowledgedBy String?
+
+  rule AlertRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  deliveries AlertDelivery[]
+
+  @@index([ruleId])
+}
+
+model AlertDelivery {
+  id          String   @id @default(cuid())
+  eventId     String
+  recipientId String
+  channel     String   @db.VarChar(20) // IN_APP, SMS, CALL, EMAIL
+  status      String   @db.VarChar(20) @default("SENT")
+  sentAt      DateTime @default(now())
+
+  event     AlertEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  recipient Account    @relation(fields: [recipientId], references: [id])
+
+  @@index([eventId])
+  @@index([recipientId])
+}
+
+model SalaryEntry {
+  id              String   @id @default(cuid())
+  accountId       String
+  companyId       String
+  role            String
+  amount          Float
+  currency        String   @default("USD")
+  period          String   @default("YEAR") // YEAR, MONTH, HOUR
+  experienceLevel String? // ENTRY, MID, SENIOR
+  isAnonymous     Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id])
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId])
+  @@index([accountId])
+}
+
+model CareerResource {
+  id        String   @id @default(cuid())
+  companyId String?
+  accountId String? // If user-created
+  title     String
+  content   String   @db.Text
+  type      String   @default("ARTICLE") // ARTICLE, INTERVIEW_PREP, SALARY_GUIDE
+  isPublic  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company? @relation(fields: [companyId], references: [id])
+  account Account? @relation(fields: [accountId], references: [id])
+
+  @@index([companyId])
+  @@index([accountId])
+}
+
+model InterviewPrep {
+  id           String   @id @default(cuid())
+  accountId    String
+  companyId    String?
+  jobPostingId String?
+  title        String
+  content      String   @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  account Account  @relation(fields: [accountId], references: [id])
+  company Company? @relation(fields: [companyId], references: [id])
+
+  @@index([accountId])
+  @@index([companyId])
+}
+
+// ==================== MOxE KNOW – Knowledge Base (Spaces & Pages) ====================
+
+model KnowledgeSpace {
+  id          String   @id @default(cuid())
+  accountId   String   // Owner (Job account)
+  name        String   @db.VarChar(100)
+  slug        String   @db.VarChar(120)
+  description String?  @db.VarChar(500)
+  type        String   @default("TEAM") @db.VarChar(20) // TEAM, PROJECT, PERSONAL, COMPANY, CLIENT
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  account      Account                    @relation("KnowledgeSpaceOwner", fields: [accountId], references: [id], onDelete: Cascade)
+  permissions  KnowledgeSpacePermission[]
+  pages        KnowledgePage[]
+  labels       KnowledgeLabel[]
+
+  @@unique([accountId, slug])
+  @@index([accountId])
+}
+
+model KnowledgeSpacePermission {
+  id        String   @id @default(cuid())
+  spaceId   String
+  accountId String
+  role      String   @db.VarChar(20) // ADMIN, EDITOR, CONTRIBUTOR, VIEWER
+  createdAt DateTime @default(now())
+
+  space   KnowledgeSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  account Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([spaceId, accountId])
+  @@index([spaceId])
+  @@index([accountId])
+}
+
+model KnowledgeLabel {
+  id      String   @id @default(cuid())
+  spaceId String
+  name    String   @db.VarChar(50)
+  color   String   @default("#6B7280") @db.VarChar(20)
+  createdAt DateTime @default(now())
+
+  space       KnowledgeSpace      @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  pageLabels  KnowledgePageLabel[]
+
+  @@unique([spaceId, name])
+  @@index([spaceId])
+}
+
+model KnowledgePage {
+  id          String   @id @default(cuid())
+  spaceId     String
+  parentId    String?  // Hierarchy
+  title       String   @db.VarChar(200)
+  slug        String   @db.VarChar(250)
+  content     String   @db.Text
+  status      String   @default("DRAFT") @db.VarChar(20) // DRAFT, PUBLISHED
+  createdById String
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  viewCount   Int      @default(0)
+
+  space       KnowledgeSpace         @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  parent      KnowledgePage?         @relation("PageHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    KnowledgePage[]        @relation("PageHierarchy")
+  createdBy   Account                @relation("KnowledgePageCreator", fields: [createdById], references: [id])
+  updatedBy   Account?               @relation("KnowledgePageUpdater", fields: [updatedById], references: [id])
+  versions    KnowledgePageVersion[]
+  comments    KnowledgePageComment[]
+  pageLabels  KnowledgePageLabel[]
+  attachments KnowledgePageAttachment[]
+  pageRestrictions KnowledgePagePermission[]
+  serviceDocLinks ServiceDocLink[]
+
+  @@unique([spaceId, slug])
+  @@index([spaceId])
+  @@index([parentId])
+  @@index([createdById])
+}
+
+model KnowledgePagePermission {
+  id        String   @id @default(cuid())
+  pageId    String
+  accountId String
+  role      String   @db.VarChar(20) // VIEWER, CONTRIBUTOR, EDITOR; or NONE = no access (restrict)
+  createdAt DateTime @default(now())
+
+  page    KnowledgePage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  account Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([pageId, accountId])
+  @@index([pageId])
+  @@index([accountId])
+}
+
+model KnowledgePageVersion {
+  id           String   @id @default(cuid())
+  pageId       String
+  title        String   @db.VarChar(200)
+  content      String   @db.Text
+  versionNumber Int
+  createdById  String
+  createdAt    DateTime @default(now())
+
+  page      KnowledgePage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  createdBy Account      @relation(fields: [createdById], references: [id])
+
+  @@index([pageId])
+}
+
+model KnowledgePageLabel {
+  id      String @id @default(cuid())
+  pageId  String
+  labelId String
+  createdAt DateTime @default(now())
+
+  page  KnowledgePage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  label KnowledgeLabel @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@unique([pageId, labelId])
+  @@index([pageId])
+  @@index([labelId])
+}
+
+model KnowledgePageComment {
+  id        String   @id @default(cuid())
+  pageId    String
+  accountId String
+  parentId  String?  // Threaded replies
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  page    KnowledgePage         @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  account Account               @relation(fields: [accountId], references: [id])
+  parent  KnowledgePageComment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies KnowledgePageComment[] @relation("CommentReplies")
+
+  @@index([pageId])
+  @@index([accountId])
+  @@index([parentId])
+}
+
+model KnowledgePageAttachment {
+  id           String   @id @default(cuid())
+  pageId       String
+  fileUrl      String   @db.VarChar(1000)
+  fileName     String   @db.VarChar(255)
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  page      KnowledgePage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  uploadedBy Account      @relation(fields: [uploadedById], references: [id])
+
+  @@index([pageId])
+}
+
+// ==================== MOxE JOB – FLOW (Trello-like visual task management) ====================
+
+model FlowBoard {
+  id          String   @id @default(cuid())
+  accountId   String   // owner
+  name        String   @db.VarChar(100)
+  description String?  @db.VarChar(500)
+  boardType   String   @default("PERSONAL") @db.VarChar(20) // PERSONAL, TEAM, PROJECT
+  background  String?  @db.VarChar(120)    // color name, gradient key, or image URL
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  account Account           @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  columns FlowColumn[]
+  labels  FlowLabel[]
+  members FlowBoardMember[]
+  invites FlowBoardInvite[]
+
+  @@index([accountId])
+}
+
+model FlowBoardMember {
+  boardId   String
+  accountId String
+  role      String   @db.VarChar(20) // ADMIN, EDITOR, COMMENTER, VIEWER
+  createdAt DateTime @default(now())
+
+  board   FlowBoard @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  account Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@id([boardId, accountId])
+  @@index([boardId])
+  @@index([accountId])
+}
+
+model FlowBoardInvite {
+  id         String   @id @default(cuid())
+  boardId    String
+  email      String   @db.VarChar(255)
+  role       String   @db.VarChar(20) // ADMIN, EDITOR, COMMENTER, VIEWER
+  token      String   @unique @db.VarChar(64)
+  invitedById String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  board     FlowBoard @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  invitedBy Account   @relation("FlowBoardInviteInvitedBy", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@index([boardId])
+  @@index([email])
+  @@index([token])
+}
+
+model FlowColumn {
+  id        String   @id @default(cuid())
+  boardId   String
+  name      String   @db.VarChar(120)
+  order     Int      @default(0)
+  wipLimit  Int?     // optional WIP limit
+  color     String?  @db.VarChar(30)
+  createdAt DateTime @default(now())
+
+  board FlowBoard  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards FlowCard[]
+
+  @@index([boardId])
+}
+
+model FlowCard {
+  id               String    @id @default(cuid())
+  columnId         String
+  jobApplicationId String?   // Optional link to Track application
+  title            String    @db.VarChar(200)
+  companyName      String?   @db.VarChar(200)
+  jobPostingUrl    String?   @db.VarChar(500)
+  notes            String?   @db.Text
+  description      String?   @db.Text   // Rich text up to 5000 chars
+  dueDate          DateTime?
+  archivedAt       DateTime? // soft archive
+  order            Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  column         FlowColumn       @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  jobApplication JobApplication? @relation(fields: [jobApplicationId], references: [id])
+  labels         FlowCardLabel[]
+  assignees      FlowCardMember[]
+  checklists     FlowChecklist[]
+  comments       FlowComment[]
+  attachments    FlowAttachment[]
+  reminders      FlowCardReminder[]
+
+  @@index([columnId])
+  @@index([dueDate])
+  @@index([archivedAt])
+}
+
+model FlowLabel {
+  id      String   @id @default(cuid())
+  boardId String
+  name    String   @db.VarChar(20)
+  color   String   @db.VarChar(30) // red, orange, yellow, green, blue, purple, black
+  createdAt DateTime @default(now())
+
+  board FlowBoard       @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards FlowCardLabel[]
+
+  @@index([boardId])
+}
+
+model FlowCardLabel {
+  cardId  String
+  labelId String
+
+  card  FlowCard  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  label FlowLabel @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, labelId])
+  @@index([cardId])
+  @@index([labelId])
+}
+
+model FlowCardMember {
+  cardId    String
+  accountId String
+
+  card    FlowCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  account Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, accountId])
+  @@index([cardId])
+  @@index([accountId])
+}
+
+model FlowChecklist {
+  id     String   @id @default(cuid())
+  cardId String
+  name   String   @db.VarChar(120)
+  order  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  card   FlowCard           @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  items  FlowChecklistItem[]
+
+  @@index([cardId])
+}
+
+model FlowChecklistItem {
+  id          String    @id @default(cuid())
+  checklistId String
+  title       String    @db.VarChar(500)
+  done        Boolean   @default(false)
+  order       Int       @default(0)
+  dueDate     DateTime?
+  createdAt   DateTime  @default(now())
+
+  checklist FlowChecklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+
+  @@index([checklistId])
+}
+
+model FlowComment {
+  id        String   @id @default(cuid())
+  cardId    String
+  authorId  String
+  body      String   @db.Text
+  parentId  String?  // for threaded replies
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  card   FlowCard  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  author Account   @relation("FlowCommentAuthor", fields: [authorId], references: [id])
+
+  @@index([cardId])
+  @@index([authorId])
+}
+
+model FlowAttachment {
+  id        String   @id @default(cuid())
+  cardId    String
+  fileName  String   @db.VarChar(255)
+  fileUrl   String   @db.VarChar(1024) // or storage path
+  fileSize  Int      // bytes
+  mimeType  String?  @db.VarChar(100)
+  uploaderId String
+  createdAt DateTime @default(now())
+
+  card    FlowCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  uploader Account @relation(fields: [uploaderId], references: [id])
+
+  @@index([cardId])
+  @@index([uploaderId])
+}
+
+model FlowCardReminder {
+  id        String   @id @default(cuid())
+  accountId String
+  cardId    String
+  notifyAt  DateTime
+  createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  card    FlowCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([cardId])
+  @@index([notifyAt])
+}
+
+// ==================== MOxE JOB – CODE (Repository Management, Pull Requests, Code Review) ====================
+
+// ==================== MOxE ACCESS – Organizations & Directory ====================
+
+model Org {
+  id          String   @id @default(cuid())
+  name        String   @db.VarChar(200)
+  domain      String?  @db.VarChar(253)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       OrgUser[]
+  departments OrgDepartment[]
+  groups      OrgGroup[]
+  roles       OrgRole[]
+  invitations OrgInvitation[]
+  ssoConfigs  OrgSsoConfig[]
+  mfaPolicies OrgMfaPolicy[]
+
+  @@unique([name])
+}
+
+model OrgDepartment {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String   @db.VarChar(200)
+  parentId  String?
+  createdAt DateTime @default(now())
+
+  org    Org           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  parent OrgDepartment? @relation("OrgDepartmentHierarchy", fields: [parentId], references: [id])
+  children OrgDepartment[] @relation("OrgDepartmentHierarchy")
+  users  OrgUser[]
+
+  @@index([orgId])
+}
+
+model OrgRole {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String   @db.VarChar(100)
+  createdAt DateTime @default(now())
+
+  org   Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  users OrgUser[]
+
+  @@index([orgId])
+  @@unique([orgId, name])
+}
+
+model OrgGroup {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String   @db.VarChar(200)
+  createdAt DateTime @default(now())
+
+  org      Org          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  members  OrgUserGroup[]
+
+  @@index([orgId])
+  @@unique([orgId, name])
+}
+
+model OrgUser {
+  id           String   @id @default(cuid())
+  orgId        String
+  accountId    String
+  email        String   @db.VarChar(320)
+  firstName    String?  @db.VarChar(100)
+  lastName     String?  @db.VarChar(100)
+  displayName  String?  @db.VarChar(200)
+  departmentId String?
+  roleId       String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  org        Org           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  account    Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  department OrgDepartment? @relation(fields: [departmentId], references: [id])
+  role       OrgRole?      @relation(fields: [roleId], references: [id])
+  groups     OrgUserGroup[]
+  mfaEnrollments OrgMfaEnrollment[]
+
+  @@index([orgId])
+  @@index([accountId])
+  @@unique([orgId, email])
+}
+
+model OrgUserGroup {
+  orgUserId String
+  groupId   String
+
+  user  OrgUser  @relation(fields: [orgUserId], references: [id], onDelete: Cascade)
+  group OrgGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([orgUserId, groupId])
+  @@index([groupId])
+}
+
+model OrgInvitation {
+  id           String   @id @default(cuid())
+  orgId        String
+  email        String   @db.VarChar(320)
+  token        String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  acceptedAt   DateTime?
+  invitedById  String
+  invitedForId String? // target account id once created
+
+  org          Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  invitedBy    Account  @relation("OrgInvitationSender", fields: [invitedById], references: [id])
+  invitedFor   Account? @relation("OrgInvitationRecipient", fields: [invitedForId], references: [id])
+
+  @@index([orgId])
+  @@index([email])
+  @@index([expiresAt])
+}
+
+model OrgSsoConfig {
+  id               String   @id @default(cuid())
+  orgId            String
+  provider         String   @db.VarChar(50)  // e.g. OKTA, AZURE_AD, GOOGLE, SAML, OIDC
+  protocol         String   @db.VarChar(10)  // SAML, OIDC
+  metadataXml      String?  // raw SAML metadata if provided
+  entityId         String?  @db.VarChar(500)
+  ssoUrl           String?  @db.VarChar(500)
+  logoutUrl        String?  @db.VarChar(500)
+  certificate      String?  // PEM
+  domains          Json?    // string[]
+  enforcementLevel String   @db.VarChar(30) @default("optional") // optional, domain, all, group
+  isActive         Boolean  @default(false)
+  lastTestAt       DateTime?
+  lastTestStatus   String?  @db.VarChar(20)
+  lastTestError    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+model OrgMfaPolicy {
+  id               String   @id @default(cuid())
+  orgId            String
+  methods          Json     // enabled methods, e.g. { totp: true, sms: true }
+  gracePeriodDays  Int      @default(14)
+  enforcementLevel String   @db.VarChar(30) @default("optional") // optional, required_all, group, risk_based
+  exclusions       Json?    // { userIds?: string[], groupIds?: string[] }
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+model OrgMfaEnrollment {
+  id         String   @id @default(cuid())
+  orgUserId  String
+  method     String   @db.VarChar(30) // TOTP, SMS, EMAIL, HARDWARE, PUSH, BIOMETRIC
+  secret     String?  // e.g. TOTP secret (encrypted/external)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime?
+
+  user OrgUser @relation(fields: [orgUserId], references: [id], onDelete: Cascade)
+
+  @@index([orgUserId])
+  @@index([method])
+}
+
+model CodeRepository {
+  id             String   @id @default(cuid())
+  accountId      String   // owner
+  name           String   @db.VarChar(100)
+  slug           String   @db.VarChar(120)
+  description    String?  @db.VarChar(500)
+  visibility     String   @default("PRIVATE") @db.VarChar(20) // PUBLIC, PRIVATE
+  defaultBranch  String   @default("main") @db.VarChar(100)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  account        Account                @relation("CodeRepoOwner", fields: [accountId], references: [id], onDelete: Cascade)
+  collaborators  CodeRepoCollaborator[]
+  branches       CodeBranch[]
+  commits        CodeCommit[]
+  pullRequests   CodePullRequest[]
+  labels         CodeRepoLabel[]
+  buildPipelines BuildPipeline[]
+
+  @@unique([accountId, slug])
+  @@index([accountId])
+}
+
+model CodeRepoCollaborator {
+  id         String   @id @default(cuid())
+  repoId     String
+  accountId  String
+  role       String   @db.VarChar(20) // READ, WRITE, ADMIN
+  createdAt  DateTime @default(now())
+
+  repo    CodeRepository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  account Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([repoId, accountId])
+  @@index([repoId])
+  @@index([accountId])
+}
+
+model CodeBranch {
+  id            String    @id @default(cuid())
+  repoId        String
+  name          String    @db.VarChar(255)
+  headCommitId  String?
+  createdAt     DateTime  @default(now())
+
+  repo    CodeRepository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  headCommit CodeCommit? @relation("BranchHead", fields: [headCommitId], references: [id], onDelete: SetNull)
+  commits  CodeCommit[]  @relation("BranchCommits")
+  pullRequestsSource CodePullRequest[] @relation("PRSourceBranch")
+  pullRequestsTarget CodePullRequest[] @relation("PRTargetBranch")
+
+  @@unique([repoId, name])
+  @@index([repoId])
+}
+
+model CodeCommit {
+  id          String    @id @default(cuid())
+  repoId      String
+  branchId    String
+  parentCommitId String?
+  message     String    @db.VarChar(500)
+  authorId    String
+  createdAt   DateTime  @default(now())
+
+  repo          CodeRepository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  branch        CodeBranch     @relation("BranchCommits", fields: [branchId], references: [id], onDelete: Cascade)
+  parentCommit  CodeCommit?    @relation("CommitParent", fields: [parentCommitId], references: [id], onDelete: SetNull)
+  childCommits  CodeCommit[]   @relation("CommitParent")
+  author        Account        @relation("CodeCommitAuthor", fields: [authorId], references: [id])
+  files         CodeCommitFile[]
+  branchesHead  CodeBranch[]   @relation("BranchHead")
+
+  @@index([repoId])
+  @@index([branchId])
+  @@index([authorId])
+}
+
+model CodeCommitFile {
+  id        String   @id @default(cuid())
+  commitId  String
+  path      String   @db.VarChar(500) // e.g. "README.md", "src/index.js"
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  commit CodeCommit @relation(fields: [commitId], references: [id], onDelete: Cascade)
+
+  @@unique([commitId, path])
+  @@index([commitId])
+}
+
+model CodeRepoLabel {
+  id        String   @id @default(cuid())
+  repoId    String
+  name      String   @db.VarChar(50)
+  color     String?  @db.VarChar(20) // e.g. "#d73a4a"
+  createdAt DateTime @default(now())
+
+  repo         CodeRepository    @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  pullRequests CodePRLabel[]
+
+  @@unique([repoId, name])
+  @@index([repoId])
+}
+
+model CodePullRequest {
+  id              String   @id @default(cuid())
+  repoId          String
+  number          Int      // PR number per repo (1, 2, 3...)
+  sourceBranchId  String
+  targetBranchId  String
+  title           String   @db.VarChar(200)
+  description     String?  @db.Text
+  status          String   @default("OPEN") @db.VarChar(20) // OPEN, DRAFT, CLOSED, MERGED
+  authorId        String
+  mergedAt        DateTime?
+  mergedById      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  repo           CodeRepository  @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  sourceBranch   CodeBranch      @relation("PRSourceBranch", fields: [sourceBranchId], references: [id])
+  targetBranch   CodeBranch      @relation("PRTargetBranch", fields: [targetBranchId], references: [id])
+  author         Account         @relation("CodePRAuthor", fields: [authorId], references: [id])
+  reviewers      CodePRReviewer[]
+  comments       CodePRComment[]
+  labels         CodePRLabel[]
+  linkedIssues   CodePRLinkedIssue[]
+
+  @@unique([repoId, number])
+  @@index([repoId])
+  @@index([authorId])
+}
+
+model CodePRReviewer {
+  id        String   @id @default(cuid())
+  prId      String
+  accountId String
+  status    String   @default("PENDING") @db.VarChar(30) // PENDING, APPROVED, CHANGES_REQUESTED
+  reviewedAt DateTime?
+  createdAt DateTime @default(now())
+
+  pr      CodePullRequest @relation(fields: [prId], references: [id], onDelete: Cascade)
+  account Account         @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([prId, accountId])
+  @@index([prId])
+  @@index([accountId])
+}
+
+model CodePRComment {
+  id        String   @id @default(cuid())
+  prId      String
+  accountId String
+  body      String   @db.Text
+  path      String?  @db.VarChar(500) // file path for line comment, null for PR-level
+  lineNumber Int?
+  parentId  String?  // for replies
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pr      CodePullRequest @relation(fields: [prId], references: [id], onDelete: Cascade)
+  account Account         @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  parent  CodePRComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies CodePRComment[]  @relation("CommentReplies")
+
+  @@index([prId])
+  @@index([accountId])
+  @@index([parentId])
+}
+
+model CodePRLabel {
+  prId    String
+  labelId String
+
+  pr    CodePullRequest @relation(fields: [prId], references: [id], onDelete: Cascade)
+  label CodeRepoLabel   @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([prId, labelId])
+  @@index([prId])
+  @@index([labelId])
+}
+
+model CodePRLinkedIssue {
+  id       String   @id @default(cuid())
+  prId     String
+  issueRef String   @db.VarChar(100) // e.g. "TRACK-123", "PROJ-456"
+  createdAt DateTime @default(now())
+
+  pr CodePullRequest @relation(fields: [prId], references: [id], onDelete: Cascade)
+
+  @@unique([prId, issueRef])
+  @@index([prId])
+}
+
+// ==================== MOxE JOB – BUILD (CI/CD metadata) ====================
+
+model JobAIAudit {
+  id        String   @id @default(cuid())
+  accountId String
+  role      String   @db.VarChar(20) // user, assistant, system
+  content   String   @db.Text
+  model     String   @db.VarChar(50)
+  metadata  Json?
+  parentId  String?
+  createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, createdAt])
+}
+
+model BuildPipeline {
+  id             String   @id @default(cuid())
+  accountId      String   // owner (JOB account)
+  repoId         String   // CodeRepository
+  name           String   @db.VarChar(100)
+  branchFilter   String   @db.VarChar(200) // e.g. "main", "develop", "feature/*"
+  triggers       Json     // { push?: boolean, manual?: boolean, scheduleCron?: string }
+  stages         Json     // [{ name, type, commands[] }]
+  externalKey    String?  @db.VarChar(120) // optional key to map external CI pipeline
+  status         String   @db.VarChar(20) @default("ACTIVE") // ACTIVE, PAUSED, ARCHIVED
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  account        Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  repo           CodeRepository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  runs           BuildRun[]
+
+  @@index([accountId])
+  @@index([repoId])
+}
+
+model BuildRun {
+  id            String   @id @default(cuid())
+  pipelineId    String
+  externalRunId String?  @db.VarChar(120) // optional ID from external CI
+  status        String   @db.VarChar(20) @default("PENDING") // PENDING, RUNNING, SUCCESS, FAILED, CANCELLED
+  triggerType   String   @db.VarChar(20) // PUSH, MANUAL, SCHEDULE, WEBHOOK
+  commitSha     String?  @db.VarChar(64)
+  branch        String?  @db.VarChar(255)
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  logsUrl       String?  @db.VarChar(500) // link to external CI logs
+  createdAt     DateTime @default(now())
+
+  pipeline BuildPipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+
+  @@index([pipelineId])
+  @@index([status])
+}
+
+// ==================== MOxE STRATEGY (Job strategic plans) ====================
+
+model JobStrategyPlan {
+  id          String   @id @default(cuid())
+  accountId   String
+  name        String   @db.VarChar(200)
+  horizon     String   @db.VarChar(30) // QUARTER, YEAR, MULTI_YEAR, CUSTOM
+  timeframe   String?  @db.VarChar(120) // e.g. "Q2 2026", "2026–2028"
+  focusAreas  Json?    // string[]
+  summary     String?  @db.VarChar(2000)
+  status      String   @db.VarChar(20) @default("DRAFT") // DRAFT, ACTIVE, COMPLETED, ARCHIVED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, createdAt])
+}
+
+// ==================== MOxE INTEGRATION (Job app integrations) ====================
+
+model JobIntegration {
+  id          String   @id @default(cuid())
+  accountId   String
+  provider    String   @db.VarChar(50)  // e.g. GITHUB, JIRA, SLACK, LINEAR, NOTION
+  status      String   @db.VarChar(20) @default("DISCONNECTED") // CONNECTED, DISCONNECTED
+  displayName String   @db.VarChar(100)
+  config      Json?    // tokens, webhooks, project mappings (opaque JSON)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, provider])
+  @@index([accountId, provider])
+}
+
+// ==================== MOxE TEAMS (Job account teams) ====================
+
+model JobTeam {
+  id          String   @id @default(cuid())
+  accountId   String   // Job account owner
+  memberId    String   // Member account ID
+  role        String   @db.VarChar(20) @default("MEMBER") // OWNER, ADMIN, MEMBER, VIEWER
+  joinedAt    DateTime @default(now())
+  invitedById String?
+
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  member    Account @relation("JobTeamMember", fields: [memberId], references: [id], onDelete: Cascade)
+  invitedBy Account? @relation("JobTeamInviter", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@unique([accountId, memberId])
+  @@index([accountId])
+  @@index([memberId])
+}
+
+// ==================== MOxE STATUS (Status Pages & Incidents) ====================
+
+model StatusPage {
+  id          String   @id @default(cuid())
+  accountId   String   // owner
+  name        String   @db.VarChar(100)
+  slug        String   @db.VarChar(120)  // URL slug, unique per account
+  description String?  @db.VarChar(500)
+  customDomain String? @db.VarChar(255)
+  visibility  String   @default("PUBLIC") @db.VarChar(20) // PUBLIC, PRIVATE
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  account    Account            @relation("StatusPageOwner", fields: [accountId], references: [id], onDelete: Cascade)
+  components StatusPageComponent[]
+  incidents  StatusIncident[]
+
+  @@unique([accountId, slug])
+  @@index([accountId])
+}
+
+model StatusPageComponent {
+  id          String   @id @default(cuid())
+  pageId      String
+  name        String   @db.VarChar(120)
+  description String?  @db.VarChar(500)
+  type        String   @default("API") @db.VarChar(30) // API, Website, Database, Authentication, Payment, CDN, Internal Tool
+  status      String   @default("OPERATIONAL") @db.VarChar(30) // OPERATIONAL, DEGRADED, OUTAGE, etc.
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  page StatusPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  incidentsAffected StatusIncidentComponent[] @relation("ComponentAffected")
+
+  @@index([pageId])
+}
+
+model StatusIncident {
+  id        String   @id @default(cuid())
+  pageId    String
+  name      String   @db.VarChar(200)
+  severity  String   @db.VarChar(20)   // CRITICAL, MAJOR, MINOR
+  status    String   @default("INVESTIGATING") @db.VarChar(30) // INVESTIGATING, IDENTIFIED, MONITORING, RESOLVED
+  authorId  String
+  resolvedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  page     StatusPage   @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  author   Account      @relation("StatusIncidentAuthor", fields: [authorId], references: [id])
+  updates  StatusIncidentUpdate[]
+  affectedComponents StatusIncidentComponent[] @relation("IncidentAffected")
+
+  @@index([pageId])
+  @@index([authorId])
+  @@index([status])
+}
+
+model StatusIncidentUpdate {
+  id        String   @id @default(cuid())
+  incidentId String
+  body      String   @db.Text
+  authorId  String
+  createdAt DateTime @default(now())
+
+  incident StatusIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  author   Account        @relation("StatusIncidentUpdateAuthor", fields: [authorId], references: [id])
+
+  @@index([incidentId])
+  @@index([authorId])
+}
+
+model StatusIncidentComponent {
+  incidentId  String
+  componentId String
+
+  incident  StatusIncident     @relation("IncidentAffected", fields: [incidentId], references: [id], onDelete: Cascade)
+  component StatusPageComponent @relation("ComponentAffected", fields: [componentId], references: [id], onDelete: Cascade)
+
+  @@id([incidentId, componentId])
+  @@index([incidentId])
+  @@index([componentId])
+}
+
+// ==================== MOxE COMPASS – Service Catalog ====================
+
+model Service {
+  id             String   @id @default(cuid())
+  accountId      String   // owner (JOB account or team owner)
+  name           String   @db.VarChar(100)
+  slug           String   @db.VarChar(140)
+  descriptionMd  String?  @db.VarChar(2000)
+  docLink        String?  @db.VarChar(500) // MOxE KNOW page URL or ID
+  apiBaseUrl     String?  @db.VarChar(500)
+  healthCheckUrl String?  @db.VarChar(500)
+  status         String   @db.VarChar(20) @default("UNKNOWN") // OPERATIONAL, DEGRADED, DOWN, MAINTENANCE, UNKNOWN
+  environment    String   @db.VarChar(20) @default("production")
+  tags           Json?    // string[] – e.g. ["api", "backend", "critical"]
+  notes          String?  @db.VarChar(1000)
+  healthConfig   Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  account       Account               @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  owners        ServiceOwner[]
+  dependencies  ServiceDependency[]   @relation("ServiceDependencies")
+  dependents    ServiceDependency[]   @relation("ServiceDependents")
+  healthChecks  ServiceHealthCheck[]
+  lastAlertAt   DateTime?
+  openAlertEventId String?
+  docs          ServiceDocLink[]
+
+  @@unique([accountId, slug])
+  @@index([accountId])
+  @@index([name])
+  @@index([status])
+}
+
+model ServiceOwner {
+  id         String   @id @default(cuid())
+  serviceId  String
+  accountId  String
+  role       String   @db.VarChar(30) @default("PRIMARY") // PRIMARY, SECONDARY
+  createdAt  DateTime @default(now())
+
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([serviceId])
+  @@index([accountId])
+}
+
+model ServiceDependency {
+  id            String   @id @default(cuid())
+  serviceId     String   // the dependent service
+  dependsOnId   String   // the upstream dependency
+  kind          String   @db.VarChar(30) @default("REQUIRED") // REQUIRED, OPTIONAL, RUNTIME, BUILD_TIME
+  createdAt     DateTime @default(now())
+
+  service     Service @relation("ServiceDependencies", fields: [serviceId], references: [id], onDelete: Cascade)
+  dependsOn   Service @relation("ServiceDependents", fields: [dependsOnId], references: [id], onDelete: Cascade)
+
+  @@index([serviceId])
+  @@index([dependsOnId])
+}
+
+model ServiceHealthCheck {
+  id         String   @id @default(cuid())
+  serviceId  String
+  checkedAt  DateTime @default(now())
+  status     String   @db.VarChar(20) // PASS, FAIL, TIMEOUT, INVALID
+  httpStatus Int?
+  latencyMs  Int?
+  error      String?  @db.VarChar(500)
+
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@index([serviceId])
+  @@index([checkedAt])
+  @@index([status])
+}
+
+// ==================== MOxE ATLAS – Goals & OKRs ====================
+
+model AtlasObjective {
+  id           String   @id @default(cuid())
+  accountId    String   // owner account (JOB account)
+  title        String   @db.VarChar(200)
+  description  String?  @db.VarChar(1000)
+  periodType   String   @db.VarChar(20) // QUARTER, HALF_YEAR, YEAR, CUSTOM
+  startDate    DateTime
+  endDate      DateTime
+  state        String   @db.VarChar(20) @default("ACTIVE") // DRAFT, ACTIVE, COMPLETED, ARCHIVED
+  parentId     String?
+  linkedProjectId String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  account  Account         @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  parent   AtlasObjective? @relation("AtlasObjectiveHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children AtlasObjective[] @relation("AtlasObjectiveHierarchy")
+  keyResults AtlasKeyResult[]
+  linkedProject TrackProject? @relation(fields: [linkedProjectId], references: [id], onDelete: SetNull)
+
+  @@index([accountId])
+  @@index([parentId])
+}
+
+model AtlasKeyResult {
+  id           String   @id @default(cuid())
+  objectiveId  String
+  title        String   @db.VarChar(200)
+  type         String   @db.VarChar(20) // METRIC, MILESTONE, PERCENT, RATIO
+  unit         String?  @db.VarChar(50)
+  targetValue  Float?
+  startValue   Float?   @default(0)
+  currentValue Float?   @default(0)
+  weight       Int      @default(1)
+  isCompleted  Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  objective AtlasObjective @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+  updates   AtlasProgressUpdate[]
+  links     AtlasKeyResultIssueLink[]
+
+  @@index([objectiveId])
+}
+
+model AtlasProgressUpdate {
+  id          String   @id @default(cuid())
+  keyResultId String
+  accountId   String
+  value       Float?
+  note        String?  @db.VarChar(1000)
+  createdAt   DateTime @default(now())
+
+  keyResult AtlasKeyResult @relation(fields: [keyResultId], references: [id], onDelete: Cascade)
+  account   Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([keyResultId])
+  @@index([accountId])
+}
+
+model AtlasKeyResultIssueLink {
+  id          String   @id @default(cuid())
+  keyResultId String
+  issueId     String
+
+  keyResult AtlasKeyResult @relation(fields: [keyResultId], references: [id], onDelete: Cascade)
+  issue     TrackIssue     @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@unique([keyResultId, issueId], name: "keyResultId_issueId")
+  @@index([issueId])
+}
+
+model ServiceDocLink {
+  id        String   @id @default(cuid())
+  serviceId String
+  pageId    String
+  docType   String   @db.VarChar(30) // API, USER_GUIDE, OPS_GUIDE, FAQ, CHANGELOG, OTHER
+  title     String?  @db.VarChar(200)
+  preview   String?  @db.VarChar(500)
+  lastSyncedAt DateTime?
+  createdAt DateTime @default(now())
+
+  service Service       @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  page    KnowledgePage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([serviceId])
+  @@index([pageId])
+}
+
+// ==================== MEDIA TTL FOR VIEW-ONCE DMS ====================
+
+model MediaExpiration {
+  id        String   @id @default(cuid())
+  messageId String
+  mediaKey  String
+  deleteAt  DateTime
+
+  message Message @relation(fields: [messageId], references: [id])
+
+  @@index([deleteAt])
+}
+
+// ==================== ADS / CAMPAIGNS ====================
+
+model AdCampaign {
+  id           String   @id @default(cuid())
+  accountId    String
+  postId       String?
+  name         String   @db.VarChar(200)
+  objective    String   @db.VarChar(50) @default("AWARENESS")
+  type         String   @db.VarChar(20) @default("BOOST")
+  status       String   @db.VarChar(20) @default("DRAFT")
+  dailyBudget  Float?
+  totalBudget  Float?
+  spent        Float    @default(0)
+  bidCpm       Float?   // optional bid in currency units per 1000 impressions
+  currency     String   @db.VarChar(10) @default("USD")
+  startDate    DateTime?
+  endDate      DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  account   Account              @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  post      Post?                @relation(fields: [postId], references: [id], onDelete: SetNull)
+  insights     AdCampaignInsight[]
+  audiences    AdCampaignAudience[]
+  fraudSignals AdFraudSignal[]
+  fraudBlocks  AdFraudBlock[]
+
+  @@index([accountId])
+  @@index([postId])
+  @@index([status])
+}
+
+model AdCampaignInsight {
+  id          String   @id @default(cuid())
+  campaignId  String
+  date        DateTime
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  spend       Float    @default(0)
+  createdAt   DateTime @default(now())
+
+  campaign AdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, date])
+  @@index([campaignId])
+}
+
+model AdAudience {
+  id          String   @id @default(cuid())
+  accountId   String
+  name        String   @db.VarChar(200)
+  description String?  @db.VarChar(500)
+  definition  Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  account   Account              @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  campaigns AdCampaignAudience[]
+
+  @@index([accountId])
+}
+
+model AdCampaignAudience {
+  campaignId String
+  audienceId String
+
+  campaign AdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  audience AdAudience @relation(fields: [audienceId], references: [id], onDelete: Cascade)
+
+  @@id([campaignId, audienceId])
+  @@index([campaignId])
+  @@index([audienceId])
+}
+
+// ==================== ADS BILLING / CREDITS ====================
+
+model AdBillingAccount {
+  id                 String   @id @default(cuid())
+  accountId          String   @unique
+  currency           String   @db.VarChar(10) @default("USD")
+  creditBalance      Float    @default(0)
+  monthlySpendLimit  Float?
+  hardLimit          Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  account      Account               @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  invoices     AdInvoice[]
+  transactions AdCreditTransaction[]
+
+  @@index([accountId])
+}
+
+model AdInvoice {
+  id               String   @id @default(cuid())
+  billingAccountId String
+  periodStart      DateTime
+  periodEnd        DateTime
+  amount           Float
+  currency         String   @db.VarChar(10) @default("USD")
+  status           String   @db.VarChar(20) @default("OPEN") // OPEN, PAID, VOID
+  paymentId        String?
+  createdAt        DateTime @default(now())
+  paidAt           DateTime?
+
+  billingAccount AdBillingAccount    @relation(fields: [billingAccountId], references: [id], onDelete: Cascade)
+  transactions   AdCreditTransaction[]
+
+  @@index([billingAccountId])
+  @@index([status])
+}
+
+model AdCreditTransaction {
+  id               String   @id @default(cuid())
+  billingAccountId String
+  invoiceId        String?
+  type             String   @db.VarChar(20) // TOP_UP, AD_SPEND, AD_REFUND, AD_ADJUSTMENT
+  amount           Float
+  description      String?  @db.VarChar(500)
+  createdAt        DateTime @default(now())
+
+  billingAccount AdBillingAccount @relation(fields: [billingAccountId], references: [id], onDelete: Cascade)
+  invoice        AdInvoice?       @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([billingAccountId])
+  @@index([invoiceId])
+}
+
+// ==================== ADS FRAUD / ABUSE ====================
+
+model AdFraudSignal {
+  id                   String   @id @default(cuid())
+  campaignId           String
+  advertiserAccountId  String
+  viewerAccountId      String?
+  ip                   String?  @db.VarChar(64)
+  userAgent            String?  @db.VarChar(255)
+  eventType            String   @db.VarChar(20) // IMPRESSION, CLICK
+  score                Float    @default(0)
+  reason               String?  @db.VarChar(200)
+  createdAt            DateTime @default(now())
+
+  campaign   AdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  advertiser Account    @relation(fields: [advertiserAccountId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([advertiserAccountId])
+  @@index([viewerAccountId])
+  @@index([ip])
+}
+
+model AdFraudBlock {
+  id                  String   @id @default(cuid())
+  campaignId          String?
+  advertiserAccountId String?
+  level               String   @db.VarChar(20) // CAMPAIGN, ACCOUNT
+  reason              String?  @db.VarChar(200)
+  active              Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  expiresAt           DateTime?
+
+  campaign   AdCampaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  advertiser Account?    @relation(fields: [advertiserAccountId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([advertiserAccountId])
+  @@index([active, expiresAt])
+  @@unique([campaignId, advertiserAccountId, level], name: "campaignId_advertiserAccountId_level")
+}
