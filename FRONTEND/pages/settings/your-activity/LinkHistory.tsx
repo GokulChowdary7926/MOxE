@@ -1,40 +1,31 @@
-import React from 'react';
-import { PageLayout, SettingsSection } from '../../../components/layout/PageLayout';
-import { ThemedText } from '../../../components/ui/Themed';
-import { mockLinkHistory } from '../../../mocks/activity';
+import React, { useState } from 'react';
+import { SettingsPageShell } from '../../../components/layout/SettingsPageShell';
+
+type LinkEntry = { id: string; title?: string; url: string; clickedAt: string };
 
 export default function LinkHistory() {
+  const [items, setItems] = useState<LinkEntry[]>([]);
+
   return (
-    <PageLayout title="Link history" backTo="/activity">
-      <div className="py-4 space-y-4">
-        <ThemedText secondary className="text-moxe-body">
-          Links you’ve opened from MOxE.
-        </ThemedText>
-        <SettingsSection title="History">
-          <div className="divide-y divide-moxe-border">
-            {mockLinkHistory.map((entry) => (
-              <div
-                key={entry.id}
-                className="py-3 px-4"
-              >
-                <ThemedText className="text-moxe-body font-medium text-moxe-text block truncate">
-                  {entry.title ?? entry.url}
-                </ThemedText>
-                <ThemedText secondary className="text-moxe-caption block truncate mt-0.5">
-                  {entry.url}
-                </ThemedText>
-                <ThemedText secondary className="text-moxe-caption text-[11px] mt-1">
-                  {new Date(entry.clickedAt).toLocaleDateString(undefined, {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                  })}
-                </ThemedText>
+    <SettingsPageShell title="Link history" backTo="/activity">
+      <div className="px-4 py-4">
+        <p className="text-[#a8a8a8] text-sm mb-4">Links you&apos;ve opened from MOxE.</p>
+        {items.length === 0 ? (
+          <p className="text-[#a8a8a8] text-sm">No link history.</p>
+        ) : (
+          <div className="divide-y divide-[#262626] border border-[#262626] rounded-xl overflow-hidden">
+            {items.map((entry) => (
+              <div key={entry.id} className="py-3 px-4">
+                <p className="text-white font-medium truncate">{entry.title ?? entry.url}</p>
+                <p className="text-[#a8a8a8] text-xs truncate mt-0.5">{entry.url}</p>
+                <p className="text-[#737373] text-[11px] mt-1">
+                  {new Date(entry.clickedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                </p>
               </div>
             ))}
           </div>
-        </SettingsSection>
+        )}
       </div>
-    </PageLayout>
+    </SettingsPageShell>
   );
 }

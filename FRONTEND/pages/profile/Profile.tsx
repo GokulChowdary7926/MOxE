@@ -31,6 +31,11 @@ export default function Profile() {
   const [profilePosts, setProfilePosts] = useState<any[]>([]);
   const [profileTab, setProfileTab] = useState<'grid' | 'reels' | 'tagged' | 'saved'>('grid');
   const [isFollowing, setFollowing] = useState(false);
+  const [creatorTiers, setCreatorTiers] = useState<{ key: string; name?: string; price?: number; perks?: string[] }[]>([]);
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [subscribing, setSubscribing] = useState(false);
+  const [showSubscribeModal, setShowSubscribeModal] = useState(false);
+  const [selectedTierKey, setSelectedTierKey] = useState('');
 
   useEffect(() => {
     const token = getToken();
@@ -108,6 +113,25 @@ export default function Profile() {
       })
       .catch(() => {});
   }, [isOwn]);
+
+  useEffect(() => {
+    if (isOwn || !profile?.id) return;
+    const token = getToken();
+    const API_BASE = getApiBase();
+    fetch(`${API_BASE}/accounts/${profile.id}/subscription-tiers`, token ? { headers: { Authorization: `Bearer ${token}` } } : {})
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setCreatorTiers(Array.isArray(data?.tiers) ? data.tiers : []))
+      .catch(() => setCreatorTiers([]));
+    if (token) {
+      fetch(`${API_BASE}/accounts/me/subscriptions`, { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          const subs = data?.subscriptions ?? [];
+          setIsSubscribed(subs.some((s: any) => s.creatorId === profile.id));
+        })
+        .catch(() => {});
+    }
+  }, [isOwn, profile?.id]);
 
   useEffect(() => {
     if (!showQr || !profile) return;
@@ -215,7 +239,7 @@ export default function Profile() {
     );
   }
   if (!profile) {
-    return (
+  return (
       <ThemedView className="min-h-screen flex flex-col items-center justify-center p-moxe-md">
         <ThemedText className="text-moxe-body font-medium text-moxe-text mb-1">
           {isOwn ? "Profile not set up yet" : "This account doesn't exist"}
@@ -279,14 +303,22 @@ export default function Profile() {
   }
 
   return (
-    <ThemedView className="min-h-screen flex flex-col">
-      {/* Reference: username + pink dot + dropdown left; + and hamburger right */}
-      <header className="sticky top-0 z-10 flex items-center justify-between h-12 px-3 border-b border-moxe-border bg-moxe-background safe-area-pt">
-        <button type="button" className="flex items-center gap-1.5 text-moxe-text font-semibold text-moxe-body">
-          {uname}
-          <span className="w-2 h-2 rounded-full bg-moxe-primary shrink-0" aria-hidden />
-          <ChevronDown className="w-4 h-4 text-moxe-textSecondary" />
-        </button>
+    <ThemedView className="min-h-screen flex flex-col bg-white">
+      {/* Username + status dot + chevron (left); + and menu (right) – same for all accounts */}
+      <header className="sticky top-0 z-10 flex items-center justify-between h-12 px-3 border-b border-[#DBDBDB] bg-white safe-area-pt">
+        {isOwn ? (
+          <Link to="/settings/accounts" className="flex items-center gap-1.5 text-black font-semibold text-sm active:opacity-80">
+            {uname}
+            <span className="w-2 h-2 rounded-full bg-[#ed4956] shrink-0" aria-hidden />
+            <ChevronDown className="w-4 h-4 text-[#a8a8a8]" />
+          </Link>
+        ) : (
+          <button type="button" className="flex items-center gap-1.5 text-black font-semibold text-sm">
+            {uname}
+            <span className="w-2 h-2 rounded-full bg-[#ed4956] shrink-0" aria-hidden />
+            <ChevronDown className="w-4 h-4 text-[#a8a8a8]" />
+          </button>
+        )}
         <div className="flex items-center gap-2">
           {!isOwn && (
             <button
@@ -297,16 +329,17 @@ export default function Profile() {
               {blocking ? '…' : isBlocked ? 'Unblock' : 'Block'}
             </button>
           )}
-          <Link to="/create" className="p-2 -m-2 text-moxe-text" aria-label="Create">
+          <Link to="/create" className="p-2 -m-2 text-black" aria-label="Create">
             <Plus className="w-6 h-6" />
           </Link>
-          <Link to="/settings" className="p-2 -m-2 text-moxe-text" aria-label="Menu">
+          <Link to="/settings" className="p-2 -m-2 text-black" aria-label="Menu">
             <Menu className="w-6 h-6" />
           </Link>
         </div>
       </header>
 
-      <div className="flex-1 overflow-auto px-4 pb-20">
+      <div className="flex-1 overflow-auto pb-20">
+        <div className="w-full max-w-[935px] mx-auto px-4">
         <div className="flex items-center gap-6 mb-3">
           <Avatar
             uri={profile.profilePhoto || profile.avatarUri}
@@ -314,28 +347,31 @@ export default function Profile() {
           />
           <div className="flex-1 flex items-center justify-around gap-1">
             <div className="flex flex-col items-center">
-              <ThemedText className="font-bold text-moxe-body mb-0.5">{profile.postsCount ?? 21}</ThemedText>
-              <ThemedText secondary className="text-moxe-caption">Posts</ThemedText>
+              <ThemedText className="font-bold text-black mb-0.5">{profile.postsCount ?? 21}</ThemedText>
+              <ThemedText secondary className="text-[#8e8e8e] text-xs">Posts</ThemedText>
             </div>
-            <span className="text-moxe-textSecondary text-[10px] leading-tight self-center" aria-hidden>⋯</span>
+            <span className="text-[#8e8e8e] text-[10px] leading-tight self-center" aria-hidden>⋯</span>
             <Link
               to={`/profile/${uname}/followers`}
               className="flex flex-col items-center"
             >
-              <ThemedText className="font-bold text-moxe-body mb-0.5">{profile.followersCount ?? 563}</ThemedText>
-              <ThemedText secondary className="text-moxe-caption">Followers</ThemedText>
+              <ThemedText className="font-bold text-black mb-0.5">{profile.followersCount ?? 563}</ThemedText>
+              <ThemedText secondary className="text-[#8e8e8e] text-xs">Followers</ThemedText>
             </Link>
-            <span className="text-moxe-textSecondary text-[10px] leading-tight self-center" aria-hidden>⋯</span>
-            <div className="flex flex-col items-center">
-              <ThemedText className="font-bold text-moxe-body mb-0.5">{profile.followingCount ?? 172}</ThemedText>
-              <ThemedText secondary className="text-moxe-caption">Following</ThemedText>
-            </div>
+            <span className="text-[#8e8e8e] text-[10px] leading-tight self-center" aria-hidden>⋯</span>
+            <Link
+              to={`/profile/${uname}/following`}
+              className="flex flex-col items-center"
+            >
+              <ThemedText className="font-bold text-black mb-0.5">{profile.followingCount ?? 172}</ThemedText>
+              <ThemedText secondary className="text-[#8e8e8e] text-xs">Following</ThemedText>
+            </Link>
           </div>
         </div>
 
         {/* Username with verified badge */}
         <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-          <ThemedText className="font-semibold text-moxe-body">{displayName}</ThemedText>
+          <ThemedText className="font-semibold text-moxe-body text-black">{displayName}</ThemedText>
           {(profile.isVerified ?? (mockUsers.find((u) => u.username === uname) as any)?.isVerified) && (
             <VerifiedBadge size={14} />
           )}
@@ -343,14 +379,14 @@ export default function Profile() {
         <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
           {(profile.businessCategory || (profile.accountType && profile.accountType !== 'PERSONAL')) && (
             <>
-              <span className="w-1.5 h-1.5 rounded-full bg-moxe-textSecondary shrink-0" aria-hidden />
+              <span className="w-1.5 h-1.5 rounded-full bg-[#8e8e8e] shrink-0" aria-hidden />
               <ThemedText secondary className="text-moxe-caption">
                 {profile.businessCategory || ACCOUNT_TYPE_LABELS[profile.accountType as keyof typeof ACCOUNT_TYPE_LABELS]}
               </ThemedText>
             </>
           )}
         </div>
-        {profile.bio && <ThemedText secondary className="mb-1.5 block">{profile.bio}</ThemedText>}
+        {profile.bio && <ThemedText secondary className="mb-1.5 block text-[#262626]">{profile.bio}</ThemedText>}
         {profile.location && (
           <ThemedText secondary className="mb-1 block text-moxe-caption">{profile.location}</ThemedText>
         )}
@@ -368,46 +404,105 @@ export default function Profile() {
           <ThemedText secondary className="mb-3 block text-moxe-caption">{profile.pronouns}</ThemedText>
         )}
         {streakBadge && (
-          <div className="mb-1.5 inline-flex items-center px-2 py-0.5 rounded-full bg-moxe-background border border-moxe-border">
+          <div className="mb-1.5 inline-flex items-center px-2 py-0.5 rounded-full bg-[#fafafa] border border-[#dbdbdb]">
             <ThemedText secondary className="text-[11px]">{streakBadge}</ThemedText>
-          </div>
+              </div>
         )}
 
-        {/* Action buttons: Edit Profile (own) or Follow / Message (others) */}
+        {/* Action buttons by account type: Personal = Edit only; Business = Edit, MOxE E, Insights, Promotions; Creator = Edit, Insights, Promotions */}
         {isOwn ? (
-          <div className="flex gap-2 mb-4">
+          <div className="flex flex-wrap gap-2 mb-4">
             <button
               type="button"
-              onClick={() => navigate('/settings/account')}
-              className="flex-1 py-2.5 rounded-xl bg-[#363636] border-0 text-moxe-body font-semibold text-white"
+              onClick={() => navigate('/profile/edit')}
+              className="flex-1 min-w-[100px] py-2.5 rounded-lg bg-[#efefef] border border-[#dbdbdb] text-black font-semibold text-sm"
             >
               Edit Profile
             </button>
-            {(accountType === 'creator' || accountType === 'business') && (
+            {accountType === 'business' && (
               <>
                 <button
                   type="button"
-                  onClick={() => navigate('/ads')}
-                  className="flex-1 py-2.5 rounded-xl bg-gray-200 dark:bg-gray-700 border-0 text-moxe-body font-semibold text-moxe-text"
+                  onClick={() => navigate('/business-dashboard')}
+                  className="flex-1 min-w-[100px] py-2.5 rounded-xl bg-[#363636] border-0 text-white font-semibold text-sm"
                 >
-                  Promotions
+                  MOxE E
                 </button>
                 <button
                   type="button"
-                  onClick={() => navigate('/analytics')}
-                  className="flex-1 py-2.5 rounded-xl bg-gray-200 dark:bg-gray-700 border-0 text-moxe-body font-semibold text-moxe-text"
+                  onClick={() => navigate('/insights')}
+                  className="flex-1 min-w-[100px] py-2.5 rounded-xl bg-[#363636] border-0 text-white font-semibold text-sm"
                 >
                   Insights
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/ads')}
+                  className="flex-1 min-w-[100px] py-2.5 rounded-xl bg-[#363636] border-0 text-white font-semibold text-sm"
+                >
+                  Promotions
+                </button>
+              </>
+            )}
+            {accountType === 'creator' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => navigate('/insights')}
+                  className="flex-1 min-w-[100px] py-2.5 rounded-xl bg-[#363636] border-0 text-white font-semibold text-sm"
+                >
+                  Insights
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/ads')}
+                  className="flex-1 min-w-[100px] py-2.5 rounded-xl bg-[#363636] border-0 text-white font-semibold text-sm"
+                >
+                  Promotions
                 </button>
               </>
             )}
           </div>
         ) : (
-          <div className="flex gap-2 mb-4">
-            <FollowButton isFollowing={isFollowing} onClick={() => setFollowing((f) => !f)} className="flex-1" />
+          <div className="flex flex-wrap gap-2 mb-4">
+            <FollowButton isFollowing={isFollowing} onClick={() => setFollowing((f) => !f)} className="flex-1 min-w-0" />
+            {creatorTiers.length > 0 && (
+              <>
+                {!isSubscribed ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowSubscribeModal(true)}
+                    className="flex-1 min-w-[100px] py-2.5 rounded-xl bg-[#a855f7] border-0 text-white font-semibold text-sm"
+                  >
+                    Subscribe
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={subscribing}
+                    onClick={async () => {
+                      if (!targetId || !getToken()) return;
+                      setSubscribing(true);
+                      try {
+                        const r = await fetch(`${getApiBase()}/accounts/${targetId}/unsubscribe`, {
+                          method: 'POST',
+                          headers: { Authorization: `Bearer ${getToken()}` },
+                        });
+                        if (r.ok) setIsSubscribed(false);
+                      } finally {
+                        setSubscribing(false);
+                      }
+                    }}
+                    className="flex-1 min-w-[100px] py-2.5 rounded-xl bg-[#363636] border-0 text-moxe-body font-semibold text-sm"
+                  >
+                    {subscribing ? '…' : 'Subscribed'}
+                  </button>
+                )}
+              </>
+            )}
             <button
               type="button"
-              className="flex-1 py-2.5 rounded-xl bg-[#363636] border-0 text-moxe-body font-semibold text-white"
+              className="flex-1 min-w-[100px] py-2.5 rounded-xl bg-[#363636] border-0 text-moxe-body font-semibold text-white"
               onClick={() => navigate(`/messages/${profile.id}`)}
             >
               Message
@@ -415,25 +510,34 @@ export default function Profile() {
           </div>
         )}
 
-        {/* Reference: horizontal highlights – New (white + plus), Behance, Dribbble, Pinterest, Food */}
+        {/* Highlights: New + existing (same for all accounts) */}
         <div className="flex gap-4 overflow-x-auto pb-2 mb-3 no-scrollbar">
-          {[
-            { label: 'New', bg: 'bg-white dark:bg-gray-200', icon: '+', textCls: 'text-moxe-text' },
-            { label: 'Behance', bg: 'bg-blue-600', icon: 'Bē', textCls: 'text-white' },
-            { label: 'Dribbble', bg: 'bg-pink-500', icon: 'D', textCls: 'text-white' },
-            { label: 'Pinterest', bg: 'bg-red-600', icon: 'P', textCls: 'text-white' },
-            { label: 'Food', bg: 'bg-purple-600', icon: 'F', textCls: 'text-white' },
-          ].map(({ label, bg, icon, textCls }) => (
-            <button
-              key={label}
-              type="button"
+          <Link
+            to="/highlights/manage"
+            className="flex flex-col items-center flex-shrink-0"
+          >
+            <div className="w-14 h-14 rounded-full bg-[#262626] flex items-center justify-center font-semibold border-2 border-[#363636] mb-1 text-white text-xl">
+              +
+            </div>
+            <span className="text-[#a8a8a8] text-xs">New</span>
+          </Link>
+          {highlights.map((h: any) => (
+            <Link
+              key={h.id}
+              to={`/highlights/${h.id}`}
               className="flex flex-col items-center flex-shrink-0"
             >
-              <div className={`w-14 h-14 rounded-full ${bg} flex items-center justify-center font-semibold border border-moxe-border mb-1 ${textCls}`}>
-                {icon}
-              </div>
-              <span className="text-moxe-caption text-moxe-textSecondary">{label}</span>
-            </button>
+              <div className="w-14 h-14 rounded-full border-2 border-[#363636] overflow-hidden mb-1 bg-[#262626]">
+                {h.coverImage ? (
+                  <img src={h.coverImage} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-white text-sm font-semibold">
+                    {(h.name || 'Highlight').charAt(0)}
+                  </div>
+              )}
+            </div>
+              <span className="text-[#a8a8a8] text-xs truncate max-w-[64px]">{h.name || 'Highlight'}</span>
+            </Link>
           ))}
         </div>
 
@@ -503,7 +607,7 @@ export default function Profile() {
             </div>
           )}
         </div>
-
+        </div>
       </div>
       {showQr && (
         <div className="fixed inset-0 z-40 bg-black/70 flex items-center justify-center">
@@ -534,6 +638,60 @@ export default function Profile() {
             >
               Close
             </button>
+          </div>
+        </div>
+      )}
+      {showSubscribeModal && !isOwn && targetId && (
+        <div className="fixed inset-0 z-40 bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-moxe-surface rounded-xl border border-moxe-border px-4 py-4 w-full max-w-sm space-y-3">
+            <ThemedText className="font-semibold text-moxe-text block">Choose a tier</ThemedText>
+            <div className="space-y-2 max-h-48 overflow-auto">
+              {creatorTiers.map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setSelectedTierKey(t.key)}
+                  className={`w-full text-left px-3 py-2 rounded-lg border text-sm ${selectedTierKey === t.key ? 'border-[#a855f7] bg-[#a855f7]/10 text-white' : 'border-moxe-border bg-moxe-background text-moxe-text'}`}
+                >
+                  <span className="font-medium">{t.name || t.key}</span>
+                  {t.price != null && <span className="text-moxe-textSecondary ml-2">${Number(t.price).toFixed(2)}/mo</span>}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="flex-1 py-2 rounded-lg border border-moxe-border text-moxe-text text-sm font-medium"
+                onClick={() => { setShowSubscribeModal(false); setSelectedTierKey(''); }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!selectedTierKey || subscribing}
+                className="flex-1 py-2 rounded-lg bg-[#a855f7] text-white text-sm font-semibold disabled:opacity-50"
+                onClick={async () => {
+                  if (!selectedTierKey || !targetId || !getToken()) return;
+                  setSubscribing(true);
+                  try {
+                    const r = await fetch(`${getApiBase()}/accounts/${targetId}/subscribe`, {
+                      method: 'POST',
+                      headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ tierKey: selectedTierKey }),
+                    });
+                    if (r.ok) {
+                      setIsSubscribed(true);
+                      setShowSubscribeModal(false);
+                      setSelectedTierKey('');
+                    }
+                  } finally {
+                    setSubscribing(false);
+                  }
+                }}
+              >
+                {subscribing ? 'Subscribing…' : 'Subscribe'}
+              </button>
+            </div>
           </div>
         </div>
       )}

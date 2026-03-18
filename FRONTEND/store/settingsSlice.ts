@@ -55,6 +55,15 @@ export type NotificationsState = {
 
 export type DailyLimitValue = '15' | '30' | '45' | '60' | '120' | 'off';
 
+/** App theme: dark, light, or default (dark). */
+export type AppTheme = 'dark' | 'light' | 'default';
+
+const THEME_STORAGE_KEY = 'moxe_app_theme';
+
+function getStoredTheme(): AppTheme {
+  return 'dark';
+}
+
 const defaultPostsStoriesComments: PostsStoriesComments = {
   addedToPost: 'on',
   collaborationInvitations: 'on',
@@ -103,6 +112,7 @@ export type SettingsState = {
   notifications: NotificationsState;
   dailyLimit: DailyLimitValue;
   language: string;
+  appTheme: AppTheme;
   blockedUserIds: string[];
   restrictedUserIds: string[];
   mutedUserIds: string[];
@@ -121,6 +131,7 @@ const initialState: SettingsState = {
   },
   dailyLimit: 'off',
   language: 'en',
+  appTheme: getStoredTheme(),
   blockedUserIds: [],
   restrictedUserIds: [],
   mutedUserIds: [],
@@ -157,6 +168,12 @@ const settingsSlice = createSlice({
     },
     setLanguage: (state, action: PayloadAction<string>) => {
       state.language = action.payload;
+    },
+    setAppTheme: (state, action: PayloadAction<AppTheme>) => {
+      state.appTheme = action.payload;
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(THEME_STORAGE_KEY, action.payload);
+      }
     },
     setBlockedUserIds: (state, action: PayloadAction<string[]>) => {
       state.blockedUserIds = action.payload;
@@ -206,6 +223,7 @@ export const {
   setLiveReels,
   setDailyLimit,
   setLanguage,
+  setAppTheme,
   setBlockedUserIds,
   addBlockedUser,
   removeBlockedUser,

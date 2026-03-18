@@ -5,6 +5,8 @@ export type MockPlace = {
   distanceKm: number;
   rating: number;
   category: string;
+  /** [lat, lng] for map marker */
+  coords?: [number, number];
 };
 
 export const mockPlaces: MockPlace[] = [
@@ -15,6 +17,7 @@ export const mockPlaces: MockPlace[] = [
     distanceKm: 0.4,
     rating: 4.8,
     category: 'Coffee shop',
+    coords: [37.776, -122.418],
   },
   {
     id: 'pl2',
@@ -23,6 +26,7 @@ export const mockPlaces: MockPlace[] = [
     distanceKm: 2.1,
     rating: 4.9,
     category: 'Scenic view',
+    coords: [37.769, -122.428],
   },
   {
     id: 'pl3',
@@ -31,6 +35,7 @@ export const mockPlaces: MockPlace[] = [
     distanceKm: 1.2,
     rating: 4.6,
     category: 'Running track',
+    coords: [37.778, -122.415],
   },
 ];
 

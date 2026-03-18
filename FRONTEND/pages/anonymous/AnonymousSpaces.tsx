@@ -70,7 +70,7 @@ export default function AnonymousSpaces() {
         setLoadingPosts(true);
         setError(null);
         const res = await fetch(
-          `${API_BASE}/anonymous/spaces/${encodeURIComponent(activeSpaceId)}/posts?limit=20`,
+          `${API_BASE}/anonymous/spaces/${encodeURIComponent(activeSpaceId ?? '')}/posts?limit=20`,
           { headers: { Authorization: `Bearer ${token}` } },
         );
         const data = await res.json().catch(() => ({}));

@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { ThemedText } from '../../components/ui/Themed';
 import { PageLayout } from '../../components/layout/PageLayout';
+import type { RootState } from '../../store';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
 
@@ -29,6 +31,8 @@ function SettingsRow({ label, description, trailing }: RowProps) {
 
 export default function PrivacySettings() {
   const navigate = useNavigate();
+  const currentAccount = useSelector((state: RootState) => state.account.currentAccount) as { username?: string } | null;
+  const myUsername = currentAccount?.username ?? '';
   const [isPrivate, setIsPrivate] = useState(false);
   const [showActivity, setShowActivity] = useState(true);
   const [searchVisibility, setSearchVisibility] = useState<'EVERYONE' | 'FOLLOWERS_ONLY' | 'NO_ONE'>('EVERYONE');
@@ -129,14 +133,18 @@ export default function PrivacySettings() {
                 </button>
               }
             />
-            <SettingsRow
-              label="Follow requests"
-              description="Review pending requests, see mutual followers, approve, decline, or block."
-            />
-            <SettingsRow
-              label="Remove followers"
-              description="Quietly remove followers without blocking or notifying them."
-            />
+            <Link to="/follow/requests" className="block">
+              <SettingsRow
+                label="Follow requests"
+                description="Review pending requests, see mutual followers, approve, decline, or block."
+              />
+            </Link>
+            <Link to={myUsername ? `/profile/${encodeURIComponent(myUsername)}/followers` : '/settings'} className="block">
+              <SettingsRow
+                label="Remove followers"
+                description="Quietly remove followers without blocking or notifying them. Tap to manage."
+              />
+            </Link>
           </div>
         </section>
 
@@ -291,10 +299,12 @@ export default function PrivacySettings() {
                 </button>
               }
             />
-            <SettingsRow
-              label="Favorites"
-              description="Mark accounts as Favorites to prioritize them in your feed."
-            />
+            <Link to="/favorites" className="block">
+              <SettingsRow
+                label="Favorites"
+                description="Mark accounts as Favorites to prioritize them in your feed. Tap to view Favorites feed."
+              />
+            </Link>
             <SettingsRow
               label="Saved & collections"
               description="Review posts you’ve saved into private collections."

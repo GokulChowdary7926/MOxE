@@ -13,13 +13,11 @@ type JobVideo = {
   createdAt: string;
 };
 
-function useAuthHeaders() {
+function useAuthHeaders(): Record<string, string> {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  return token
-    ? {
-        Authorization: `Bearer ${token}`,
-      }
-    : {};
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
 }
 
 export default function Video() {

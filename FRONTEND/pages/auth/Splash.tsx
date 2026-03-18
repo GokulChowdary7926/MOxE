@@ -23,11 +23,8 @@ export default function Splash() {
   return (
     <div className={`min-h-screen flex flex-col items-center justify-center bg-black safe-area-pt safe-area-pb ${AUTH.bg}`}>
       <div className={AUTH.logoWrapper}>
-        <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #833AB4 0%, #E1306C 50%, #FCAF45 100%)' }}>
-          <span className="text-white font-bold text-3xl font-serif italic">m</span>
-        </div>
+        <img src="/logo.png" alt="MOxE" className="w-20 h-20 rounded-xl object-cover" />
       </div>
-      <h1 className={`${AUTH.title} mt-4`}>MOxE</h1>
       <div className="mt-8 flex flex-col items-center gap-2">
         <div className="w-8 h-8 rounded-full border-2 border-white border-t-transparent animate-spin" />
         <p className="text-[#737373] text-xs">Loading…</p>

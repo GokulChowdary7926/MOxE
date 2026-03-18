@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
-import { Plus, MessageCircle, Heart, LayoutGrid, Store, Settings } from 'lucide-react';
+import type { AppDispatch } from '../../store';
+import { Plus, MessageCircle, Heart, LayoutGrid, Settings } from 'lucide-react';
+import { ShopIcon } from '../icons/ShopIcon';
 import { useAccountCapabilities, useCurrentAccount } from '../../hooks/useAccountCapabilities';
 import { ACCOUNT_TYPE_LABELS } from '../../constants/accountTypes';
 import { logoutThunk } from '../../store/authSlice';
@@ -12,7 +14,7 @@ import { logoutThunk } from '../../store/authSlice';
  * Explore: Store  |  Map / Messages: none  |  Profile: Grid, Settings
  */
 export default function MobileHeader() {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const cap = useAccountCapabilities();
@@ -28,7 +30,7 @@ export default function MobileHeader() {
   const isProfile = pathname.startsWith('/profile');
 
   const showPlusMessageHeart = isHome;
-  const showStore = isExplore;
+  const showStore = isHome || isExplore;
   const showNothing = isMap || isMessages;
   const showGridSettings = isProfile;
 
@@ -43,21 +45,8 @@ export default function MobileHeader() {
       <div className="flex items-center justify-between h-12 px-3">
         {/* Left: logo + app name */}
         <Link to="/" className="flex items-center gap-2 shrink-0" aria-label="MOxE Home">
-          <div className="relative w-9 h-9 rounded-lg bg-gradient-to-r from-[#833AB4] via-[#E1306C] to-[#FCAF45] flex items-center justify-center shrink-0 overflow-visible">
-            <span className="text-white font-bold text-lg leading-none font-serif italic">m</span>
-            <svg
-              className="absolute inset-0 w-full h-full rounded-lg pointer-events-none"
-              viewBox="0 0 36 36"
-              fill="none"
-              stroke="white"
-              strokeWidth="1.5"
-              aria-hidden
-            >
-              <rect x="2" y="2" width="32" height="32" rx="4" />
-              <path d="M2 2 L8 8 M34 2 L28 8 M2 34 L8 28 M34 34 L28 28" strokeWidth="1" />
-            </svg>
-          </div>
-          <span className={`font-bold text-lg tracking-tight ${logoTextClass}`}>MOxE</span>
+          <img src="/logo.png" alt="MOxE" className="w-9 h-9 rounded-lg shrink-0 object-cover" />
+          <span className={`font-bold text-lg tracking-tight hidden sm:inline ${logoTextClass}`}>MOxE</span>
         </Link>
 
         {/* Right: same icons for Home on all accounts – Create (+), Messages, Heart (notifications) */}
@@ -70,14 +59,17 @@ export default function MobileHeader() {
               <Link to="/messages" className={iconClass} aria-label="Messages">
                 <MessageCircle className="w-6 h-6" strokeWidth={2} />
               </Link>
+              <Link to="/commerce" className={iconClass} aria-label="Shop">
+                <ShopIcon className="w-6 h-6" strokeWidth={2} />
+              </Link>
               <Link to="/notifications" className={iconClass} aria-label="Notifications">
                 <Heart className="w-6 h-6" strokeWidth={2} />
               </Link>
             </>
           )}
-          {showStore && (
+          {showStore && !isHome && (
             <Link to="/commerce" className={iconClass} aria-label="Shop">
-              <Store className="w-6 h-6" />
+              <ShopIcon className="w-6 h-6" strokeWidth={2} />
             </Link>
           )}
           {showGridSettings && (
@@ -102,15 +94,13 @@ export default function MobileHeader() {
                       >
                         Switch account ({label})
                       </Link>
-                      {(accountType === 'BUSINESS' || accountType === 'CREATOR') && (
-                        <Link
-                          to="/commerce"
-                          className="block px-4 py-3 text-sm text-white hover:bg-zinc-800"
-                          onClick={() => setMenuOpen(false)}
-                        >
-                          Shop
-                        </Link>
-                      )}
+                      <Link
+                        to="/commerce"
+                        className="block px-4 py-3 text-sm text-white hover:bg-zinc-800"
+                        onClick={() => setMenuOpen(false)}
+                      >
+                        Shop
+                      </Link>
                       {accountType === 'JOB' && (
                         <Link
                           to="/job-hub"

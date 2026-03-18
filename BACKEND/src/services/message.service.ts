@@ -264,8 +264,15 @@ export class MessageService {
   ) {
     const isGroup = !!opts?.groupId;
     const hasContent = (content?.trim()?.length ?? 0) > 0;
-    const hasMedia = opts?.media?.url;
+    const hasMedia = !!opts?.media?.url;
     if (!hasContent && !hasMedia) throw new AppError('Content or media required', 400);
+
+    if (hasMedia) {
+      const url = String(opts!.media!.url);
+      if (!/^https?:\/\//.test(url)) {
+        throw new AppError('Invalid media URL', 400);
+      }
+    }
 
     if (!isGroup) {
       const blocked = await prisma.block.findUnique({

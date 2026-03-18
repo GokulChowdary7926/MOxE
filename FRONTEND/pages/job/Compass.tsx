@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { getApiBase } from '../../services/api';
+import { JobPageContent } from '../../components/job/JobPageContent';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type CompassOwner = {
   account: {
@@ -114,17 +116,15 @@ export default function Compass() {
   });
 
   const token = localStorage.getItem('token');
-  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+  const authHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) authHeaders.Authorization = `Bearer ${token}`;
 
   const fetchServices = async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch(`${API_BASE}/compass/services`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: authHeaders,
       });
       if (!res.ok) {
         throw new Error('Failed to load services');
@@ -143,10 +143,7 @@ export default function Compass() {
     setError(null);
     try {
       const res = await fetch(`${API_BASE}/compass/services/${serviceId}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: authHeaders,
       });
       if (!res.ok) {
         throw new Error('Failed to load service detail');
@@ -193,10 +190,7 @@ export default function Compass() {
 
       const res = await fetch(`${API_BASE}/compass/services`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: authHeaders,
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
@@ -233,10 +227,7 @@ export default function Compass() {
     try {
       const res = await fetch(`${API_BASE}/compass/services/${serviceId}/dependencies`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: authHeaders,
         body: JSON.stringify({ dependencyIds }),
       });
       if (!res.ok) {
@@ -259,10 +250,7 @@ export default function Compass() {
     try {
       const res = await fetch(`${API_BASE}/compass/services/${selectedService.service.id}/docs`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: authHeaders,
         body: JSON.stringify({
           pageId: docForm.pageId.trim(),
           docType: (docForm.docType || 'OTHER').toUpperCase(),
@@ -288,25 +276,21 @@ export default function Compass() {
 
   if (loading && services.length === 0) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-slate-500">Loading Compass…</div>
-      </div>
+      <JobPageContent title="MOxE Compass" description="Register internal services, track ownership, and monitor health.">
+        <div className="flex items-center justify-center py-12">
+          <div className="h-16 w-full max-w-xs bg-[#F4F5F7] animate-pulse rounded" />
+        </div>
+      </JobPageContent>
     );
   }
 
   return (
+    <JobPageContent
+      title="MOxE Compass"
+      description="Register internal services, track ownership, and monitor health across your Job account."
+      error={error}
+    >
     <div>
-      <h2 className="text-2xl font-semibold text-slate-800 dark:text-white mb-2">MOxE Compass</h2>
-      <p className="text-slate-600 dark:text-slate-400 mb-6 text-sm">
-        Register internal services, track ownership, and monitor health across your Job account.
-      </p>
-
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-lg text-sm">
-          {error}
-        </div>
-      )}
-
       {!selectedService && (
         <>
           <form
@@ -718,6 +702,7 @@ export default function Compass() {
         </div>
       )}
     </div>
+    </JobPageContent>
   );
 }
 

@@ -215,7 +215,7 @@ export class AccountService {
       'isPrivate', 'accountType', 'subscriptionTier', 'subscriptionsEnabled', 'badgesEnabled', 'giftsEnabled',
       'businessCategory', 'businessHours', 'contactEmail', 'contactPhone', 'contactBookingLink', 'contactWhatsApp', 'contactAddress',
       'actionButtons', 'subscriptionTierOffers', 'professionalHeadline', 'professionalSection', 'personalSection', 'skills',
-      'openToOpportunities', 'workplaceVerified',
+      'openToOpportunities', 'workplaceVerified', 'activeProfile',
       'searchVisibility', 'showActivityStatus', 'storyArchiveEnabled', 'hideProfileVisits',
       'defaultStoryAllowReplies', 'defaultStoryAllowReshares',
       'quietModeEnabled', 'quietModeStart', 'quietModeEnd', 'quietModeDays',
@@ -338,6 +338,7 @@ export class AccountService {
     mentions: true,
     follows: true,
     storyReplies: true,
+    screenshotAlerts: true,
   };
 
   async getNotificationPreferences(accountId: string): Promise<Record<string, boolean>> {
@@ -354,7 +355,7 @@ export class AccountService {
     accountId: string,
     body: Partial<Record<string, boolean>>
   ): Promise<Record<string, boolean>> {
-    const allowed = new Set(['likes', 'comments', 'dms', 'mentions', 'follows', 'storyReplies']);
+    const allowed = new Set(['likes', 'comments', 'dms', 'mentions', 'follows', 'storyReplies', 'screenshotAlerts']);
     const updates: Record<string, boolean> = {};
     for (const [k, v] of Object.entries(body)) {
       if (allowed.has(k) && typeof v === 'boolean') updates[k] = v;

@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ThemedView, ThemedHeader, ThemedText } from '../../components/ui/Themed';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+import { getApiBase } from '../../services/api';
+const API_BASE = getApiBase();
 
 type ArchivedStory = {
   id: string;

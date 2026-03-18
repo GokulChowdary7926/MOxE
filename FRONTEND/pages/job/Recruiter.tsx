@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { getApiBase } from '../../services/api';
+import { JobPageContent } from '../../components/job/JobPageContent';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type TrackJob = {
   id: string;
@@ -42,14 +44,11 @@ type CandidatesByJobResponse = {
 
 type CandidateDetail = any;
 
-function useAuthHeaders() {
+function useAuthHeaders(): Record<string, string> {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  return token
-    ? {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      }
-    : { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
 }
 
 export default function Recruiter() {
@@ -288,20 +287,13 @@ export default function Recruiter() {
   const currentJob = jobs.find((j) => j.id === selectedJobId) || null;
 
   return (
+    <JobPageContent
+      title="MOxE Recruiter"
+      description="Manage recruitment pipelines, candidates, and interviews for your job postings."
+      error={error}
+    >
     <div className="flex flex-col lg:flex-row gap-6">
       <div className="flex-1">
-        <h2 className="text-2xl font-semibold text-slate-800 dark:text-white mb-2">
-          MOxE TRACK Recruiter
-        </h2>
-        <p className="text-slate-600 dark:text-slate-400 mb-4">
-          Manage recruitment pipelines, candidates, and interviews for your job postings.
-        </p>
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-200 rounded-lg text-sm">
-            {error}
-          </div>
-        )}
 
         <div className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
@@ -309,7 +301,7 @@ export default function Recruiter() {
               Job requisition
             </label>
             <select
-              className="w-full md:w-80 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-800 dark:text-slate-100"
+              className="w-full md:w-80 rounded-lg border border-[#DFE1E6] dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-[#172B4D] dark:text-slate-100 focus:ring-1 focus:ring-[#0052CC]"
               value={selectedJobId || ''}
               onChange={(e) => setSelectedJobId(e.target.value || null)}
             >
@@ -337,7 +329,7 @@ export default function Recruiter() {
         {selectedJobId && (
           <form
             onSubmit={handleAddCandidate}
-            className="mb-6 p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 space-y-3"
+            className="mb-6 p-4 rounded-xl border border-[#DFE1E6] dark:border-slate-700 bg-white dark:bg-slate-800 space-y-3"
           >
             <div className="flex items-center justify-between gap-2">
               <h3 className="font-medium text-slate-800 dark:text-slate-100">
@@ -346,7 +338,7 @@ export default function Recruiter() {
               <button
                 type="submit"
                 disabled={creatingCandidate}
-                className="inline-flex items-center px-3 py-1.5 rounded-md bg-indigo-600 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                className="inline-flex items-center px-3 py-1.5 rounded-md bg-[#0052CC] text-xs font-medium text-white hover:bg-[#2684FF] disabled:opacity-50"
               >
                 {creatingCandidate ? 'Adding...' : 'Add candidate'}
               </button>
@@ -444,7 +436,7 @@ export default function Recruiter() {
                       <button
                         key={`${c.kind}-${c.id}`}
                         onClick={() => openCandidate(c)}
-                        className="w-full text-left rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3 py-2 hover:border-indigo-400 hover:shadow-sm transition"
+                        className="w-full text-left rounded-lg bg-white dark:bg-slate-900 border border-[#DFE1E6] dark:border-slate-700 px-3 py-2 hover:border-[#0052CC] hover:shadow-sm transition"
                       >
                         <div className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">
                           {name}
@@ -499,7 +491,7 @@ export default function Recruiter() {
         )}
         {selectedCandidate && !loadingCandidate && (
           <div className="space-y-4">
-            <div className="p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+            <div className="p-3 rounded-lg bg-white dark:bg-slate-800 border border-[#DFE1E6] dark:border-slate-700">
               <div className="text-base font-semibold text-slate-800 dark:text-slate-100">
                 {selectedCandidate.kind === 'application'
                   ? selectedCandidate.account?.displayName || 'Application'
@@ -565,7 +557,7 @@ export default function Recruiter() {
                 <button
                   type="button"
                   onClick={handleRate}
-                  className="text-[11px] px-2 py-1 rounded bg-amber-500 text-white hover:bg-amber-600"
+                  className="text-[11px] px-2 py-1 rounded bg-[#0052CC] text-white hover:bg-[#2684FF]"
                 >
                   Save
                 </button>
@@ -592,7 +584,7 @@ export default function Recruiter() {
                   type="button"
                   onClick={handleDecision}
                   disabled={!decision}
-                  className="text-[11px] px-2 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40"
+                  className="text-[11px] px-2 py-1 rounded bg-[#0052CC] text-white hover:bg-[#2684FF] disabled:opacity-40"
                 >
                   Apply
                 </button>
@@ -625,7 +617,7 @@ export default function Recruiter() {
                   type="button"
                   onClick={handleAddNote}
                   disabled={!noteText.trim()}
-                  className="text-[11px] px-2 py-1 rounded bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-40"
+                  className="text-[11px] px-2 py-1 rounded border border-[#DFE1E6] text-[#172B4D] hover:bg-[#F4F5F7] disabled:opacity-40"
                 >
                   Add note
                 </button>
@@ -663,6 +655,7 @@ export default function Recruiter() {
         )}
       </div>
     </div>
+    </JobPageContent>
   );
 }
 

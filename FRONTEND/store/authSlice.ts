@@ -19,7 +19,22 @@ export const login = createAsyncThunk<
       body: JSON.stringify({ loginId, password }),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) return rejectWithValue(data?.error || 'Login failed');
+    if (!res.ok) {
+      const rawError = data?.error ?? data?.message ?? (Array.isArray(data?.errors) ? data.errors[0] : null);
+      const backendMsg = rawError != null ? String(rawError).trim() : '';
+      const msg =
+        backendMsg ||
+        (res.status === 401
+          ? 'Invalid username or password.'
+          : res.status === 0
+            ? 'Cannot reach server. Check your connection and that the backend is running.'
+            : res.status === 404 || res.status >= 502
+              ? 'Server unavailable. Ensure the backend is running and try again.'
+              : res.status === 400
+                ? 'Invalid request. Check your username and password.'
+                : res.statusText?.trim() || 'Login failed. Check your username and password, or sign up with phone if you don\'t have an account.');
+      return rejectWithValue(msg);
+    }
     if (!data.token) return rejectWithValue('No token returned');
     if (typeof localStorage !== 'undefined') localStorage.setItem('token', data.token);
     return {
@@ -27,6 +42,30 @@ export const login = createAsyncThunk<
       user: data.user ?? { id: data.userId ?? data.accountId ?? 'unknown' },
       userId: data.userId,
       accountId: data.accountId,
+    };
+  }
+);
+
+export const register = createAsyncThunk<
+  { token: string; user: AuthUser },
+  { email: string; displayName: string; username: string; password: string },
+  { rejectValue: string }
+>(
+  'auth/register',
+  async ({ email, displayName, username, password }, { rejectWithValue }) => {
+    const base = getApiBase();
+    const res = await fetch(`${base}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, displayName, username, password }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return rejectWithValue(data?.error || 'Sign up failed');
+    if (!data.token) return rejectWithValue(data?.error || 'No token returned');
+    if (typeof localStorage !== 'undefined') localStorage.setItem('token', data.token);
+    return {
+      token: data.token,
+      user: data.user ?? { id: data.userId ?? data.accountId ?? 'unknown' },
     };
   }
 );
@@ -96,6 +135,21 @@ const authSlice = createSlice({
       .addCase(login.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload ?? 'Login failed';
+      })
+      .addCase(register.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(register.fulfilled, (state, action) => {
+        state.loading = false;
+        state.token = action.payload.token;
+        state.user = action.payload.user;
+        state.isAuthenticated = true;
+        state.error = null;
+      })
+      .addCase(register.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload ?? 'Sign up failed';
       })
       .addCase(fetchMe.rejected, (state, action) => {
         if (action.payload === 'No token') return;

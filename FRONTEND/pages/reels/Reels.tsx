@@ -1,5 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Heart, MessageCircle, Send, Bookmark, MoreVertical, Play } from 'lucide-react';
 import { ThemedView, ThemedText } from '../../components/ui/Themed';
 import { Avatar } from '../../components/ui/Avatar';
@@ -8,6 +7,7 @@ import { VerifiedBadge } from '../../components/atoms/VerifiedBadge';
 import { getApiBase, getToken } from '../../services/api';
 import { mockReels } from '../../mocks/reels';
 import { mockUsers } from '../../mocks/users';
+import { MobileShell } from '../../components/layout/MobileShell';
 
 type ReelItem = {
   id: string;
@@ -61,48 +61,47 @@ export default function Reels() {
   const [error, setError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [tab, setTab] = useState<ReelsTab>('forYou');
+  const nextCursorRef = useRef<string | null>(null);
+  nextCursorRef.current = nextCursor;
 
-  const loadReels = useCallback(
-    async (cursor?: string | null) => {
-      try {
-        if (cursor && !nextCursor) return;
-        cursor ? setLoadingMore(true) : setLoading(true);
-        setError(null);
-        const token = getToken();
-        if (token) {
-          const url = new URL(`${getApiBase()}/reels`);
-          if (cursor) url.searchParams.set('cursor', cursor);
-          const res = await fetch(url.toString(), {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          const data = (await res.json().catch(() => ({}))) as Partial<ReelsResponse>;
-          if (!res.ok) {
-            throw new Error((data as any).error || 'Failed to load reels.');
-          }
-          const items = Array.isArray(data.items) ? data.items : [];
-          if (items.length > 0) {
-            setReels((prev) => (cursor ? [...prev, ...items] : items));
-            setNextCursor(data.nextCursor ?? null);
-            if (!cursor) setCurrentIndex(0);
-            return;
-          }
+  const loadReels = useCallback(async (cursor?: string | null) => {
+    try {
+      if (cursor && !nextCursorRef.current) return;
+      cursor ? setLoadingMore(true) : setLoading(true);
+      setError(null);
+      const token = getToken();
+      if (token) {
+        const url = new URL(`${getApiBase()}/reels`);
+        if (cursor) url.searchParams.set('cursor', cursor);
+        const res = await fetch(url.toString(), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = (await res.json().catch(() => ({}))) as Partial<ReelsResponse>;
+        if (!res.ok) {
+          throw new Error((data as any).error || 'Failed to load reels.');
         }
-        // No token or empty response: use mocks so Reels is always populated.
-        const mockItems = buildReelItemsFromMocks();
-        setReels(mockItems);
-        setNextCursor(null);
-        setCurrentIndex(0);
-      } catch (e: any) {
-        setError(e?.message || 'Failed to load reels.');
-        const mockItems = buildReelItemsFromMocks();
-        setReels(mockItems);
-        setCurrentIndex(0);
-      } finally {
-        cursor ? setLoadingMore(false) : setLoading(false);
+        const items = Array.isArray(data.items) ? data.items : [];
+        if (items.length > 0) {
+          setReels((prev) => (cursor ? [...prev, ...items] : items));
+          setNextCursor(data.nextCursor ?? null);
+          if (!cursor) setCurrentIndex(0);
+          return;
+        }
       }
-    },
-    [nextCursor],
-  );
+      // No token or empty response: use mocks so Reels is always populated.
+      const mockItems = buildReelItemsFromMocks();
+      setReels(mockItems);
+      setNextCursor(null);
+      setCurrentIndex(0);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load reels.');
+      const mockItems = buildReelItemsFromMocks();
+      setReels(mockItems);
+      setCurrentIndex(0);
+    } finally {
+      cursor ? setLoadingMore(false) : setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     loadReels(null);
@@ -146,140 +145,138 @@ export default function Reels() {
 
   return (
     <ThemedView className="min-h-screen flex flex-col bg-black pb-20">
-      <header className="sticky top-0 z-10 flex flex-col border-b border-white/10 bg-black/80 safe-area-pt">
-        <div className="flex items-center justify-between h-12 px-3">
-          <Link to="/" className="text-white text-moxe-body font-medium flex items-center gap-1" aria-label="Back">
-            ← Back
-          </Link>
-          <span className="absolute left-1/2 -translate-x-1/2 text-moxe-body font-semibold text-white">Reels</span>
-          <button type="button" className="w-10 h-10 flex items-center justify-center text-white" aria-label="More">
-            ⋯
-          </button>
-        </div>
-        {/* For You / Followed tabs – reference */}
-        <div className="flex rounded-full bg-white/10 p-0.5 mx-4 mb-2">
-          <button
-            type="button"
-            onClick={() => setTab('forYou')}
-            className={`flex-1 py-1.5 rounded-full text-moxe-caption font-semibold ${
-              tab === 'forYou' ? 'bg-white text-black' : 'text-white'
-            }`}
-          >
-            For You
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('followed')}
-            className={`flex-1 py-1.5 rounded-full text-moxe-caption font-semibold ${
-              tab === 'followed' ? 'bg-white text-black' : 'text-white'
-            }`}
-          >
-            Followed
-          </button>
-        </div>
-      </header>
+      <MobileShell>
+        <header className="sticky top-0 z-10 flex flex-col border-b border-white/10 bg-black/90 safe-area-pt">
+          <div className="flex items-center justify-center h-12 px-3">
+            <span className="text-moxe-body font-semibold text-white">Reels</span>
+          </div>
+          {/* For You / Followed tabs – pill switch */}
+          <div className="flex rounded-full bg-white/10 p-0.5 mx-4 mb-2">
+            <button
+              type="button"
+              onClick={() => setTab('forYou')}
+              className={`flex-1 py-1.5 rounded-full text-moxe-caption font-semibold ${
+                tab === 'forYou' ? 'bg-white text-black' : 'text-white'
+              }`}
+            >
+              For You
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('followed')}
+              className={`flex-1 py-1.5 rounded-full text-moxe-caption font-semibold ${
+                tab === 'followed' ? 'bg-white text-black' : 'text-white'
+              }`}
+            >
+              Following
+            </button>
+          </div>
+        </header>
 
-      <div className="flex-1 flex items-center justify-center overflow-hidden">
-        {loading && !active && (
-          <ThemedText secondary className="text-moxe-caption text-white/70">
-            Loading reels…
-          </ThemedText>
-        )}
-        {error && !loading && !active && (
-          <ThemedText className="text-moxe-caption text-moxe-danger">{error}</ThemedText>
-        )}
-        {!loading && !error && active && (
-          <div className="relative w-full h-full flex items-center justify-center min-h-[60vh]">
-            {/* Progress bar at top – Instagram style */}
-            <div className="absolute left-0 right-0 top-0 h-0.5 bg-white/20 z-20 flex">
-              {reels.map((_, i) => (
-                <div
-                  key={i}
-                  className="flex-1 h-full bg-white/30 last:bg-white/60"
-                  style={{ opacity: i === currentIndex ? 1 : i < currentIndex ? 1 : 0.3 }}
+        <div className="flex-1 flex items-center justify-center overflow-hidden">
+          {loading && !active && (
+            <ThemedText secondary className="text-moxe-caption text-white/70">
+              Loading reels…
+            </ThemedText>
+          )}
+          {error && !loading && !active && (
+            <ThemedText className="text-moxe-caption text-moxe-danger">{error}</ThemedText>
+          )}
+          {!loading && !error && active && (
+            <div className="relative w-full h-full flex items-center justify-center min-h-[60vh]">
+              {/* Progress bar at top – Instagram style */}
+              <div className="absolute left-0 right-0 top-0 h-0.5 bg-white/20 z-20 flex">
+                {reels.map((_, i) => (
+                  <div
+                    key={i}
+                    className="flex-1 h-full bg-white/40"
+                    style={{ opacity: i === currentIndex ? 1 : i < currentIndex ? 1 : 0.2 }}
+                  />
+                ))}
+              </div>
+
+              {/* Video full-bleed */}
+              <div className="absolute inset-0 bg-[#050505] flex items-center justify-center">
+                <video
+                  key={active.id}
+                  src={active.video}
+                  className="w-full h-full object-cover"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  onError={(e) => {
+                    (e.target as HTMLVideoElement).style.display = 'none';
+                  }}
                 />
-              ))}
-            </div>
-
-            {/* Video placeholder (full-bleed); real video if URL loads */}
-            <div className="absolute inset-0 bg-[#121212] flex items-center justify-center">
-              <video
-                key={active.id}
-                src={active.video}
-                className="w-full h-full object-cover"
-                autoPlay
-                loop
-                muted
-                playsInline
-                onError={(e) => {
-                  (e.target as HTMLVideoElement).style.display = 'none';
-                }}
-              />
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-16 h-16 rounded-full bg-black/50 flex items-center justify-center">
-                  <Play className="w-8 h-8 text-white fill-white" />
+                {/* Center play indicator for paused states (static for now) */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="w-16 h-16 rounded-full bg-black/40 flex items-center justify-center">
+                    <Play className="w-8 h-8 text-white fill-white" />
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Right-hand action bar (Instagram-style) */}
-            <div className="absolute right-3 bottom-28 flex flex-col items-center gap-5 text-white z-10">
-              <button type="button" className="flex flex-col items-center gap-0.5" aria-label="Like">
-                <Heart className="w-8 h-8" />
-                {typeof active.likeCount === 'number' && active.likeCount > 0 && (
-                  <span className="text-moxe-caption">{active.likeCount.toLocaleString()}</span>
-                )}
-              </button>
-              <button type="button" className="flex flex-col items-center gap-0.5" aria-label="Comment">
-                <MessageCircle className="w-8 h-8" />
-                {typeof active.commentCount === 'number' && active.commentCount > 0 && (
-                  <span className="text-moxe-caption">{active.commentCount.toLocaleString()}</span>
-                )}
-              </button>
-              <button type="button" className="flex flex-col items-center gap-0.5" aria-label="Share">
-                <Send className="w-8 h-8" />
-                {(active as ReelItem).shareCount != null && (active as ReelItem).shareCount! > 0 && (
-                  <span className="text-moxe-caption">{(active as ReelItem).shareCount!.toLocaleString()}</span>
-                )}
-              </button>
-              <button type="button" aria-label="Save">
-                <Bookmark className="w-8 h-8" />
-              </button>
-              <button type="button" aria-label="More">
-                <MoreVertical className="w-8 h-8" />
-              </button>
-            </div>
-
-            {/* Bottom: profile, audio, caption – creator overlay */}
-            <div className="absolute left-3 right-20 bottom-6 z-10">
-              <div className="flex items-center gap-2 mb-1">
-                <Avatar uri={active.profilePhoto} size={32} />
-                <span className="text-white font-semibold text-sm">{active.username}</span>
-                {(mockUsers.find((u) => u.username === active.username) as any)?.isVerified && (
-                  <VerifiedBadge size={14} />
-                )}
-                <FollowButton isFollowing={false} onClick={() => {}} />
+              {/* Right-hand action bar */}
+              <div className="absolute right-3 bottom-28 flex flex-col items-center gap-5 text-white z-10">
+                <button type="button" className="flex flex-col items-center gap-0.5" aria-label="Like">
+                  <Heart className="w-7 h-7" />
+                  {typeof active.likeCount === 'number' && active.likeCount > 0 && (
+                    <span className="text-moxe-caption text-xs">{active.likeCount.toLocaleString()}</span>
+                  )}
+                </button>
+                <button type="button" className="flex flex-col items-center gap-0.5" aria-label="Comment">
+                  <MessageCircle className="w-7 h-7" />
+                  {typeof active.commentCount === 'number' && active.commentCount > 0 && (
+                    <span className="text-moxe-caption text-xs">{active.commentCount.toLocaleString()}</span>
+                  )}
+                </button>
+                <button type="button" className="flex flex-col items-center gap-0.5" aria-label="Share">
+                  <Send className="w-7 h-7" />
+                  {(active as ReelItem).shareCount != null && (active as ReelItem).shareCount! > 0 && (
+                    <span className="text-moxe-caption text-xs">
+                      {(active as ReelItem).shareCount!.toLocaleString()}
+                    </span>
+                  )}
+                </button>
+                <button type="button" aria-label="Save">
+                  <Bookmark className="w-7 h-7" />
+                </button>
+                <button type="button" aria-label="More">
+                  <MoreVertical className="w-7 h-7" />
+                </button>
               </div>
-              {(active as ReelItem).audioTitle && (
-                <p className="text-white text-moxe-caption truncate mb-0.5">
-                  {(active as ReelItem).audioTitle}
-                  {(active as ReelItem).audioArtist && ` · ${(active as ReelItem).audioArtist}`}
-                </p>
-              )}
-              {active.caption && (
-                <ThemedText className="text-white text-moxe-body line-clamp-2">
-                  {active.caption}
-                </ThemedText>
-              )}
+
+              {/* Bottom overlay: profile, audio, caption */}
+              <div className="absolute left-3 right-20 bottom-6 z-10">
+                <div className="flex items-center gap-2 mb-1">
+                  <Avatar uri={active.profilePhoto} size={32} />
+                  <span className="text-white font-semibold text-sm">{active.username}</span>
+                  {(mockUsers.find((u) => u.username === active.username) as any)?.isVerified && (
+                    <VerifiedBadge size={14} />
+                  )}
+                  <FollowButton isFollowing={false} onClick={() => {}} />
+                </div>
+                {(active as ReelItem).audioTitle && (
+                  <p className="text-white text-moxe-caption truncate mb-0.5">
+                    {(active as ReelItem).audioTitle}
+                    {(active as ReelItem).audioArtist && ` · ${(active as ReelItem).audioArtist}`}
+                  </p>
+                )}
+                {active.caption && (
+                  <ThemedText className="text-white text-moxe-body line-clamp-2">
+                    {active.caption}
+                  </ThemedText>
+                )}
+              </div>
             </div>
+          )}
+        </div>
 
-          </div>
+        {loadingMore && (
+          <div className="px-4 py-1 text-center text-[11px] text-white/60">Loading more…</div>
         )}
-      </div>
-
-      {loadingMore && (
-        <div className="px-4 py-1 text-center text-[11px] text-white/60">Loading more…</div>
-      )}
+      </MobileShell>
     </ThemedView>
   );
 }

@@ -1,49 +1,23 @@
-import React from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import type { RootState } from '../../store';
-import { setMessagesNotifications } from '../../store/settingsSlice';
-import type { NotificationValue } from '../../store/settingsSlice';
-import { PageLayout, SettingsRadioSection } from '../../components/layout/PageLayout';
+import React, { useState } from 'react';
+import { SettingsPageShell, SettingsRadioSection } from '../../components/layout/SettingsPageShell';
 
-const OPTIONS: { label: string; value: NotificationValue }[] = [
+const MESSAGE_OPTIONS = [
   { label: 'Off', value: 'off' },
   { label: 'From profiles I follow', value: 'from_following' },
   { label: 'From everyone', value: 'from_everyone' },
 ];
+const OFF_ON = [{ label: 'Off', value: 'off' }, { label: 'On', value: 'on' }];
 
 export default function MessagesNotificationsSettings() {
-  const state = useSelector((s: RootState) => s.settings.notifications.messages);
-  const dispatch = useDispatch();
-
-  const update = (key: keyof typeof state, value: NotificationValue) => {
-    dispatch(setMessagesNotifications({ [key]: value }));
-  };
+  const [messageRequests, setMessageRequests] = useState('on');
+  const [messages, setMessages] = useState('on');
+  const [groupRequests, setGroupRequests] = useState('on');
 
   return (
-    <PageLayout title="Messages" backTo="/settings/notifications">
-      <div className="py-4">
-        <SettingsRadioSection
-          title="Message requests"
-          options={OPTIONS}
-          value={state.messageRequests}
-          onChange={(v) => update('messageRequests', v as NotificationValue)}
-          exampleText="Someone sent you a message request."
-        />
-        <SettingsRadioSection
-          title="Messages"
-          options={[{ label: 'Off', value: 'off' }, { label: 'On', value: 'on' }]}
-          value={state.messages}
-          onChange={(v) => update('messages', v as NotificationValue)}
-          exampleText="New messages in your conversations."
-        />
-        <SettingsRadioSection
-          title="Group requests"
-          options={[{ label: 'Off', value: 'off' }, { label: 'On', value: 'on' }]}
-          value={state.groupRequests}
-          onChange={(v) => update('groupRequests', v as NotificationValue)}
-          exampleText="Someone added you to a group or requested to join."
-        />
-      </div>
-    </PageLayout>
+    <SettingsPageShell title="Messages" backTo="/settings/notifications">
+      <SettingsRadioSection name="message-requests" title="Message requests" value={messageRequests} onChange={setMessageRequests} options={MESSAGE_OPTIONS} exampleText="Someone sent you a message request." />
+      <SettingsRadioSection name="messages" title="Messages" value={messages} onChange={setMessages} options={OFF_ON} exampleText="New messages in your conversations." />
+      <SettingsRadioSection name="group-requests" title="Group requests" value={groupRequests} onChange={setGroupRequests} options={OFF_ON} exampleText="Someone added you to a group or requested to join." />
+    </SettingsPageShell>
   );
 }

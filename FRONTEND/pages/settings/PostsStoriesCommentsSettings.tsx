@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { PageLayout, SettingsRadioSection } from '../../components/layout/PageLayout';
+import { SettingsPageShell, SettingsRadioSection } from '../../components/layout/SettingsPageShell';
 
-/**
- * Instagram-style "Posts, stories and comments" notification/preference screen (§9.3).
- * Sections with radio options (Off / On or From profiles I follow / From everyone) and example text.
- */
+const OFF_ON = [{ label: 'Off', value: 'off' }, { label: 'On', value: 'on' }];
+const OFF_FOLLOWING_EVERYONE = [
+  { label: 'Off', value: 'off' },
+  { label: 'From profiles I follow', value: 'from_following' },
+  { label: 'From everyone', value: 'from_everyone' },
+];
+
 export default function PostsStoriesCommentsSettings() {
   const [addedToPost, setAddedToPost] = useState('on');
   const [collaborationInvitations, setCollaborationInvitations] = useState('on');
@@ -16,80 +19,15 @@ export default function PostsStoriesCommentsSettings() {
   const [commentLikesAndPins, setCommentLikesAndPins] = useState('on');
 
   return (
-    <PageLayout title="Posts, stories and comments" backTo="/settings/notifications">
-      <div className="py-4">
-        <SettingsRadioSection
-          title="Added to post"
-          options={[{ label: 'Off', value: 'off' }, { label: 'On', value: 'on' }]}
-          value={addedToPost}
-          onChange={setAddedToPost}
-          exampleText="johnappleseed added your photo to their post."
-        />
-        <SettingsRadioSection
-          title="Collaboration invitations"
-          options={[
-            { label: 'Off', value: 'off' },
-            { label: 'From profiles I follow', value: 'from_following' },
-            { label: 'On', value: 'on' },
-          ]}
-          value={collaborationInvitations}
-          onChange={setCollaborationInvitations}
-          exampleText="johnappleseed invited you to collaborate on a post."
-        />
-        <SettingsRadioSection
-          title="AI-generated posts"
-          options={[{ label: 'Off', value: 'off' }, { label: 'On', value: 'on' }]}
-          value={aiGeneratedPosts}
-          onChange={setAiGeneratedPosts}
-          exampleText="johnappleseed has new posts for you to review."
-        />
-        <SettingsRadioSection
-          title="Story comments"
-          options={[
-            { label: 'Off', value: 'off' },
-            { label: 'From profiles I follow', value: 'from_following' },
-            { label: 'From everyone', value: 'from_everyone' },
-          ]}
-          value={storyComments}
-          onChange={setStoryComments}
-          exampleText="johnappleseed commented: Nice shot!"
-        />
-        <SettingsRadioSection
-          title="Add to post submissions"
-          options={[{ label: 'Off', value: 'off' }, { label: 'On', value: 'on' }]}
-          value={addToPostSubmissions}
-          onChange={setAddToPostSubmissions}
-          exampleText="johnappleseed and 3 others want to add to your post. Review their submissions."
-        />
-        <SettingsRadioSection
-          title="Photos of you"
-          options={[
-            { label: 'Off', value: 'off' },
-            { label: 'From profiles I follow', value: 'from_following' },
-            { label: 'From everyone', value: 'from_everyone' },
-          ]}
-          value={photosOfYou}
-          onChange={setPhotosOfYou}
-          exampleText="johnappleseed tagged you in a photo."
-        />
-        <SettingsRadioSection
-          title="Comments"
-          options={[
-            { label: 'Off', value: 'off' },
-            { label: 'From profiles I follow', value: 'from_following' },
-            { label: 'From everyone', value: 'from_everyone' },
-          ]}
-          value={comments}
-          onChange={setComments}
-          exampleText='johnappleseed commented: "Nice shot!"'
-        />
-        <SettingsRadioSection
-          title="Comment likes and pins"
-          options={[{ label: 'Off', value: 'off' }, { label: 'On', value: 'on' }]}
-          value={commentLikesAndPins}
-          onChange={setCommentLikesAndPins}
-        />
-      </div>
-    </PageLayout>
+    <SettingsPageShell title="Posts, stories and comments" backTo="/settings/notifications">
+      <SettingsRadioSection name="added-to-post" title="Added to post" value={addedToPost} onChange={setAddedToPost} options={OFF_ON} exampleText="johnappleseed added your photo to their post." />
+      <SettingsRadioSection name="collab" title="Collaboration invitations" value={collaborationInvitations} onChange={setCollaborationInvitations} options={[...OFF_ON.slice(0, 1), { label: 'From profiles I follow', value: 'from_following' }, { label: 'On', value: 'on' }]} exampleText="johnappleseed invited you to collaborate on a post." />
+      <SettingsRadioSection name="ai" title="AI-generated posts" value={aiGeneratedPosts} onChange={setAiGeneratedPosts} options={OFF_ON} exampleText="johnappleseed has new posts for you to review." />
+      <SettingsRadioSection name="story-comments" title="Story comments" value={storyComments} onChange={setStoryComments} options={OFF_FOLLOWING_EVERYONE} exampleText="johnappleseed commented: Nice shot!" />
+      <SettingsRadioSection name="add-to-post" title="Add to post submissions" value={addToPostSubmissions} onChange={setAddToPostSubmissions} options={OFF_ON} exampleText="johnappleseed and 3 others want to add to your post. Review their submissions." />
+      <SettingsRadioSection name="photos-of-you" title="Photos of you" value={photosOfYou} onChange={setPhotosOfYou} options={OFF_FOLLOWING_EVERYONE} exampleText="johnappleseed tagged you in a photo." />
+      <SettingsRadioSection name="comments" title="Comments" value={comments} onChange={setComments} options={OFF_FOLLOWING_EVERYONE} exampleText='johnappleseed commented: "Nice shot!"' />
+      <SettingsRadioSection name="comment-likes" title="Comment likes and pins" value={commentLikesAndPins} onChange={setCommentLikesAndPins} options={OFF_ON} />
+    </SettingsPageShell>
   );
 }

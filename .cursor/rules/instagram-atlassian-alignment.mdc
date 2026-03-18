@@ -1,0 +1,11 @@
+---
+description: MOxE features must follow Instagram (social) and Atlassian (Business/Job) workflow, APIs, and architecture per docs.
+alwaysApply: true
+---
+
+# Instagram and Atlassian alignment
+
+- **Instagram-like features** (feed, story, post, reels, live, messages, profile, explore, map): Follow `docs/MOxE_UI_DESIGN_BLUEPRINT.md` and `docs/ALGORITHMS_AND_WORKFLOWS.md`. Use `getApiBase()` and moxe-* tokens (e.g. `text-moxe-primary`, `border-moxe-border`, `text-moxe-textSecondary`).
+- **Business/Job features**: Follow `docs/MOXE_JOB_TOOLS_IMPLEMENTATION_SUMMARY.md` and Atlassian-style tokens (#172B4D, #0052CC, #DFE1E6); use `JobPageContent` and `getApiBase()`. Do not use moxe-primary (#0095f6) for primary actions in Business/Job screens.
+- **API changes**: Check `docs/MOxE_END_TO_END_BLUEPRINT.md` and `docs/ALGORITHMS_AND_WORKFLOWS.md` so workflow and API stay aligned. Use consistent error shape and status codes from the workflow doc.
+- **Full reference**: `docs/DEVELOPER_ALIGNMENT_INSTAGRAM_ATLASSIAN.md` and project root `AGENTS.md`.

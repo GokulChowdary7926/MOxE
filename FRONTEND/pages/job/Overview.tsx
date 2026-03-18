@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { getApiBase } from '../../services/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type AtlasObjective = {
   id: string;
@@ -36,7 +37,8 @@ export default function Overview() {
   const [schedules, setSchedules] = useState<AlertSchedule[]>([]);
 
   const token = localStorage.getItem('token');
-  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+  const authHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) authHeaders.Authorization = `Bearer ${token}`;
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -59,17 +61,12 @@ export default function Overview() {
         }
       };
 
-      const baseHeaders = {
-        'Content-Type': 'application/json',
-        ...authHeaders,
-      };
-
       const [atlasData, appsData, buildData, compassData, alertData] = await Promise.all([
-        safeFetch<AtlasObjective[]>(`${API_BASE}/atlas/objectives`, { headers: baseHeaders }),
-        safeFetch<TrackApplication[]>(`${API_BASE}/job/track/applications`, { headers: baseHeaders }),
-        safeFetch<BuildPipeline[]>(`${API_BASE}/build/pipelines`, { headers: baseHeaders }),
-        safeFetch<CompassService[]>(`${API_BASE}/compass/services`, { headers: baseHeaders }),
-        safeFetch<AlertSchedule[]>(`${API_BASE}/alert/schedules`, { headers: baseHeaders }),
+        safeFetch<AtlasObjective[]>(`${API_BASE}/atlas/objectives`, { headers: authHeaders }),
+        safeFetch<TrackApplication[]>(`${API_BASE}/job/track/applications`, { headers: authHeaders }),
+        safeFetch<BuildPipeline[]>(`${API_BASE}/build/pipelines`, { headers: authHeaders }),
+        safeFetch<CompassService[]>(`${API_BASE}/compass/services`, { headers: authHeaders }),
+        safeFetch<AlertSchedule[]>(`${API_BASE}/alert/schedules`, { headers: authHeaders }),
       ]);
 
       if (!atlasData && !appsData && !buildData && !compassData && !alertData) {
@@ -102,33 +99,33 @@ export default function Overview() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="text-slate-500">Loading overview…</div>
+        <div className="text-[#5E6C84] dark:text-[#8C9BAB] text-sm">Loading overview…</div>
       </div>
     );
   }
 
   return (
     <div>
-      <h2 className="text-2xl font-semibold text-slate-800 dark:text-white mb-2">Job overview</h2>
-      <p className="text-slate-600 dark:text-slate-400 mb-6 text-sm">
+      <h2 className="text-lg font-semibold text-[#172B4D] dark:text-[#E6EDF3] mb-1">Job overview</h2>
+      <p className="text-[#5E6C84] dark:text-[#8C9BAB] mb-4 text-sm">
         High-level snapshot of your MOxE Job tools: goals, tracking, builds, services and alerts.
       </p>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-lg text-sm">
+        <div className="mb-4 p-3 bg-[#FFEBE6] dark:bg-red-900/20 text-[#BF2600] dark:text-red-300 rounded-lg text-sm">
           {error}
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
-          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+        <div className="rounded-lg border border-[#DFE1E6] dark:border-[#2C333A] bg-white dark:bg-[#1D2125] p-4 shadow-sm">
+          <p className="text-xs font-semibold text-[#5E6C84] dark:text-[#8C9BAB] uppercase tracking-wide mb-1">
             Goals (Atlas)
           </p>
-          <p className="text-2xl font-semibold text-slate-800 dark:text-slate-50">
+          <p className="text-xl font-semibold text-[#172B4D] dark:text-[#E6EDF3]">
             {totalObjectives}
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-xs text-[#5E6C84] dark:text-[#8C9BAB] mt-1">
             Avg progress:{' '}
             <span className="font-medium">
               {Number.isNaN(avgObjectiveProgress) ? '–' : `${avgObjectiveProgress.toFixed(1)}%`}
@@ -143,19 +140,19 @@ export default function Overview() {
           <p className="text-2xl font-semibold text-slate-800 dark:text-slate-50">
             {applications.length}
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-xs text-[#5E6C84] dark:text-[#8C9BAB] mt-1">
             Active applications linked to your Job account.
           </p>
         </div>
 
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
-          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+        <div className="rounded-lg border border-[#DFE1E6] dark:border-[#2C333A] bg-white dark:bg-[#1D2125] p-4 shadow-sm">
+          <p className="text-xs font-semibold text-[#5E6C84] dark:text-[#8C9BAB] uppercase tracking-wide mb-1">
             Pipelines (Build)
           </p>
-          <p className="text-2xl font-semibold text-slate-800 dark:text-slate-50">
+          <p className="text-xl font-semibold text-[#172B4D] dark:text-[#E6EDF3]">
             {pipelines.length}
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-xs text-[#5E6C84] dark:text-[#8C9BAB] mt-1">
             CI/CD pipelines for your MOxE Code repositories.
           </p>
         </div>
@@ -167,7 +164,7 @@ export default function Overview() {
           <p className="text-2xl font-semibold text-slate-800 dark:text-slate-50">
             {totalServices}
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-xs text-[#5E6C84] dark:text-[#8C9BAB] mt-1">
             {totalServices === 0
               ? 'No services registered yet.'
               : `${operationalServices} operational, ${
@@ -183,17 +180,17 @@ export default function Overview() {
           <p className="text-2xl font-semibold text-slate-800 dark:text-slate-50">
             {schedules.length}
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-xs text-[#5E6C84] dark:text-[#8C9BAB] mt-1">
             Rotations defined for critical alerts and incidents.
           </p>
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
-        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">
+      <div className="rounded-lg border border-[#DFE1E6] dark:border-[#2C333A] bg-white dark:bg-[#1D2125] p-4 shadow-sm">
+        <p className="text-xs font-semibold text-[#5E6C84] dark:text-[#8C9BAB] uppercase tracking-wide mb-2">
           Next steps
         </p>
-        <ul className="text-xs text-slate-600 dark:text-slate-300 space-y-1">
+        <ul className="text-xs text-[#172B4D] dark:text-[#B6D2F0] space-y-1">
           <li>
             • Use <span className="font-semibold">Track</span> to manage applications and recruitment
             pipelines.

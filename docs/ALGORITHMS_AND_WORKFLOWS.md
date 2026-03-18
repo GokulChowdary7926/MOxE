@@ -76,8 +76,13 @@ Response body should include a consistent shape (e.g. `{ error: string, code?: s
   4. **Pagination:** Return `limit` items, next cursor = last post ID or createdAt.
 - **Output:** Ordered list of posts with account, like/comment counts, media, caption.
 
-### 2.2 Feed load workflow (frontend)
-1. On mount (or tab focus), call `getFeed(cursor?)`.
+### 2.2 Favorites feed (chronological)
+- **Input:** Current account ID, cursor (optional), limit (default 20).
+- **Steps:** Same candidate set as 2.1, but **filter to accounts the user has marked as Favorite** (Follow.isFavorite = true). **Ranking:** chronological only (order by post createdAt desc). No engagement or relationship_boost. Paginate as in 2.1.
+- **Output:** Ordered list of posts from favorite accounts, newest first. Use for a "Favorites" tab or filter when the user selects "Favorites" in the feed UI.
+
+### 2.3 Feed load workflow (frontend)
+1. On mount (or tab focus), call `getFeed(cursor?)` (or `getFeed(cursor?, { favoritesOnly: true })` for Favorites).
 2. If no cursor, show skeleton; replace with posts when loaded.
 3. On scroll near bottom, call `getFeed(nextCursor)` and append.
 4. On like/comment/save, update local state optimistically; sync with server.
@@ -318,22 +323,24 @@ Response body should include a consistent shape (e.g. `{ error: string, code?: s
 
 ## 16. Block / Mute
 
+Block and mute are implemented under **`/api/privacy`**. Use these endpoints so frontend and backend stay aligned.
+
 ### 16.1 Block workflow
 1. User selects "Block" on profile (or from menu on post/comment).
-2. Frontend calls `POST /blocks` with `{ blockedAccountId }`.
+2. Frontend calls `POST /api/privacy/block` with body `{ accountId, blockFutureAccounts?: boolean, durationDays?: number }`.
 3. Backend creates Block record (blockerId, blockedId).
 4. **Effects:** Remove from follower/following if present; hide all content from blocked user in feed/explore; prevent DMs; exclude from search results both ways.
 5. Frontend updates UI immediately (e.g. "Blocked" state, hide their content).
 
 ### 16.2 Mute workflow
 1. User selects "Mute" on profile.
-2. Frontend calls `POST /mutes` with `{ mutedAccountId }`.
+2. Frontend calls `POST /api/privacy/mute` with body `{ accountId, mutePosts?: boolean, muteStories?: boolean }`.
 3. Backend creates Mute record.
 4. **Effects:** Hide muted account’s posts from feed; no notifications from muted user; no DM blocking (unlike block).
 5. Frontend updates button state.
 
 ### 16.3 Unblock / Unmute
-- `DELETE /blocks/:id` and `DELETE /mutes/:id` (or by target id); backend removes record; feed/notifications reflect change on next load or real-time update.
+- **Unblock:** `DELETE /api/privacy/block/:accountId`. **Unmute:** `DELETE /api/privacy/mute/:accountId`. Backend removes record; feed/notifications reflect change on next load or real-time update.
 
 ---
 
@@ -341,12 +348,9 @@ Response body should include a consistent shape (e.g. `{ error: string, code?: s
 
 ### 17.1 Data export workflow
 1. User requests data export from Settings (e.g. "Download my data").
-2. Frontend calls `POST /account/data-export`.
-3. Backend creates async job (queue); returns job id or "request received".
-4. Job aggregates user data: profile, posts (metadata + captions), messages (metadata, not full content if policy restricts), follows, likes, saved posts, etc., into a structured archive (e.g. JSON or ZIP).
-5. When ready, backend stores file in secure temporary storage; sends notification to user with download link (signed URL or one-time token).
-6. Link expires after set time (e.g. 7 days); backend deletes file after expiry.
-7. Frontend shows "Export requested" and later "Your data is ready" with link (or in-app download).
+2. Frontend calls `POST /api/accounts/me/data-export` (authenticated).
+3. **Current implementation:** Backend aggregates user data synchronously and returns JSON with: profile (account + user), posts (id, caption, createdAt, mediaCount), follows (follower/following, username, createdAt), likes, savedPosts, collections, comments, messagesMetadata (id, direction, messageType, createdAt; no message content), notificationsMetadata. Response is `Content-Disposition: attachment; filename="moxe-data-export.json"`.
+4. **Optional (for very large accounts):** Backend may instead enqueue an async job, return job id, store result in temporary storage, and send notification with signed download link (expires e.g. 7 days). Frontend then shows "Export requested" and later "Your data is ready" with link.
 
 ---
 

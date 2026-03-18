@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Avatar } from './Avatar';
-import { useAccountCapabilities } from '../../hooks/useAccountCapabilities';
+import { useAccountCapabilities, useCurrentAccount } from '../../hooks/useAccountCapabilities';
 import { Heart, MessageCircle, Send, Bookmark, ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
 import { getApiBase, getToken } from '../../services/api';
 
@@ -73,6 +73,31 @@ export function FeedPost({
   const [boostDuration, setBoostDuration] = useState('7');
   const [adImpressionSent, setAdImpressionSent] = useState(false);
   const [adClickSent, setAdClickSent] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
+  const [collectionsLoading, setCollectionsLoading] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editCommentContent, setEditCommentContent] = useState('');
+  const [translatedCaption, setTranslatedCaption] = useState<string | null>(null);
+  const [captionTranslateLoading, setCaptionTranslateLoading] = useState(false);
+  const [translatedComments, setTranslatedComments] = useState<Record<string, string>>({});
+  const [translatingCommentId, setTranslatingCommentId] = useState<string | null>(null);
+  const currentAccount = useCurrentAccount() as { id?: string } | null;
+  const myAccountId = currentAccount?.id;
+
+  // Record a lightweight VIEW interaction once when the post mounts.
+  useEffect(() => {
+    const token = getToken();
+    if (!token) return;
+    fetch(`${getApiBase()}/posts/${id}/interactions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ type: 'VIEW' }),
+    }).catch(() => {});
+  }, [id]);
 
   // Record ad impression once when an ad CampaignId is present.
   useEffect(() => {
@@ -153,24 +178,50 @@ export function FeedPost({
     }
   };
 
-  const toggleSave = async () => {
+  const openSaveModal = () => {
+    setShowSaveModal(true);
+    setCollectionsLoading(true);
     const token = getToken();
-    const nextSaved = !isSaved;
-    setSaved(nextSaved);
     if (!token) return;
+    fetch(`${getApiBase()}/collections`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: { id: string; name: string }[]) => setCollections(Array.isArray(list) ? list : []))
+      .catch(() => setCollections([]))
+      .finally(() => setCollectionsLoading(false));
+  };
+
+  const saveToCollection = async (collectionId: string | null) => {
+    setShowSaveModal(false);
+    const token = getToken();
+    if (!token) return;
+    setSaved(true);
     try {
-      const method = nextSaved ? 'POST' : 'DELETE';
       await fetch(`${getApiBase()}/posts/${id}/save`, {
-        method,
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: nextSaved ? JSON.stringify({}) : undefined,
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(collectionId ? { collectionId } : {}),
       });
     } catch {
-      setSaved(isSaved);
+      setSaved(false);
     }
+  };
+
+  const toggleSave = async () => {
+    if (isSaved) {
+      const token = getToken();
+      if (!token) return;
+      setSaved(false);
+      try {
+        await fetch(`${getApiBase()}/posts/${id}/save`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch {
+        setSaved(true);
+      }
+      return;
+    }
+    openSaveModal();
   };
 
   const openComments = async () => {
@@ -275,6 +326,25 @@ export function FeedPost({
       setHiddenComments((prev) => prev.filter((c) => c.id !== commentId));
     } catch {
       // ignore
+    }
+  };
+
+  const saveEditedComment = async (commentId: string) => {
+    const token = getToken();
+    if (!token || !editCommentContent.trim()) return;
+    try {
+      const res = await fetch(`${getApiBase()}/posts/comments/${commentId}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: editCommentContent.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Edit failed.');
+      setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, content: editCommentContent.trim() } : c)));
+      setEditingCommentId(null);
+      setEditCommentContent('');
+    } catch (e: any) {
+      setCommentError(e.message || 'Failed to edit.');
     }
   };
 
@@ -585,6 +655,37 @@ export function FeedPost({
         </div>
       </div>
 
+      {showSaveModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center">
+          <div className="w-full max-w-[480px] bg-moxe-surface rounded-t-3xl border-t border-moxe-border max-h-[50vh] flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-moxe-border">
+              <span className="font-semibold text-moxe-body">Save to</span>
+              <button type="button" onClick={() => setShowSaveModal(false)} className="text-moxe-textSecondary text-lg px-2">✕</button>
+            </div>
+            <div className="flex-1 overflow-auto py-2">
+              <button
+                type="button"
+                onClick={() => saveToCollection(null)}
+                className="w-full px-4 py-3 text-left font-medium text-moxe-body hover:bg-moxe-background/50"
+              >
+                Save (no collection)
+              </button>
+              {collectionsLoading && <p className="px-4 py-2 text-sm text-moxe-textSecondary">Loading collections…</p>}
+              {collections.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => saveToCollection(c.id)}
+                  className="w-full px-4 py-3 text-left text-moxe-body hover:bg-moxe-background/50"
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {likes > 0 && (
         <p className={`text-sm font-semibold ${textPrimary} px-4 mb-1`}>
           {likes} {likes === 1 ? 'like' : 'likes'}
@@ -594,8 +695,44 @@ export function FeedPost({
       {caption && (
         <div className="px-4 mb-1">
           <p className={`text-sm ${textPrimary}`}>
-            <span className="font-semibold">{author.username}</span> {caption}
+            <span className="font-semibold">{author.username}</span>{' '}
+            {translatedCaption !== null ? translatedCaption : caption}
           </p>
+          <div className="flex gap-2 mt-0.5">
+            {translatedCaption !== null ? (
+              <button
+                type="button"
+                onClick={() => setTranslatedCaption(null)}
+                className={`text-xs ${textSecondary} hover:underline`}
+              >
+                Show original
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={captionTranslateLoading}
+                onClick={async () => {
+                  const token = getToken();
+                  if (!token) return;
+                  setCaptionTranslateLoading(true);
+                  try {
+                    const res = await fetch(`${getApiBase()}/translate/text`, {
+                      method: 'POST',
+                      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ text: caption, sourceLang: 'en', targetLang: 'es' }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (res.ok && data.translatedText) setTranslatedCaption(data.translatedText);
+                  } finally {
+                    setCaptionTranslateLoading(false);
+                  }
+                }}
+                className={`text-xs ${textSecondary} hover:underline disabled:opacity-50`}
+              >
+                {captionTranslateLoading ? 'Translating…' : 'Translate'}
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -633,38 +770,89 @@ export function FeedPost({
                 !commentError &&
                 comments.map((c) => {
                   const isReply = !!c.parentId;
+                  const isMine = myAccountId && c.account?.id === myAccountId;
+                  const isEditing = editingCommentId === c.id;
                   return (
                     <div
                       key={c.id}
                       className={`flex items-start gap-2 ${isReply ? 'ml-8' : ''}`}
                     >
                       <Avatar uri={c.account?.profilePhoto} size={26} />
-                      <div className="flex-1">
-                        <p className="text-moxe-body text-moxe-text">
-                          <span className="font-semibold">{c.account?.username ?? 'user'}</span>{' '}
-                          {c.content}
-                        </p>
-                        <div className="flex gap-3 mt-0.5 text-moxe-caption text-moxe-textSecondary">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setReplyTo({ id: c.id, username: c.account?.username ?? 'user' });
-                              setNewComment(`@${c.account?.username ?? 'user'} `);
-                            }}
-                            className="hover:text-moxe-text"
-                          >
-                            Reply
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              navigate(`/comments/${encodeURIComponent(c.id)}/replies`)
-                            }
-                            className="hover:text-moxe-text"
-                          >
-                            View thread
-                          </button>
-                        </div>
+                      <div className="flex-1 min-w-0">
+                        {isEditing ? (
+                          <div className="space-y-1">
+                            <textarea
+                              value={editCommentContent}
+                              onChange={(e) => setEditCommentContent(e.target.value)}
+                              className="w-full px-2 py-1 rounded-lg bg-moxe-surface border border-moxe-border text-moxe-text text-sm min-h-[44px]"
+                              rows={2}
+                              autoFocus
+                            />
+                            <div className="flex gap-2">
+                              <button type="button" onClick={() => saveEditedComment(c.id)} className="text-xs text-moxe-primary font-medium">Save</button>
+                              <button type="button" onClick={() => { setEditingCommentId(null); setEditCommentContent(''); }} className="text-xs text-moxe-textSecondary">Cancel</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <p className="text-moxe-body text-moxe-text">
+                              <span className="font-semibold">{c.account?.username ?? 'user'}</span>
+                              {(c.account as { isSubscriber?: boolean })?.isSubscriber && (
+                                <span className="ml-1 inline-flex items-center px-1.5 py-0 rounded text-[10px] font-medium bg-amber-500/20 text-amber-400 border border-amber-500/40" title="Subscriber">★</span>
+                              )}{' '}
+                              {translatedComments[c.id] ?? c.content}
+                            </p>
+                            <div className="flex gap-3 mt-0.5 text-moxe-caption text-moxe-textSecondary flex-wrap">
+                              {translatedComments[c.id] ? (
+                                <button type="button" onClick={() => setTranslatedComments((prev) => { const next = { ...prev }; delete next[c.id]; return next; })} className="hover:text-moxe-text">Show original</button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled={translatingCommentId === c.id}
+                                  onClick={async () => {
+                                    const token = getToken();
+                                    if (!token || !c.content) return;
+                                    setTranslatingCommentId(c.id);
+                                    try {
+                                      const res = await fetch(`${getApiBase()}/translate/text`, {
+                                        method: 'POST',
+                                        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ text: c.content, sourceLang: 'en', targetLang: 'es' }),
+                                      });
+                                      const data = await res.json().catch(() => ({}));
+                                      if (res.ok && data.translatedText) setTranslatedComments((prev) => ({ ...prev, [c.id]: data.translatedText }));
+                                    } finally {
+                                      setTranslatingCommentId(null);
+                                    }
+                                  }}
+                                  className="hover:text-moxe-text disabled:opacity-50"
+                                >
+                                  {translatingCommentId === c.id ? 'Translating…' : 'Translate'}
+                                </button>
+                              )}
+                              {isMine && (
+                                <button type="button" onClick={() => { setEditingCommentId(c.id); setEditCommentContent(c.content); }} className="hover:text-moxe-text">Edit</button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setReplyTo({ id: c.id, username: c.account?.username ?? 'user' });
+                                  setNewComment(`@${c.account?.username ?? 'user'} `);
+                                }}
+                                className="hover:text-moxe-text"
+                              >
+                                Reply
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/comments/${encodeURIComponent(c.id)}/replies`)}
+                                className="hover:text-moxe-text"
+                              >
+                                View thread
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   );

@@ -1,6 +1,50 @@
+@import 'leaflet/dist/leaflet.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Theme: CSS variables for app-wide dark/light. Default = dark. */
+:root,
+[data-theme="dark"] {
+  --moxe-bg: #000000;
+  --moxe-surface: #111111;
+  --moxe-text: #ffffff;
+  --moxe-text-secondary: #8e8e8e;
+  --moxe-border: #262626;
+  --moxe-input-bg: #262626;
+  --moxe-card: #262626;
+}
+
+[data-theme="light"] {
+  --moxe-bg: #ffffff;
+  --moxe-surface: #fafafa;
+  --moxe-text: #262626;
+  --moxe-text-secondary: #737373;
+  --moxe-border: #dbdbdb;
+  --moxe-input-bg: #fafafa;
+  --moxe-card: #ffffff;
+}
+
+/* Light theme: override common dark-theme classes */
+[data-theme="light"] .bg-black,
+[data-theme="light"] .bg-\[\#000\] { background-color: var(--moxe-bg) !important; }
+[data-theme="light"] .text-white { color: var(--moxe-text) !important; }
+[data-theme="light"] .border-\[\#262626\] { border-color: var(--moxe-border); }
+[data-theme="light"] .border-\[\#363636\] { border-color: var(--moxe-border); }
+[data-theme="light"] .bg-\[\#262626\] { background-color: var(--moxe-card); }
+[data-theme="light"] .bg-\[\#1a1a1a\] { background-color: var(--moxe-surface); }
+[data-theme="light"] .text-\[\#a8a8a8\] { color: var(--moxe-text-secondary); }
+[data-theme="light"] .text-\[\#737373\] { color: var(--moxe-text-secondary); }
+[data-theme="light"] .bg-\[\#363636\] { background-color: #e0e0e0; }
+[data-theme="light"] .active\:bg-white\/5:active { background-color: rgba(0, 0, 0, 0.05); }
+[data-theme="light"] input.bg-\[\#262626\],
+[data-theme="light"] input.bg-\[\#363636\] { background-color: var(--moxe-input-bg); color: var(--moxe-text); }
+[data-theme="light"] input::placeholder { color: var(--moxe-text-secondary); }
+[data-theme="light"] .divide-\[\#262626\] > *:not(:last-child) { border-color: var(--moxe-border); }
+[data-theme="light"] .border-b.border-\[\#262626\] { border-color: var(--moxe-border); }
+[data-theme="light"] .border-t.border-\[\#262626\] { border-color: var(--moxe-border); }
+[data-theme="light"] .border-y.border-\[\#262626\] { border-color: var(--moxe-border); }
 
 *,
 *::before,
@@ -15,8 +59,8 @@ html {
 body {
   margin: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #000;
-  color: #fff;
+  background: var(--moxe-bg);
+  color: var(--moxe-text);
   min-height: 100vh;
   min-height: 100dvh;
   overscroll-behavior: none;
@@ -27,6 +71,7 @@ body {
   min-height: 100dvh;
   display: flex;
   justify-content: center;
+  background: var(--moxe-bg);
 }
 
 /* MOxE: same UI layout for mobile and web – single column, 428px, centered (mobile-first) */
@@ -37,7 +82,7 @@ body {
   margin-right: auto;
   min-height: 100vh;
   min-height: 100dvh;
-  background: #000;
+  background: var(--moxe-bg);
   position: relative;
 }
 

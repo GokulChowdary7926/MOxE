@@ -1,22 +1,73 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, ChevronLeft } from 'lucide-react';
-import { ThemedView } from '../../components/ui/Themed';
+import { ThemedView, ThemedText } from '../../components/ui/Themed';
+import { Avatar } from '../../components/ui/Avatar';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { ErrorState } from '../../components/ui/ErrorState';
 import { UI } from '../../constants/uiTheme';
-import { mockUsers } from '../../mocks/users';
-import type { MockUser } from '../../mocks/users';
+import { fetchApi, getToken } from '../../services/api';
 
-const INITIAL_CLOSE_FRIENDS_IDS = ['u1', 'u2', 'u4'];
+type CloseFriendUser = {
+  id: string;
+  username: string;
+  displayName: string | null;
+  profilePhoto: string | null;
+};
 
 export default function CloseFriendsList() {
-  const [ids, setIds] = useState<string[]>(INITIAL_CLOSE_FRIENDS_IDS);
-  const list = ids
-    .map((id) => mockUsers.find((u) => u.id === id))
-    .filter(Boolean) as MockUser[];
+  const [list, setList] = useState<CloseFriendUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  function remove(id: string) {
-    setIds((prev) => prev.filter((x) => x !== id));
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (!getToken()) {
+        setError('You must be logged in.');
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetchApi('close-friends');
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!res.ok) {
+          setError((data as { error?: string }).error || 'Failed to load close friends.');
+          setList([]);
+          return;
+        }
+        const arr = Array.isArray(data) ? data : (data.list ?? data.items ?? []);
+        setList(arr.map((u: any) => ({
+          id: u.id,
+          username: u.username ?? '',
+          displayName: u.displayName ?? null,
+          profilePhoto: u.profilePhoto ?? null,
+        })));
+      } catch (e: any) {
+        if (!cancelled) {
+          setError(e.message || 'Failed to load close friends.');
+          setList([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  async function remove(friendId: string) {
+    const token = getToken();
+    if (!token) return;
+    try {
+      const res = await fetchApi('close-friends/' + encodeURIComponent(friendId), { method: 'DELETE' });
+      if (res.ok) setList((prev) => prev.filter((u) => u.id !== friendId));
+    } catch {
+      // ignore
+    }
   }
 
   return (
@@ -41,7 +92,11 @@ export default function CloseFriendsList() {
         <p className="text-[#a8a8a8] text-sm py-4">
           Only people on your Close Friends list can see when you post to close friends.
         </p>
-        {list.length === 0 ? (
+        {loading ? (
+          <ThemedText secondary className="text-sm">Loading…</ThemedText>
+        ) : error ? (
+          <ErrorState message={error} onRetry={() => window.location.reload()} />
+        ) : list.length === 0 ? (
           <EmptyState
             title="No close friends yet"
             message="Add people to your list to share stories with just them."
@@ -54,16 +109,10 @@ export default function CloseFriendsList() {
                   to={`/profile/${user.username}`}
                   className="flex items-center gap-3 min-w-0 flex-1 active:opacity-80"
                 >
-                  <div className={UI.listAvatar}>
-                    <img
-                      src={user.avatarUrl}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
+                  <Avatar uri={user.profilePhoto} size={44} />
                   <div className="min-w-0">
                     <p className="text-white font-semibold text-sm truncate">{user.username}</p>
-                    <p className="text-[#a8a8a8] text-sm truncate">{user.displayName}</p>
+                    <p className="text-[#a8a8a8] text-sm truncate">{user.displayName ?? ''}</p>
                   </div>
                 </Link>
                 <button

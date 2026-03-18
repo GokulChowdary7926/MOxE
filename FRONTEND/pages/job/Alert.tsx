@@ -77,17 +77,15 @@ export default function Alert() {
   });
 
   const token = localStorage.getItem('token');
-  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+  const authHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) authHeaders.Authorization = `Bearer ${token}`;
 
   const fetchSchedules = async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch(`${API_BASE}/alert/schedules`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: authHeaders,
       });
       if (!res.ok) {
         throw new Error('Failed to load schedules');

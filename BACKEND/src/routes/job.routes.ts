@@ -17,8 +17,17 @@ import { JobAnalyticsService } from '../services/job/analytics-job.service';
 import { JobIntegrationService } from '../services/job/integration.service';
 import { JobTeamsService } from '../services/job/teams.service';
 import { JobAccessService } from '../services/job/access-job.service';
+import { ChatTicketService } from '../services/job/chat-ticket.service';
+import { JobDocsService } from '../services/job/docs.service';
+import { TrackSmartSuggestService } from '../services/job-algorithms/trackSmartSuggest.service';
+import { KnowWorkConnectorService } from '../services/job-algorithms/knowWorkConnector.service';
+import { CodeTrackLinkerService } from '../services/job-algorithms/codeTrackLinker.service';
+import { RecruiterMatchService } from '../services/job-algorithms/recruiterMatch.service';
+import { AssistantAggregatorService } from '../services/job-algorithms/assistantAggregator.service';
 
 const router = Router();
+const chatTicketService = new ChatTicketService();
+const jobDocsService = new JobDocsService();
 const track = new TrackService();
 const trackRecruiter = new TrackRecruiterService();
 const trackAgile = new TrackAgileService();
@@ -35,6 +44,11 @@ const jobAnalyticsService = new JobAnalyticsService();
 const jobIntegrationService = new JobIntegrationService();
 const jobTeamsService = new JobTeamsService();
 const jobAccessService = new JobAccessService();
+const trackSmartSuggest = new TrackSmartSuggestService();
+const knowWorkConnector = new KnowWorkConnectorService();
+const codeTrackLinker = new CodeTrackLinkerService();
+const recruiterMatchService = new RecruiterMatchService();
+const assistantAggregator = new AssistantAggregatorService();
 
 router.use(authenticate);
 
@@ -99,6 +113,50 @@ router.post('/track/pipelines', async (req, res, next) => {
   }
 });
 
+router.get('/track/saved-searches', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const list = await track.listSavedJobSearches(accountId);
+    res.json(list);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post('/track/saved-searches', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const saved = await track.createSavedJobSearch(accountId, req.body);
+    res.status(201).json(saved);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.patch('/track/saved-searches/:id', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const updated = await track.updateSavedJobSearch(accountId, req.params.id, req.body);
+    res.json(updated);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.delete('/track/saved-searches/:id', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    await track.deleteSavedJobSearch(accountId, req.params.id);
+    res.status(204).send();
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.get('/track/accounts-for-assignment', async (req, res, next) => {
   try {
     const accountId = (req as any).user?.accountId || (req as any).user?.userId;
@@ -148,6 +206,175 @@ router.get('/track/jobs/suggest-titles', async (req, res, next) => {
     const limit = Math.min(parseInt(String(req.query.limit), 10) || 10, 20);
     const titles = await track.suggestJobTitles(accountId, q, limit);
     res.json(titles);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ----- TRACK Smart Suggest (next task, at-risk, related issues) -----
+router.get('/track/:projectId/next-task', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const projectId = req.params.projectId;
+    const nextTask = await trackSmartSuggest.predictNextTask(accountId, projectId);
+    res.json({ nextTask });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ----- KNOW-WORK Connector (docs + retros) -----
+router.use('/know', requireCapability('canKnow'));
+
+router.get('/know/connector/issues/:issueId/docs', async (req, res, next) => {
+  try {
+    const docs = await knowWorkConnector.suggestDocsForIssue(req.params.issueId);
+    res.json({ docs });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post('/know/connector/issues/:issueId/auto-link', async (req, res, next) => {
+  try {
+    const links = await knowWorkConnector.autoLinkDocsToIssue(req.params.issueId);
+    res.json({ links });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get('/know/connector/projects/:projectId/retro-draft', async (req, res, next) => {
+  try {
+    const lookbackDays =
+      parseInt(String(req.query.lookbackDays || ''), 10) || 14;
+    const result = await knowWorkConnector.generateRetroDraft(
+      req.params.projectId,
+      lookbackDays,
+    );
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ----- CODE-TRACK Linker (link code ↔ TRACK issues) -----
+router.get('/code/connector/commits/:commitId/issues', async (req, res, next) => {
+  try {
+    const issues = await codeTrackLinker.predictIssuesForCommit(req.params.commitId);
+    res.json({ issues });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get('/code/connector/repos/:repoId/reviewers', async (req, res, next) => {
+  try {
+    const filePath = (req.query.filePath as string) || '';
+    if (!filePath) return res.status(400).json({ error: 'filePath is required' });
+    const reviewers = await codeTrackLinker.suggestReviewersForFile(
+      req.params.repoId,
+      filePath,
+    );
+    res.json({ reviewers });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get('/code/connector/repos/:repoId/file-context', async (req, res, next) => {
+  try {
+    const filePath = (req.query.filePath as string) || '';
+    if (!filePath) return res.status(400).json({ error: 'filePath is required' });
+    const context = await codeTrackLinker.getFileContext(req.params.repoId, filePath);
+    res.json(context);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ----- RECRUITER-MATCH (rank candidates, suggest jobs, success stats) -----
+router.get('/recruiter/jobs/:jobPostingId/candidates', async (req, res, next) => {
+  try {
+    const jobPostingId = req.params.jobPostingId;
+    const ranked = await recruiterMatchService.rankCandidatesForJob(jobPostingId);
+    res.json({ candidates: ranked });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get('/recruiter/candidates/:kind/:candidateId/jobs', async (req, res, next) => {
+  try {
+    const kind = req.params.kind === 'recruitment' ? 'recruitment' : 'application';
+    const jobs = await recruiterMatchService.suggestJobsForCandidate(
+      kind,
+      req.params.candidateId,
+    );
+    res.json({ jobs });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get('/recruiter/jobs/:jobPostingId/success-stats', async (req, res, next) => {
+  try {
+    const stats = await recruiterMatchService.getHiringSuccessStats(
+      req.params.jobPostingId,
+    );
+    res.json(stats);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ----- JOB Assistant: unified suggestions for JOB home -----
+router.get('/assistant/suggestions', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const {
+      projectId,
+      issueId,
+      jobPostingId,
+      candidateId,
+      candidateKind,
+    } = req.query as Record<string, string | undefined>;
+
+    const suggestions = await assistantAggregator.getSuggestions({
+      accountId,
+      projectId,
+      issueId,
+      jobPostingId,
+      candidateId,
+      candidateKind:
+        candidateKind === 'recruitment' ? 'recruitment' : candidateKind === 'application' ? 'application' : undefined,
+    });
+
+    res.json({ suggestions });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get('/track/:projectId/at-risk', async (req, res, next) => {
+  try {
+    const projectId = req.params.projectId;
+    const issues = await trackSmartSuggest.flagAtRiskIssues(projectId);
+    res.json({ issues });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get('/track/issues/:issueId/related', async (req, res, next) => {
+  try {
+    const issueId = req.params.issueId;
+    const projectId = (req.query.projectId as string) || '';
+    const related = await trackSmartSuggest.suggestRelatedIssues(projectId, issueId);
+    res.json({ related });
   } catch (e) {
     next(e);
   }
@@ -2787,6 +3014,199 @@ router.get('/work/accounts-for-assignment', async (req, res, next) => {
     const accounts = await work.getAssignmentAccounts(accountId);
     res.json(accounts);
   } catch (e) {
+    next(e);
+  }
+});
+
+// ----- MOxE CHAT – ticketing (convert message to ticket; assignment; status) -----
+
+router.get('/chat/tickets', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const status = req.query.status as string | undefined;
+    const assignedToMe = req.query.assignedToMe === 'true';
+    const list = await chatTicketService.listTickets(accountId, { status, assignedToMe });
+    res.json(list);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get('/chat/tickets/:id', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const ticket = await chatTicketService.getTicket(accountId, req.params.id);
+    res.json(ticket);
+  } catch (e: any) {
+    if (e?.message === 'Ticket not found') return res.status(404).json({ error: 'Ticket not found' });
+    next(e);
+  }
+});
+
+router.post('/chat/tickets', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const { messageId, peerId, subject, description, priority } = req.body || {};
+    const created = await chatTicketService.createTicket(accountId, {
+      messageId,
+      peerId,
+      subject: subject || 'Support request',
+      description,
+      priority,
+    });
+    res.status(201).json(created);
+  } catch (e: any) {
+    if (e?.message?.includes('required')) return res.status(400).json({ error: e.message });
+    next(e);
+  }
+});
+
+router.patch('/chat/tickets/:id', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const { status, priority, assignedToAccountId } = req.body || {};
+    const updated = await chatTicketService.updateTicket(accountId, req.params.id, {
+      status,
+      priority,
+      assignedToAccountId,
+    });
+    res.json(updated);
+  } catch (e: any) {
+    if (e?.message === 'Ticket not found') return res.status(404).json({ error: 'Ticket not found' });
+    next(e);
+  }
+});
+
+router.patch('/chat/tickets/:id/assign', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const assignToAccountId = req.body?.assignedToAccountId ?? req.body?.accountId ?? null;
+    const updated = await chatTicketService.assignTicket(accountId, req.params.id, assignToAccountId);
+    res.json(updated);
+  } catch (e: any) {
+    if (e?.message === 'Ticket not found') return res.status(404).json({ error: 'Ticket not found' });
+    next(e);
+  }
+});
+
+router.patch('/chat/tickets/:id/status', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const { status } = req.body || {};
+    if (!status) return res.status(400).json({ error: 'status is required' });
+    const updated = await chatTicketService.setStatus(accountId, req.params.id, status);
+    res.json(updated);
+  } catch (e: any) {
+    if (e?.message === 'Ticket not found') return res.status(404).json({ error: 'Ticket not found' });
+    if (e?.message === 'Invalid status') return res.status(400).json({ error: e.message });
+    next(e);
+  }
+});
+
+// ----- MOxE DOCS – document editing, version history, comments -----
+
+router.get('/docs', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const list = await jobDocsService.listDocuments(accountId);
+    res.json(list);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get('/docs/:id', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const doc = await jobDocsService.getDocument(accountId, req.params.id);
+    res.json(doc);
+  } catch (e: any) {
+    if (e?.message === 'Document not found') return res.status(404).json({ error: 'Document not found' });
+    next(e);
+  }
+});
+
+router.post('/docs', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const { title, content } = req.body || {};
+    const created = await jobDocsService.createDocument(accountId, { title: title || 'Untitled', content });
+    res.status(201).json(created);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.patch('/docs/:id', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const { title, content } = req.body || {};
+    const updated = await jobDocsService.updateDocument(accountId, req.params.id, { title, content });
+    res.json(updated);
+  } catch (e: any) {
+    if (e?.message === 'Document not found') return res.status(404).json({ error: 'Document not found' });
+    next(e);
+  }
+});
+
+router.delete('/docs/:id', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    await jobDocsService.deleteDocument(accountId, req.params.id);
+    res.status(204).send();
+  } catch (e: any) {
+    if (e?.message === 'Document not found') return res.status(404).json({ error: 'Document not found' });
+    next(e);
+  }
+});
+
+router.get('/docs/:id/versions', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const versions = await jobDocsService.listVersions(accountId, req.params.id);
+    res.json(versions);
+  } catch (e: any) {
+    if (e?.message === 'Document not found') return res.status(404).json({ error: 'Document not found' });
+    next(e);
+  }
+});
+
+router.post('/docs/:id/comments', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const { content, parentId } = req.body || {};
+    const comment = await jobDocsService.addComment(accountId, req.params.id, { content: content || '', parentId });
+    res.status(201).json(comment);
+  } catch (e: any) {
+    if (e?.message === 'Document not found') return res.status(404).json({ error: 'Document not found' });
+    next(e);
+  }
+});
+
+router.patch('/docs/:id/comments/:commentId', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const resolved = req.body?.resolved !== false;
+    const updated = await jobDocsService.resolveComment(accountId, req.params.id, req.params.commentId, resolved);
+    res.json(updated);
+  } catch (e: any) {
+    if (e?.message === 'Document not found' || e?.message === 'Comment not found') {
+      return res.status(404).json({ error: e.message });
+    }
     next(e);
   }
 });

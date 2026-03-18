@@ -3,14 +3,14 @@ module.exports = {
   content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}', './pages/**/*.{js,jsx,ts,tsx}', './components/**/*.{js,jsx,ts,tsx}', './store/**/*.ts', './hooks/**/*.ts', './services/**/*.ts', './constants/**/*.ts'],
   theme: {
     extend: {
-      /* MOxE mobile-matching design tokens (Instagram dark default) */
+      /* MOxE mobile-matching design tokens; theme-aware via CSS variables */
       colors: {
         moxe: {
-          background: '#000000',
-          surface: '#111111',
-          text: '#ffffff',
-          textSecondary: '#8e8e8e',
-          border: '#262626',
+          background: 'var(--moxe-bg)',
+          surface: 'var(--moxe-surface)',
+          text: 'var(--moxe-text)',
+          textSecondary: 'var(--moxe-text-secondary)',
+          border: 'var(--moxe-border)',
           primary: '#0095f6',
           accent: '#e1306c',
           success: '#00c853',

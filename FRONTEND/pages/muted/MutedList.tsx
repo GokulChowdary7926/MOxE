@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PageLayout } from '../../components/layout/PageLayout';
-import { ThemedText } from '../../components/ui/Themed';
-import { EmptyState } from '../../components/ui/EmptyState';
+import { SettingsPageShell } from '../../components/layout/SettingsPageShell';
 import { mockUsers } from '../../mocks/users';
 import type { MockUser } from '../../mocks/users';
 
@@ -19,51 +17,36 @@ export default function MutedList() {
   }
 
   return (
-    <PageLayout title="Muted accounts" backTo="/settings/safety">
-      <div className="py-4">
+    <SettingsPageShell title="Muted accounts" backTo="/settings">
+      <div className="px-4 py-4">
         {list.length === 0 ? (
-          <EmptyState
-            title="No muted accounts"
-            message="When you mute someone, you won't see their posts or stories in your feed. You can unmute them anytime."
-          />
+          <p className="text-[#a8a8a8] text-sm text-center py-12">
+            When you mute someone, you won&apos;t see their posts or stories in your feed. You can unmute them anytime.
+          </p>
         ) : (
-          <div className="rounded-xl bg-moxe-surface border border-moxe-border overflow-hidden divide-y divide-moxe-border">
+          <ul className="divide-y divide-[#262626]">
             {list.map((user) => (
-              <div
-                key={user.id}
-                className="flex items-center gap-3 py-3 px-4"
-              >
-                <Link
-                  to={`/profile/${user.username}`}
-                  className="flex items-center gap-3 min-w-0 flex-1 active:opacity-80"
-                >
-                  <img
-                    src={user.avatarUrl}
-                    alt=""
-                    className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-                  />
+              <li key={user.id} className="flex items-center gap-3 py-3">
+                <Link to={`/profile/${user.username}`} className="flex items-center gap-3 min-w-0 flex-1 active:opacity-80">
+                  <img src={user.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
                   <div className="min-w-0">
-                    <ThemedText className="text-moxe-body font-semibold text-moxe-text truncate">
-                      {user.username}
-                    </ThemedText>
-                    <ThemedText secondary className="text-moxe-caption truncate block">
-                      {user.displayName}
-                    </ThemedText>
+                    <p className="text-white font-semibold truncate">{user.username}</p>
+                    <p className="text-[#a8a8a8] text-sm truncate">{user.displayName}</p>
                   </div>
                 </Link>
                 <button
                   type="button"
                   onClick={() => unmute(user.id)}
-                  className="py-2 px-4 rounded-lg border border-moxe-border text-moxe-body font-semibold text-moxe-text hover:bg-moxe-surface/80 active:opacity-80 flex-shrink-0"
+                  className="py-2 px-4 rounded-lg border border-[#363636] text-white font-semibold text-sm active:bg-white/10 flex-shrink-0"
                   aria-label={`Unmute ${user.username}`}
                 >
                   Unmute
                 </button>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </div>
-    </PageLayout>
+    </SettingsPageShell>
   );
 }

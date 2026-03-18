@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { MapPin, Users, Settings } from 'lucide-react';
 import { useAccountCapabilities, useCurrentAccount } from '../../hooks/useAccountCapabilities';
+import { getApiBase } from '../../services/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 export default function CreatePost() {
   const cap = useAccountCapabilities();
@@ -27,6 +28,10 @@ export default function CreatePost() {
   const [mediaAdjustments, setMediaAdjustments] = useState<
     { brightness: number; contrast: number; saturation: number; warmth: number; fade: number; highlights: number; shadows: number; vignette: number }[]
   >([]);
+  const [videoMute, setVideoMute] = useState<boolean[]>([]);
+  const [videoSpeed, setVideoSpeed] = useState<number[]>([]);
+  const [videoTrim, setVideoTrim] = useState<{ startSec: number; endSec?: number }[]>([]);
+  const [videoCoverSec, setVideoCoverSec] = useState<number[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hashtagQuery, setHashtagQuery] = useState('');
@@ -37,6 +42,7 @@ export default function CreatePost() {
     { id: string; username: string; displayName?: string | null }[]
   >([]);
   const [showMentions, setShowMentions] = useState(false);
+  const [mentionedUserIds, setMentionedUserIds] = useState<string[]>([]);
   const [locationQuery, setLocationQuery] = useState('');
   const [locationSuggestions, setLocationSuggestions] = useState<{ id: string; name: string }[]>([]);
   const [showLocationResults, setShowLocationResults] = useState(false);
@@ -288,14 +294,15 @@ export default function CreatePost() {
     setHashtagQuery('');
   }
 
-  function insertMention(username: string) {
+  function insertMention(user: { id: string; username: string }) {
     const parts = caption.split(/\s/);
     if (parts.length === 0) {
-      setCaption(`@${username} `);
+      setCaption(`@${user.username} `);
     } else {
-      parts[parts.length - 1] = `@${username}`;
+      parts[parts.length - 1] = `@${user.username}`;
       setCaption(`${parts.join(' ')} `);
     }
+    setMentionedUserIds((prev) => (prev.includes(user.id) ? prev : [...prev, user.id]));
     setShowMentions(false);
     setMentionQuery('');
   }
@@ -333,11 +340,11 @@ export default function CreatePost() {
         uploadedUrls.push(uploadData.url);
       }
 
-      // 2) Create post with media carousel (per-media alt text + basic edits metadata)
-      const mediaPayload = uploadedUrls.map((url, idx) => ({
-        url,
-        altText: (mediaAltTexts[idx] || '').trim() || undefined,
-        edits: {
+      // 2) Create post with media carousel (per-media alt text + basic edits + video options)
+      const mediaPayload = uploadedUrls.map((url, idx) => {
+        const file = files[idx];
+        const isVideo = file?.type?.startsWith('video/');
+        const edits: Record<string, unknown> = {
           zoom: mediaZoom[idx] ?? 1,
           rotation: mediaRotation[idx] ?? 0,
           filter: mediaFilter[idx] || 'original',
@@ -351,8 +358,24 @@ export default function CreatePost() {
             shadows: 0,
             vignette: 0,
           },
-        },
-      }));
+        };
+        if (isVideo) {
+          edits.mute = videoMute[idx] ?? false;
+          edits.speed = videoSpeed[idx] ?? 1;
+          const trim = videoTrim[idx];
+          if (trim && (trim.startSec > 0 || (trim.endSec != null && trim.endSec > 0))) {
+            edits.trim = { startSec: trim.startSec, endSec: trim.endSec };
+          }
+          if (videoCoverSec[idx] != null && videoCoverSec[idx] > 0) {
+            edits.coverTimeSec = videoCoverSec[idx];
+          }
+        }
+        return {
+          url,
+          altText: (mediaAltTexts[idx] || '').trim() || undefined,
+          edits,
+        };
+      });
       const primaryAlt =
         (mediaPayload[0]?.altText as string | undefined) || (altText || undefined);
       const body = {
@@ -367,6 +390,7 @@ export default function CreatePost() {
         screenshotProtection,
         isScheduled: !!(cap.canSchedulePosts && scheduledFor),
         scheduledFor: cap.canSchedulePosts && scheduledFor ? scheduledFor : undefined,
+        ...(mentionedUserIds.length > 0 && { mentionedUserIds }),
         ...(cap.canSubscriptions && isSubscriberOnly && { isSubscriberOnly: true, subscriberTierKeys: subscriberTierKeys.length > 0 ? subscriberTierKeys : undefined }),
         ...(brandedContentBrandId.trim() && { brandedContentBrandId: brandedContentBrandId.trim(), brandedContentDisclosure }),
       };
@@ -390,6 +414,11 @@ export default function CreatePost() {
       setMediaRotation([]);
       setMediaFilter([]);
       setMediaAdjustments([]);
+      setMentionedUserIds([]);
+      setVideoMute([]);
+      setVideoSpeed([]);
+      setVideoTrim([]);
+      setVideoCoverSec([]);
 
       // Navigate back to Home so the new post appears in feed
       navigate('/');
@@ -514,6 +543,10 @@ export default function CreatePost() {
                         vignette: 0,
                       })),
                     ]);
+                    setVideoMute((prev) => [...prev, ...list.map(() => false)]);
+                    setVideoSpeed((prev) => [...prev, ...list.map(() => 1)]);
+                    setVideoTrim((prev) => [...prev, ...list.map(() => ({ startSec: 0 }))]);
+                    setVideoCoverSec((prev) => [...prev, ...list.map(() => 0)]);
                     return next;
                   });
                 }}
@@ -578,6 +611,34 @@ export default function CreatePost() {
                             adjCopy[idx] = aTmp;
                             return adjCopy;
                           });
+                          setVideoMute((prev) => {
+                            const c = [...prev];
+                            const t = c[idx - 1];
+                            c[idx - 1] = c[idx];
+                            c[idx] = t;
+                            return c;
+                          });
+                          setVideoSpeed((prev) => {
+                            const c = [...prev];
+                            const t = c[idx - 1];
+                            c[idx - 1] = c[idx];
+                            c[idx] = t;
+                            return c;
+                          });
+                          setVideoTrim((prev) => {
+                            const c = [...prev];
+                            const t = c[idx - 1];
+                            c[idx - 1] = c[idx];
+                            c[idx] = t;
+                            return c;
+                          });
+                          setVideoCoverSec((prev) => {
+                            const c = [...prev];
+                            const t = c[idx - 1];
+                            c[idx - 1] = c[idx];
+                            c[idx] = t;
+                            return c;
+                          });
                           return copy;
                         })
                       }
@@ -607,6 +668,10 @@ export default function CreatePost() {
                         setMediaAdjustments((prevAdj) =>
                           prevAdj.filter((_, i) => i !== idx),
                         );
+                        setVideoMute((prev) => prev.filter((_, i) => i !== idx));
+                        setVideoSpeed((prev) => prev.filter((_, i) => i !== idx));
+                        setVideoTrim((prev) => prev.filter((_, i) => i !== idx));
+                        setVideoCoverSec((prev) => prev.filter((_, i) => i !== idx));
                         return next;
                       })
                     }
@@ -656,7 +721,7 @@ export default function CreatePost() {
                 <button
                   key={u.id}
                   type="button"
-                  onClick={() => insertMention(u.username)}
+                  onClick={() => insertMention(u)}
                   className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-zinc-800 text-zinc-200"
                 >
                   <span>
@@ -824,6 +889,105 @@ export default function CreatePost() {
                     className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-sm text-white placeholder-zinc-500"
                   />
                 </div>
+                {files[activeIndex]?.type?.startsWith('video/') && (
+                  <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-3 space-y-2">
+                    <span className="text-xs text-zinc-400 font-medium">Video options</span>
+                    <label className="flex items-center gap-2 text-sm text-zinc-300">
+                      <input
+                        type="checkbox"
+                        checked={videoMute[activeIndex] ?? false}
+                        onChange={(e) => {
+                          setVideoMute((prev) => {
+                            const next = [...prev];
+                            next[activeIndex] = e.target.checked;
+                            return next;
+                          });
+                        }}
+                        className="w-4 h-4 rounded border-zinc-600 bg-black"
+                      />
+                      Mute audio
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-zinc-500 w-20">Speed</span>
+                      <select
+                        value={videoSpeed[activeIndex] ?? 1}
+                        onChange={(e) => {
+                          const v = Number(e.target.value) || 1;
+                          setVideoSpeed((prev) => {
+                            const next = [...prev];
+                            next[activeIndex] = v;
+                            return next;
+                          });
+                        }}
+                        className="px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm"
+                      >
+                        <option value={0.5}>0.5x</option>
+                        <option value={1}>1x</option>
+                        <option value={1.5}>1.5x</option>
+                        <option value={2}>2x</option>
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <label className="text-zinc-500 block mb-0.5">Trim start (sec)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.5}
+                          value={videoTrim[activeIndex]?.startSec ?? 0}
+                          onChange={(e) => {
+                            const v = Math.max(0, Number(e.target.value) || 0);
+                            setVideoTrim((prev) => {
+                              const next = [...(prev || [])];
+                              next[activeIndex] = { ...(next[activeIndex] ?? { startSec: 0 }), startSec: v };
+                              return next;
+                            });
+                          }}
+                          className="w-full px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-200"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-zinc-500 block mb-0.5">Trim end (sec)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.5}
+                          value={videoTrim[activeIndex]?.endSec ?? ''}
+                          placeholder="Full"
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            const v = raw === '' ? undefined : Math.max(0, Number(raw) || 0);
+                            setVideoTrim((prev) => {
+                              const next = [...(prev || [])];
+                              next[activeIndex] = { ...(next[activeIndex] ?? { startSec: 0 }), endSec: v };
+                              return next;
+                            });
+                          }}
+                          className="w-full px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-200"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-zinc-500 block mb-0.5 text-xs">Cover frame (time in sec)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.5}
+                        value={videoCoverSec[activeIndex] ?? 0}
+                        onChange={(e) => {
+                          const v = Math.max(0, Number(e.target.value) || 0);
+                          setVideoCoverSec((prev) => {
+                            const next = [...prev];
+                            next[activeIndex] = v;
+                            return next;
+                          });
+                        }}
+                        placeholder="0 = first frame"
+                        className="w-full px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm"
+                      />
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-1">
                   <label className="block text-xs text-zinc-500">
                     Basic photo adjustments (preview only)

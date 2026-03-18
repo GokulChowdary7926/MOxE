@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ThemedText } from '../../components/ui/Themed';
 import { PageLayout } from '../../components/layout/PageLayout';
+import { ChevronRight } from 'lucide-react';
 
 type RowProps = {
   label: string;
@@ -106,10 +108,13 @@ export default function AdvancedSettings() {
               description="Default to blocking downloads and detecting screenshots on new posts and stories."
               trailing={renderToggle(protectionEnabled, setProtectionEnabled)}
             />
-            <SettingsRow
-              label="Screenshot notifications"
-              description="Choose when to be notified if someone attempts a screenshot of protected content."
-            />
+            <Link to="/settings/screenshot-notifications" className="block">
+              <SettingsRow
+                label="Screenshot notifications"
+                description="Choose when to be notified if someone attempts a screenshot of protected content."
+                trailing={<ChevronRight className="w-5 h-5 text-moxe-textSecondary flex-shrink-0" />}
+              />
+            </Link>
           </div>
         </section>
 

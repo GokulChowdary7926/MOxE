@@ -1,38 +1,35 @@
-import React from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import type { RootState } from '../../store';
-import { setLiveReels } from '../../store/settingsSlice';
-import { PageLayout, SettingsSection, SettingsToggleRow } from '../../components/layout/PageLayout';
+import React, { useState } from 'react';
+import { SettingsPageShell, SettingsRadioSection } from '../../components/layout/SettingsPageShell';
 
 export default function LiveReelsSettings() {
-  const state = useSelector((s: RootState) => s.settings.notifications.liveReels);
-  const dispatch = useDispatch();
-
-  const update = (key: keyof typeof state, value: boolean) => {
-    dispatch(setLiveReels({ [key]: value }));
-  };
+  const [addYours, setAddYours] = useState<'off' | 'on'>('on');
+  const [promptResponses, setPromptResponses] = useState<'off' | 'on'>('on');
+  const [reelsMadeForYou, setReelsMadeForYou] = useState<'off' | 'on'>('off');
 
   return (
-    <PageLayout title="Live and reels" backTo="/settings/notifications">
-      <div className="py-4">
-        <SettingsSection title="Live and reels">
-          <SettingsToggleRow
-            label="Live videos"
-            checked={state.liveVideos}
-            onChange={(v) => update('liveVideos', v)}
-          />
-          <SettingsToggleRow
-            label="Reel recommendations"
-            checked={state.reelRecommendations}
-            onChange={(v) => update('reelRecommendations', v)}
-          />
-          <SettingsToggleRow
-            label="Reminders"
-            checked={state.reminders}
-            onChange={(v) => update('reminders', v)}
-          />
-        </SettingsSection>
-      </div>
-    </PageLayout>
+    <SettingsPageShell title="Live and reels" backTo="/settings/notifications">
+      <p className="text-[#a8a8a8] text-sm px-4 py-3">Take a look at the most watched reels in your location today.</p>
+      <SettingsRadioSection
+        name="add-yours"
+        title="Add yours"
+        value={addYours}
+        onChange={(v) => setAddYours(v as 'off' | 'on')}
+        exampleText="johnappleseed started an Add yours prompt."
+      />
+      <SettingsRadioSection
+        name="prompt-responses"
+        title="Prompt responses"
+        value={promptResponses}
+        onChange={(v) => setPromptResponses(v as 'off' | 'on')}
+        exampleText="johnappleseed created a reel with your prompt: Most recent photo"
+      />
+      <SettingsRadioSection
+        name="reels-made-for-you"
+        title="Reels made for you"
+        value={reelsMadeForYou}
+        onChange={(v) => setReelsMadeForYou(v as 'off' | 'on')}
+        exampleText="See new reels made for you."
+      />
+    </SettingsPageShell>
   );
 }

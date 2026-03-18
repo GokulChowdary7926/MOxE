@@ -24,9 +24,11 @@ export class ContentService {
 
     const owner = await prisma.account.findUnique({
       where: { id: ownerId },
-      select: { subscriptionTier: true },
+      select: { subscriptionTier: true, notificationPrefs: true },
     });
-    if (owner?.subscriptionTier === 'STAR') {
+    const prefs = (owner?.notificationPrefs as Record<string, boolean> | null) ?? {};
+    const screenshotAlerts = prefs.screenshotAlerts !== false;
+    if (owner?.subscriptionTier === 'STAR' && screenshotAlerts) {
       await prisma.notification.create({
         data: {
           recipientId: ownerId,

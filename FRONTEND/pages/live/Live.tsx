@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useAccountCapabilities } from '../../hooks/useAccountCapabilities';
 import { Link } from 'react-router-dom';
+import { getApiBase, getToken } from '../../services/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type LiveItem = {
   id: string;
@@ -33,14 +34,17 @@ export default function Live() {
   useEffect(() => {
     if (!cap.canLive) return;
     setLoading(true);
-    fetch(`${API_BASE}/live`)
+    const headers: HeadersInit = {};
+    const token = getToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+    fetch(`${API_BASE}/live`, { headers })
       .then((r) => r.json())
       .then((data) => setItems(Array.isArray(data?.items) ? data.items : []))
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
 
     setReplaysLoading(true);
-    fetch(`${API_BASE}/live/replays`)
+    fetch(`${API_BASE}/live/replays`, { headers })
       .then((r) => r.json())
       .then((data) =>
         setReplays(

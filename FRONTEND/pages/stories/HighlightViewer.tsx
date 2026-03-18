@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ThemedView, ThemedText } from '../../components/ui/Themed';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+import { getApiBase } from '../../services/api';
+const API_BASE = getApiBase();
 
 type HighlightStory = {
   id: string;
@@ -25,7 +26,7 @@ export default function HighlightViewer() {
       try {
         setLoading(true);
         setError(null);
-        const res = await fetch(`${API_BASE}/highlights/view/${encodeURIComponent(highlightId)}`);
+        const res = await fetch(`${API_BASE}/highlights/view/${encodeURIComponent(highlightId ?? '')}`);
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           throw new Error(data.error || 'Failed to load highlight.');

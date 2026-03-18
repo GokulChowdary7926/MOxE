@@ -7,7 +7,7 @@ const DEFAULT_DURATION_HOURS = 24;
 
 export class StoryService {
   async create(accountId: string, data: {
-    media: string;
+    media: string | unknown;
     type?: string;
     privacy?: string;
     isCloseFriendsOnly?: boolean;
@@ -35,6 +35,10 @@ export class StoryService {
       mediaUrl = String((data.media as { url: string }).url);
     } else {
       throw new AppError('Invalid media', 400);
+    }
+
+    if (!/^https?:\/\//.test(mediaUrl)) {
+      throw new AppError('Invalid media URL', 400);
     }
 
     const isScheduled = data.isScheduled ?? false;

@@ -270,6 +270,7 @@ export default function Checkout() {
                   : ''}
               </ThemedText>
             )}
+            <Link to="/commerce/orders" className="mt-2 inline-block text-moxe-primary text-sm font-medium">View my orders →</Link>
           </div>
         )}
 

@@ -1,23 +1,56 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, ChevronLeft, Check } from 'lucide-react';
-import { ThemedView } from '../../components/ui/Themed';
+import { ThemedView, ThemedText } from '../../components/ui/Themed';
+import { Avatar } from '../../components/ui/Avatar';
 import { UI } from '../../constants/uiTheme';
-import { mockUsers } from '../../mocks/users';
-import type { MockUser } from '../../mocks/users';
+import { fetchApi, getToken } from '../../services/api';
+
+type SearchUser = {
+  id: string;
+  username: string;
+  displayName?: string | null;
+  profilePhoto?: string | null;
+};
 
 export default function CloseFriendsAdd() {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [users, setUsers] = useState<SearchUser[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const filtered = query.trim()
-    ? mockUsers.filter(
-        (u) =>
-          u.username.toLowerCase().includes(query.toLowerCase()) ||
-          u.displayName.toLowerCase().includes(query.toLowerCase())
-      )
-    : mockUsers;
+  const searchUsers = useCallback(async (q: string) => {
+    if (!getToken()) return;
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ type: 'users' });
+      if (q.trim()) params.set('q', q.trim());
+      const res = await fetchApi(`explore/search?${params.toString()}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setUsers([]);
+        return;
+      }
+      const list = (data.users ?? []) as any[];
+      setUsers(list.map((u: any) => ({
+        id: u.id,
+        username: u.username ?? '',
+        displayName: u.displayName ?? null,
+        profilePhoto: u.profilePhoto ?? null,
+      })));
+    } catch {
+      setUsers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => searchUsers(query), 300);
+    return () => clearTimeout(t);
+  }, [query, searchUsers]);
 
   function toggle(userId: string) {
     setSelectedIds((prev) => {
@@ -28,9 +61,27 @@ export default function CloseFriendsAdd() {
     });
   }
 
-  function handleDone() {
-    // In a real app: persist selectedIds to API, then navigate
-    navigate('/close-friends');
+  async function handleDone() {
+    if (selectedIds.size === 0) {
+      navigate('/close-friends');
+      return;
+    }
+    if (!getToken()) return;
+    setSubmitting(true);
+    try {
+      for (const friendId of selectedIds) {
+        const res = await fetchApi('close-friends', {
+          method: 'POST',
+          body: JSON.stringify({ friendId }),
+        });
+        if (!res.ok) break;
+      }
+      navigate('/close-friends');
+    } catch {
+      // ignore
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -66,7 +117,7 @@ export default function CloseFriendsAdd() {
         </div>
 
         <div className="flex items-center justify-between px-4 py-2">
-          <span className="text-[#a8a8a8] text-sm">{filtered.length} people</span>
+          <span className="text-[#a8a8a8] text-sm">{users.length} people</span>
           {selectedIds.size > 0 && (
             <button
               type="button"
@@ -79,45 +130,52 @@ export default function CloseFriendsAdd() {
         </div>
 
         <div className="rounded-xl bg-[#262626] border border-[#363636] overflow-hidden divide-y divide-[#363636] mx-4">
-          {filtered.map((user) => {
-            const isSelected = selectedIds.has(user.id);
-            return (
-              <button
-                key={user.id}
-                type="button"
-                onClick={() => toggle(user.id)}
-                className={`${UI.listRow} w-full flex items-center gap-3 text-left`}
-              >
-                <div className={UI.listAvatar}>
-                  <img
-                    src={user.avatarUrl}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-white font-semibold text-sm truncate">{user.username}</p>
-                  <p className="text-[#a8a8a8] text-sm truncate">{user.displayName}</p>
-                </div>
-                <div
-                  className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                    isSelected ? 'bg-[#0095f6] border-[#0095f6]' : 'border-[#363636]'
-                  }`}
+          {loading ? (
+            <div className="px-4 py-6">
+              <ThemedText secondary className="text-sm">Searching…</ThemedText>
+            </div>
+          ) : users.length === 0 ? (
+            <div className="px-4 py-6">
+              <ThemedText secondary className="text-sm">
+                {query.trim() ? 'No users found. Try a different search.' : 'Type to search for people to add.'}
+              </ThemedText>
+            </div>
+          ) : (
+            users.map((user) => {
+              const isSelected = selectedIds.has(user.id);
+              return (
+                <button
+                  key={user.id}
+                  type="button"
+                  onClick={() => toggle(user.id)}
+                  className={`${UI.listRow} w-full flex items-center gap-3 text-left`}
                 >
-                  {isSelected && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
-                </div>
-              </button>
-            );
-          })}
+                  <Avatar uri={user.profilePhoto} size={44} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-white font-semibold text-sm truncate">{user.username}</p>
+                    <p className="text-[#a8a8a8] text-sm truncate">{user.displayName ?? ''}</p>
+                  </div>
+                  <div
+                    className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                      isSelected ? 'bg-[#0095f6] border-[#0095f6]' : 'border-[#363636]'
+                    }`}
+                  >
+                    {isSelected && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
+                  </div>
+                </button>
+              );
+            })
+          )}
         </div>
 
         <div className="fixed bottom-0 left-0 right-0 p-4 pb-8 bg-black border-t border-[#262626] safe-area-pb">
           <button
             type="button"
             onClick={handleDone}
+            disabled={submitting}
             className={UI.btnPrimary}
           >
-            Done
+            {submitting ? 'Adding…' : 'Done'}
           </button>
         </div>
       </div>

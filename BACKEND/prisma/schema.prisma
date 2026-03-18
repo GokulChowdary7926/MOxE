@@ -59,10 +59,11 @@ model User {
   updatedAt         DateTime @updatedAt
 
   // Relations
-  accounts     Account[]
-  sessions     Session[]
-  securityLogs SecurityLog[]
-  devices      Device[]
+  accounts        Account[]
+  sessions        Session[]
+  securityLogs    SecurityLog[]
+  devices         Device[]
+  userEmbeddings  UserEmbedding[]
 
   @@index([phoneNumber])
   @@index([email])
@@ -183,12 +184,15 @@ model Account {
   bankDetails              Json?    // { last4?, bankName?, verifiedAt? }
 
   // Job account specific
+  activeProfile        String?  @default("personal") @db.VarChar(20) // "personal" | "professional" for dual profile
   professionalHeadline String?
   professionalSection  Json? // Experience, education, etc.
   personalSection      Json? // Personal bio, interests, etc.
   skills               String[]
   workplaceVerified    Boolean  @default(false)
   openToOpportunities  Boolean  @default(false)
+  // Feed interactions (lightweight ranking signals)
+  feedInteractions FeedInteraction[]
 
   // Monetization
   subscriptionsEnabled     Boolean @default(false)
@@ -342,6 +346,13 @@ model Account {
   LiveGift             LiveGift[]
   MessageRecipient     MessageRecipient[]
   pollVotes                 PollVote[]
+  chatTicketsOwned     ChatTicket[]       @relation("ChatTicketOwner")
+  chatTicketsAssigned   ChatTicket[]       @relation("ChatTicketAssigned")
+  chatTicketsAsPeer    ChatTicket[]       @relation("ChatTicketPeer")
+  supportTickets       SupportTicket[]
+  jobDocumentsOwned    JobDocument[]      @relation("JobDocumentOwner")
+  jobDocumentVersionsAuthored JobDocumentVersion[] @relation("JobDocumentVersionAuthor")
+  jobDocumentCommentsAuthored JobDocumentComment[] @relation("JobDocumentCommentAuthor")
   pinnedChats          PinnedChat[]        @relation("pinned_chats_owner")
   pinnedChatsAsOther   PinnedChat[]        @relation("pinned_chats_other")
   conversationMutesOwner ConversationMute[] @relation("conversation_mutes_owner")
@@ -402,6 +413,7 @@ model Account {
   strategyPlans                JobStrategyPlan[]
   jobIntegrations              JobIntegration[]
   jobTeams                     JobTeam[]
+  savedJobSearches            SavedJobSearch[]
 
   @@unique([userId, username])
   @@index([username])
@@ -648,6 +660,8 @@ model Post {
   reports      Report[]
   ProductTag   ProductTag[]
   adCampaigns  AdCampaign[]
+
+  feedInteractions FeedInteraction[]
 
   @@index([accountId])
   @@index([createdAt])
@@ -1242,6 +1256,7 @@ model Message {
   messageId  String?
   pollVotes  PollVote[]
   mediaExpirations MediaExpiration[]
+  chatTicket ChatTicket?
 }
 
 model MessageRecipient {
@@ -1274,6 +1289,82 @@ model PollVote {
 
   @@unique([messageId, accountId])
   @@index([messageId])
+}
+
+// MOxE CHAT (Job): convert DM to ticket; assignment; status tracking
+model ChatTicket {
+  id                  String    @id @default(cuid())
+  accountId           String    // Job account that owns the ticket queue
+  messageId           String?   @unique // Optional: message that was converted to ticket (one-to-one)
+  peerId              String    // The other party (customer/requester) in the conversation
+  subject             String    @db.VarChar(500)
+  description         String?   @db.Text   // Summary or first message content
+  status              String    @default("OPEN") @db.VarChar(20) // OPEN, IN_PROGRESS, RESOLVED, CLOSED
+  priority            String    @default("MEDIUM") @db.VarChar(20) // LOW, MEDIUM, HIGH
+  assignedToAccountId String?
+  resolvedAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  account    Account @relation("ChatTicketOwner", fields: [accountId], references: [id], onDelete: Cascade)
+  message    Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  peer       Account  @relation("ChatTicketPeer", fields: [peerId], references: [id], onDelete: Cascade)
+  assignedTo Account? @relation("ChatTicketAssigned", fields: [assignedToAccountId], references: [id], onDelete: SetNull)
+
+  @@index([accountId, status])
+  @@index([assignedToAccountId])
+  @@index([peerId])
+}
+
+// MOxE DOCS (Job): collaborative documents with version history and comments
+model JobDocument {
+  id        String   @id @default(cuid())
+  accountId String
+  title     String   @db.VarChar(500)
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  account   Account                @relation("JobDocumentOwner", fields: [accountId], references: [id], onDelete: Cascade)
+  versions  JobDocumentVersion[]
+  comments  JobDocumentComment[]
+
+  @@index([accountId])
+}
+
+model JobDocumentVersion {
+  id         String   @id @default(cuid())
+  documentId String
+  title      String   @db.VarChar(500)
+  content    String   @db.Text
+  versionNumber Int
+  createdById String
+  createdAt  DateTime @default(now())
+
+  document  JobDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdBy Account     @relation("JobDocumentVersionAuthor", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+}
+
+model JobDocumentComment {
+  id         String    @id @default(cuid())
+  documentId String
+  accountId  String
+  parentId   String?   // Threaded replies
+  content    String    @db.Text
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  document JobDocument         @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  account  Account             @relation("JobDocumentCommentAuthor", fields: [accountId], references: [id], onDelete: Cascade)
+  parent   JobDocumentComment? @relation("JobDocCommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies  JobDocumentComment[] @relation("JobDocCommentReplies")
+
+  @@index([documentId])
+  @@index([accountId])
+  @@index([parentId])
 }
 
 model PinnedChat {
@@ -1529,6 +1620,17 @@ model Report {
   reportedStory          Story?         @relation(fields: [reportedStoryId], references: [id], onDelete: SetNull)
   reportedAnonymousPost  AnonymousPost? @relation("reported_anonymous_post", fields: [reportedAnonymousPostId], references: [id])
   reportedReview         Review?        @relation(fields: [reportedReviewId], references: [id], onDelete: SetNull)
+}
+
+model AnonymousReport {
+  id          String   @id @default(cuid())
+  type        String   @db.VarChar(20)   // account, post, comment, story, problem
+  targetId    String?  @db.VarChar(100) // optional for problem reports
+  reason      String   @db.VarChar(200)
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  @@index([type, createdAt])
 }
 
 model AnonymousSpace {
@@ -1971,6 +2073,19 @@ model Review {
   @@index([reviewerId])
 }
 
+// Webinar library: educational videos for sellers (photography, marketing, shipping, etc.)
+model SellerWebinar {
+  id          String   @id @default(cuid())
+  topic       String   @db.VarChar(80)   // e.g. photography, marketing, shipping
+  title       String   @db.VarChar(300)
+  description String?  @db.Text
+  url         String   @db.VarChar(1000)  // video URL
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@index([topic])
+}
+
 // ==================== SELLER SETTLEMENTS (Guide 3.8) ====================
 
 model Payout {
@@ -2296,6 +2411,7 @@ model ScreenshotLog {
 model SupportTicket {
   id          String   @id @default(cuid())
   accountId   String
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
   subject     String   @db.VarChar(200)
   message     String   @db.Text
   category    String?  @default("general") // general, seller, billing, etc.
@@ -2437,6 +2553,22 @@ model JobApplication {
   @@index([accountId])
   @@index([jobPostingId])
   @@index([status])
+}
+
+model SavedJobSearch {
+  id           String   @id @default(cuid())
+  accountId    String
+  name         String   // e.g. "Frontend in NYC"
+  query        String?  // keyword
+  location     String?
+  locationType String?  // REMOTE, ONSITE, HYBRID
+  jobType      String?  // FULL_TIME, PART_TIME, CONTRACT, etc.
+  alertEnabled Boolean  @default(false)
+  lastNotifiedAt DateTime?
+  createdAt    DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  @@index([accountId])
 }
 
 model RecruitmentCandidate {
@@ -4314,3 +4446,60 @@ model AdFraudBlock {
   @@index([active, expiresAt])
   @@unique([campaignId, advertiserAccountId, level], name: "campaignId_advertiserAccountId_level")
 }
+
+// ================ FEED INTERACTIONS (LIGHTWEIGHT RANKING SIGNALS) =================
+
+model FeedInteraction {
+  id        String   @id @default(cuid())
+  accountId String
+  postId    String
+  type      String   @db.VarChar(20) // VIEW, LIKE, COMMENT, SAVE
+  value     Float?
+  createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  post    Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, createdAt])
+  @@index([postId, createdAt])
+}
+
+// ================ RECOMMENDATION SYSTEM CORE MODELS =================
+
+// Holistic user embedding across all MOxE tools (feed, reels, explore, job, etc.)
+model UserEmbedding {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  embedding       Json     // Vector representation (e.g. 512-dim)
+  topics          Json     // [{ topic: "travel photography", score: 0.9 }, ...]
+  professionalIntent Json? // { currentRole, targetRoles, skills }
+  creatorStyle    Json?    // { niche, avgPostingTime, preferredAudio, ... }
+  lastUpdated     DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Content features for all content types used in ranking (posts, reels, stories, job items, etc.)
+model ContentFeatures {
+  id              String   @id @default(cuid())
+  contentId       String
+  contentType     String   @db.VarChar(20) // POST, STORY, REEL, JOB, PROJECT, TASK
+  creatorId       String
+
+  features        Json     // Embeddings, detectors, etc.
+  topics          Json     // AI-extracted topics
+  engagementScore Float    @default(0.0)
+  viralityScore   Float    @default(0.0)
+  qualityScore    Float    @default(0.0)
+  recencyScore    Float    @default(0.0)
+  createdAt       DateTime @default(now())
+  toolSpecific    Json?
+
+  @@index([contentType, engagementScore])
+  @@index([contentType, viralityScore])
+  @@index([contentType, recencyScore])
+  @@unique([contentId, contentType])
+}
+

@@ -4,11 +4,10 @@ import { useDispatch, useSelector } from 'react-redux';
 import { setCurrentAccount, setAccounts, setCapabilities } from '../../store/accountSlice';
 import { ACCOUNT_TYPE_LABELS } from '../../constants/accountTypes';
 import type { RootState } from '../../store';
-import { PageLayout } from '../../components/layout/PageLayout';
-import { ThemedText } from '../../components/ui/Themed';
+import { ThemedView, ThemedText } from '../../components/ui/Themed';
 import { Avatar } from '../../components/ui/Avatar';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+import { MobileShell } from '../../components/layout/MobileShell';
+import { getApiBase } from '../../services/api';
 
 export default function SwitchAccount() {
   const dispatch = useDispatch();
@@ -23,7 +22,7 @@ export default function SwitchAccount() {
       setLoading(false);
       return;
     }
-    fetch(`${API_BASE}/accounts/list`, {
+    fetch(`${getApiBase()}/accounts/list`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => (res.ok ? res.json() : []))
@@ -42,57 +41,77 @@ export default function SwitchAccount() {
 
   if (loading) {
     return (
-      <PageLayout title="Accounts" backTo="/settings">
-        <div className="py-8 flex justify-center">
-          <ThemedText secondary>Loading accounts…</ThemedText>
-        </div>
-      </PageLayout>
+      <ThemedView className="min-h-screen flex items-center justify-center bg-black/80">
+        <MobileShell>
+          <div className="flex-1 flex items-center justify-center">
+            <ThemedText secondary>Loading accounts…</ThemedText>
+          </div>
+        </MobileShell>
+      </ThemedView>
     );
   }
 
   return (
-    <PageLayout title="Accounts" backTo="/settings">
-      <div className="py-4 space-y-1">
-        <ThemedText secondary className="block mb-4 text-moxe-body">
-          Switch or add an account. Tabs and features depend on account type.
-        </ThemedText>
-        {list.map((acc: any) => {
-          const isCurrent = acc.id === currentId;
-          return (
+    <ThemedView className="fixed inset-0 z-40 bg-black/60 flex items-end justify-center">
+      <MobileShell>
+        <div className="mt-auto w-full rounded-t-3xl bg-[#101010] border-t border-white/10 pb-6 pt-3 px-4">
+          <div className="flex items-center justify-between mb-3">
+            <ThemedText className="text-white font-semibold text-sm">Accounts</ThemedText>
             <button
-              key={acc.id}
               type="button"
-              onClick={() => handleSwitch(acc)}
-              className={`w-full flex items-center gap-4 p-4 rounded-xl border text-left transition-colors ${
-                isCurrent
-                  ? 'border-moxe-primary bg-moxe-primary/10'
-                  : 'border-moxe-border bg-moxe-surface active:bg-moxe-border'
-              }`}
+              onClick={() => navigate(-1)}
+              className="text-[#0095f6] text-xs font-semibold"
             >
-              <Avatar uri={acc.profilePhoto ?? acc.avatarUri} size={48} />
-              <div className="flex-1 min-w-0">
-                <ThemedText className="font-semibold text-moxe-body block truncate">
-                  {acc.displayName || acc.username}
-                </ThemedText>
-                <ThemedText secondary className="text-moxe-caption">
-                  @{acc.username} · {ACCOUNT_TYPE_LABELS[acc.accountType as keyof typeof ACCOUNT_TYPE_LABELS]}
-                </ThemedText>
-              </div>
-              {isCurrent && (
-                <span className="text-moxe-primary text-moxe-caption font-medium">Active</span>
-              )}
+              Done
             </button>
-          );
-        })}
-      </div>
-      <div className="mt-6">
-        <Link
-          to="/register"
-          className="block w-full py-3 px-4 rounded-moxe-md bg-moxe-surface border border-moxe-border text-moxe-text text-moxe-body font-medium text-center active:opacity-80"
-        >
-          Add account
-        </Link>
-      </div>
-    </PageLayout>
+          </div>
+
+          <div className="space-y-2">
+            {list.map((acc: any) => {
+              const isCurrent = acc.id === currentId;
+              return (
+                <button
+                  key={acc.id}
+                  type="button"
+                  onClick={() => handleSwitch(acc)}
+                  className="w-full flex items-center gap-3 py-2 active:opacity-80"
+                >
+                  <Avatar uri={acc.profilePhoto ?? acc.avatarUri} size={40} />
+                  <div className="flex-1 min-w-0 text-left">
+                    <ThemedText className="text-white text-sm font-semibold truncate">
+                      {acc.username}
+                    </ThemedText>
+                    <ThemedText secondary className="text-[#a8a8a8] text-xs truncate">
+                      {ACCOUNT_TYPE_LABELS[acc.accountType as keyof typeof ACCOUNT_TYPE_LABELS]}
+                    </ThemedText>
+                  </div>
+                  {isCurrent && (
+                    <span className="w-4 h-4 rounded-full border border-[#0095f6] flex items-center justify-center">
+                      <span className="w-2 h-2 rounded-full bg-[#0095f6]" />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 border-t border-white/10 pt-3 space-y-2">
+            <button
+              type="button"
+              onClick={() => navigate('/register')}
+              className="w-full text-left text-[#0095f6] text-sm font-semibold"
+            >
+              Add MOxE Account
+            </button>
+            <button
+              type="button"
+              className="w-full text-center text-[#737373] text-[11px]"
+            >
+              Go to Accounts Centre
+            </button>
+          </div>
+        </div>
+      </MobileShell>
+    </ThemedView>
   );
 }

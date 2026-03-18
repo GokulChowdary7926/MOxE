@@ -4,9 +4,12 @@
 import { prisma } from '../server';
 import { AdBillingService } from './ad-billing.service';
 import { FraudService } from './fraud.service';
+import { FeedRankingService } from './ranking/feedRanking.service';
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
+
+const feedRankingService = new FeedRankingService();
 
 async function isMinor(accountId: string): Promise<boolean> {
   const account = await prisma.account.findUnique({
@@ -19,6 +22,18 @@ async function isMinor(accountId: string): Promise<boolean> {
 }
 
 export class FeedService {
+  /**
+   * Lightweight recording of feed interactions for ranking.
+   */
+  async recordInteraction(accountId: string, postId: string, type: 'VIEW' | 'LIKE' | 'COMMENT' | 'SAVE', value?: number) {
+    try {
+      await prisma.feedInteraction.create({
+        data: { accountId, postId, type, value },
+      });
+    } catch {
+      // best-effort; do not block feed on analytics failure
+    }
+  }
   /**
    * Get feed for accountId: posts from followed accounts + own, ordered by score.
    * Score = recency (newer first) + engagement weight (log(1 + likes + comments)).
@@ -125,10 +140,11 @@ export class FeedService {
       productTags: (p.ProductTag ?? []).map((t) => ({ productId: t.productId, x: t.x, y: t.y, product: t.product })),
     }));
 
-    const nextCursor = items.length === take ? items[items.length - 1].id : null;
+    const rankedItems = await feedRankingService.rank(accountId, items);
+    const nextCursor = rankedItems.length === take ? rankedItems[rankedItems.length - 1].id : null;
 
     // Simple ads delivery: optionally inject one sponsored BOOST post into the feed.
-    const itemsWithAd = await this.maybeInjectSponsoredItem(accountId, items);
+    const itemsWithAd = await this.maybeInjectSponsoredItem(accountId, rankedItems);
 
     return { items: itemsWithAd, nextCursor };
   }

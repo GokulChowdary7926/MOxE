@@ -57,17 +57,15 @@ export default function Work() {
   const [savingTaskForList, setSavingTaskForList] = useState<string | null>(null);
 
   const token = localStorage.getItem('token');
-  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+  const authHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) authHeaders.Authorization = `Bearer ${token}`;
 
   const fetchProjects = async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch(`${API_BASE}/job/work/projects`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: authHeaders,
       });
       if (!res.ok) {
         throw new Error('Failed to load projects');
@@ -86,10 +84,7 @@ export default function Work() {
     setError(null);
     try {
       const res = await fetch(`${API_BASE}/job/work/projects/${id}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: authHeaders,
       });
       if (!res.ok) {
         throw new Error('Failed to load project');
@@ -127,10 +122,7 @@ export default function Work() {
       }
       const res = await fetch(`${API_BASE}/job/work/projects`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: authHeaders,
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
@@ -166,10 +158,7 @@ export default function Work() {
     try {
       const res = await fetch(`${API_BASE}/job/work/task-lists`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: authHeaders,
         body: JSON.stringify({ projectId: selectedProject.id, name: taskListForm.name.trim() }),
       });
       if (!res.ok) {
@@ -201,10 +190,7 @@ export default function Work() {
     try {
       const res = await fetch(`${API_BASE}/job/work/tasks`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: authHeaders,
         body: JSON.stringify({
           taskListId: listId,
           title: taskForm.title.trim(),

@@ -229,6 +229,41 @@ router.get('/campaign-applications', async (req, res, next) => {
   }
 });
 
+/** Brand side: list applications to my campaigns (for approve/decline creators UI). */
+router.get('/brand-applications', async (req, res, next) => {
+  try {
+    const brandId = (req as any).user?.accountId;
+    if (!brandId) return res.status(401).json({ error: 'Unauthorized' });
+    const status = req.query.status as 'PENDING' | 'ACCEPTED' | 'REJECTED' | undefined;
+    const result = await creatorTools.listBrandCampaignApplications(brandId, status);
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post('/brand-applications/:applicationId/approve', async (req, res, next) => {
+  try {
+    const brandId = (req as any).user?.accountId;
+    if (!brandId) return res.status(401).json({ error: 'Unauthorized' });
+    const app = await creatorTools.approveBrandCampaignApplication(brandId, req.params.applicationId);
+    res.json(app);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post('/brand-applications/:applicationId/decline', async (req, res, next) => {
+  try {
+    const brandId = (req as any).user?.accountId;
+    if (!brandId) return res.status(401).json({ error: 'Unauthorized' });
+    const app = await creatorTools.declineBrandCampaignApplication(brandId, req.params.applicationId);
+    res.json(app);
+  } catch (e) {
+    next(e);
+  }
+});
+
 /** 9.4 Reel bonus (my bonuses) */
 router.get('/bonuses', async (req, res, next) => {
   try {

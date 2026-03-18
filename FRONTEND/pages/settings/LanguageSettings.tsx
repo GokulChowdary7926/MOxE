@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { PageLayout, SettingsRadioSection } from '../../components/layout/PageLayout';
+import { SettingsPageShell, SettingsRadioSection } from '../../components/layout/SettingsPageShell';
 
 type LangCode = 'en' | 'es' | 'fr' | 'de' | 'pt' | 'it' | 'ja' | 'ko';
 
-const LANGUAGES: { label: string; value: LangCode }[] = [
+const LANGUAGES: { label: string; value: string }[] = [
   { label: 'English', value: 'en' },
   { label: 'Spanish', value: 'es' },
   { label: 'French', value: 'fr' },
@@ -18,15 +18,14 @@ export default function LanguageSettings() {
   const [value, setValue] = useState<LangCode>('en');
 
   return (
-    <PageLayout title="Language" backTo="/settings">
-      <div className="py-4">
-        <SettingsRadioSection
-          title="App language"
-          options={LANGUAGES}
-          value={value}
-          onChange={(v) => setValue(v as LangCode)}
-        />
-      </div>
-    </PageLayout>
+    <SettingsPageShell title="Set language" backTo="/settings/language">
+      <SettingsRadioSection
+        name="app-language"
+        title="App language"
+        value={value}
+        onChange={(v) => setValue(v as LangCode)}
+        options={LANGUAGES}
+      />
+    </SettingsPageShell>
   );
 }

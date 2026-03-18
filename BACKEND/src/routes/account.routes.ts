@@ -6,9 +6,11 @@ import { HighlightService } from '../services/highlight.service';
 import { ReviewService } from '../services/review.service';
 import { CreatorSubscriptionService } from '../services/creatorSubscription.service';
 import { MessageService } from '../services/message.service';
+import { DataExportService } from '../services/dataExport.service';
 import { prisma } from '../server';
 
 const router = Router();
+const dataExportService = new DataExportService();
 const accountService = new AccountService();
 const emailService = new EmailService();
 const highlightService = new HighlightService();
@@ -168,6 +170,20 @@ router.get('/me/subscribers/export', authenticate, async (req, res, next) => {
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="subscribers.csv"');
     res.send(csv);
+  } catch (e) {
+    next(e);
+  }
+});
+
+/** POST /accounts/me/data-export — GDPR/CCPA data portability. Returns structured JSON of profile, posts metadata, follows, likes, saved posts, collections, comments, messages metadata, notifications metadata. */
+router.post('/me/data-export', authenticate, async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const payload = await dataExportService.exportAccountData(accountId);
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename="moxe-data-export.json"');
+    res.json(payload);
   } catch (e) {
     next(e);
   }

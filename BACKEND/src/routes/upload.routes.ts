@@ -4,32 +4,15 @@ import path from 'path';
 import fs from 'fs';
 import { authenticate } from '../middleware/auth';
 import { prisma } from '../server';
+import { storeBuffer } from '../services/storage.service';
 
 const STORAGE_LIMIT_FREE = 1 * 1024 * 1024 * 1024;   // 1GB
 const STORAGE_LIMIT_PAID = 5 * 1024 * 1024 * 1024;   // 5GB
 
-const uploadsDir = path.join(process.cwd(), 'uploads');
-function ensureUploadsDir(): void {
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-  }
-}
-ensureUploadsDir();
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    ensureUploadsDir();
-    cb(null, uploadsDir);
-  },
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.jpg';
-    const name = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}${ext}`;
-    cb(null, name);
-  },
-});
+const memoryStorage = multer.memoryStorage();
 
 const upload = multer({
-  storage,
+  storage: memoryStorage,
   limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
   fileFilter: (_req, file, cb) => {
     const allowed = /^image\/(jpeg|png|gif|webp)|video\/(mp4|webm)$/i;
@@ -40,7 +23,7 @@ const upload = multer({
 
 // TRACK attachments: documents, images, archives (100MB)
 const trackUpload = multer({
-  storage,
+  storage: memoryStorage,
   limits: { fileSize: 100 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const allowed = /^image\//i.test(file.mimetype) || /^video\//i.test(file.mimetype) ||
@@ -53,28 +36,24 @@ const trackUpload = multer({
 
 const router = Router();
 
-// Base URL for uploaded assets. Set API_URL (or UPLOAD_BASE_URL) in .env for production.
-function getUploadBaseUrl(): string {
-  const base = process.env.UPLOAD_BASE_URL || process.env.API_URL || process.env.CLIENT_URL || 'http://localhost:5007';
-  return base.replace(/\/$/, '');
-}
-
 router.post('/', authenticate, upload.single('file'), async (req: Request, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   const accountId = (req as any).user?.accountId || (req as any).user?.userId;
   if (accountId) {
     const account = await prisma.account.findUnique({ where: { id: accountId }, select: { storageBytesUsed: true, subscriptionTier: true } });
     if (account) {
-      const limit = account.subscriptionTier === 'STAR' || account.subscriptionTier === 'THICK' ? STORAGE_LIMIT_PAID : STORAGE_LIMIT_FREE;
+      const limit =
+        account.subscriptionTier === 'STAR' || account.subscriptionTier === 'THICK'
+          ? STORAGE_LIMIT_PAID
+          : STORAGE_LIMIT_FREE;
       if (account.storageBytesUsed + req.file.size > limit) {
-        fs.unlink(req.file.path, () => {});
         return res.status(413).json({ error: 'Storage limit exceeded. Upgrade for more space.' });
       }
       await prisma.account.update({ where: { id: accountId }, data: { storageBytesUsed: { increment: req.file.size } } });
     }
   }
-  const url = `${getUploadBaseUrl()}/uploads/${req.file.filename}`;
-  res.json({ url });
+  const stored = await storeBuffer(req.file.buffer, req.file.originalname || 'upload.bin', req.file.mimetype);
+  res.json({ url: stored.url, key: stored.key, size: stored.size });
 });
 
 router.post('/multiple', authenticate, upload.array('files', 10), async (req: Request, res) => {
@@ -85,17 +64,23 @@ router.post('/multiple', authenticate, upload.array('files', 10), async (req: Re
   if (accountId) {
     const account = await prisma.account.findUnique({ where: { id: accountId }, select: { storageBytesUsed: true, subscriptionTier: true } });
     if (account) {
-      const limit = account.subscriptionTier === 'STAR' || account.subscriptionTier === 'THICK' ? STORAGE_LIMIT_PAID : STORAGE_LIMIT_FREE;
+      const limit =
+        account.subscriptionTier === 'STAR' || account.subscriptionTier === 'THICK'
+          ? STORAGE_LIMIT_PAID
+          : STORAGE_LIMIT_FREE;
       if (account.storageBytesUsed + totalSize > limit) {
-        files.forEach((f) => { try { fs.unlinkSync(f.path); } catch (_) {} });
         return res.status(413).json({ error: 'Storage limit exceeded. Upgrade for more space.' });
       }
       await prisma.account.update({ where: { id: accountId }, data: { storageBytesUsed: { increment: totalSize } } });
     }
   }
-  const baseUrl = getUploadBaseUrl();
-  const urls = files.map((f) => `${baseUrl}/uploads/${f.filename}`);
-  res.json({ urls });
+  const storedList = await Promise.all(
+    files.map((f) => storeBuffer(f.buffer, f.originalname || 'upload.bin', f.mimetype))
+  );
+  res.json({
+    urls: storedList.map((s) => s.url),
+    objects: storedList,
+  });
 });
 
 // TRACK agile: attachments (documents, images, etc.)
@@ -105,16 +90,18 @@ router.post('/track', authenticate, trackUpload.single('file'), async (req: Requ
   if (accountId) {
     const account = await prisma.account.findUnique({ where: { id: accountId }, select: { storageBytesUsed: true, subscriptionTier: true } });
     if (account) {
-      const limit = account.subscriptionTier === 'STAR' || account.subscriptionTier === 'THICK' ? STORAGE_LIMIT_PAID : STORAGE_LIMIT_FREE;
+      const limit =
+        account.subscriptionTier === 'STAR' || account.subscriptionTier === 'THICK'
+          ? STORAGE_LIMIT_PAID
+          : STORAGE_LIMIT_FREE;
       if (account.storageBytesUsed + req.file.size > limit) {
-        fs.unlink(req.file.path, () => {});
         return res.status(413).json({ error: 'Storage limit exceeded.' });
       }
       await prisma.account.update({ where: { id: accountId }, data: { storageBytesUsed: { increment: req.file.size } } });
     }
   }
-  const url = `${getUploadBaseUrl()}/uploads/${req.file.filename}`;
-  res.json({ url, fileName: req.file.originalname || req.file.filename, fileSize: req.file.size });
+  const stored = await storeBuffer(req.file.buffer, req.file.originalname || 'track.bin', req.file.mimetype);
+  res.json({ url: stored.url, key: stored.key, fileName: req.file.originalname || 'track.bin', fileSize: req.file.size });
 });
 
 export default router;

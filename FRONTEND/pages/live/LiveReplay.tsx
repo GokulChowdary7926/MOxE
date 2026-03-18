@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ThemedView, ThemedText, ThemedButton } from '../../components/ui/Themed';
+import { getApiBase, getToken } from '../../services/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type ReplayProduct = {
   id: string;
@@ -38,7 +39,9 @@ export default function LiveReplay() {
     if (!liveId) return;
     setLoading(true);
     setError(null);
-    fetch(`${API_BASE}/live/${liveId}/replay`)
+    const token = getToken();
+    const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+    fetch(`${API_BASE}/live/${liveId}/replay`, { headers })
       .then(async (r) => {
         const data = await r.json().catch(() => ({}));
         if (!r.ok) {
@@ -70,7 +73,7 @@ export default function LiveReplay() {
         {!loading && !error && replay && (
           <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)]">
             <div className="space-y-3">
-              <div className="aspect-video bg-black rounded-moxe-lg overflow-hidden flex items-center justify-center">
+              <div className="aspect-video bg-black rounded-moxe-lg overflow-hidden flex items-center justify-center relative">
                 {replay.recording ? (
                   <video
                     key={replay.recording}
@@ -82,6 +85,34 @@ export default function LiveReplay() {
                   <ThemedText secondary className="text-center px-4">
                     Replay recording is not available for this live.
                   </ThemedText>
+                )}
+                {replay.liveProducts.length > 0 && (
+                  <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/90 to-transparent flex gap-2 overflow-x-auto no-scrollbar">
+                    {replay.liveProducts.map((lp) => {
+                      const p = lp.product;
+                      const image = Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : null;
+                      const hasDiscount = lp.liveDiscountPercent != null && lp.liveDiscountPercent > 0;
+                      const discountedPrice = hasDiscount ? p.price * (1 - (lp.liveDiscountPercent ?? 0) / 100) : p.price;
+                      return (
+                        <button
+                          key={lp.id}
+                          type="button"
+                          onClick={() => window.location.href = '/commerce'}
+                          className="relative flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 border-white/30 bg-moxe-surface hover:border-white/60 transition-colors"
+                        >
+                          {image ? (
+                            <img src={image} alt={p.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-[10px] text-moxe-textSecondary">No image</div>
+                          )}
+                          <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-1 py-0.5 text-[10px] text-white font-medium truncate">
+                            ${discountedPrice.toFixed(2)}
+                            {lp.isPinned && ' 📌'}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
               <div>

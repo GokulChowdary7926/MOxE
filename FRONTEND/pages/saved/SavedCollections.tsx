@@ -6,8 +6,7 @@ import { ThemedText, ThemedButton } from '../../components/ui/Themed';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { UI } from '../../constants/uiTheme';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+import { getApiBase, getToken } from '../../services/api';
 
 type Collection = {
   id: string;
@@ -54,7 +53,7 @@ export default function SavedCollections() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (!token) {
       setError('You must be logged in to view saved posts.');
       setLoadingCollections(false);
@@ -62,7 +61,7 @@ export default function SavedCollections() {
       return;
     }
     setLoadingCollections(true);
-    fetch(`${API_BASE}/collections`, {
+    fetch(`${getApiBase()}/collections`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
@@ -77,13 +76,13 @@ export default function SavedCollections() {
   }, []);
 
   const loadSavedPosts = useCallback(() => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (!token) return;
     setSavedPostsError(null);
     setLoadingSaved(true);
     const params = new URLSearchParams();
     if (activeCollectionId) params.set('collectionId', activeCollectionId);
-    fetch(`${API_BASE}/collections/saved?${params.toString()}`, {
+    fetch(`${getApiBase()}/collections/saved?${params.toString()}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
@@ -104,11 +103,11 @@ export default function SavedCollections() {
   async function createCollection(e: React.FormEvent) {
     e.preventDefault();
     if (!newCollectionName.trim()) return;
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (!token) return;
     setCreating(true);
     try {
-      const res = await fetch(`${API_BASE}/collections`, {
+      const res = await fetch(`${getApiBase()}/collections`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -128,12 +127,12 @@ export default function SavedCollections() {
   }
 
   async function shareCollection(id: string) {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (!token) return;
     setSharingId(id);
     setShareError(null);
     try {
-      const res = await fetch(`${API_BASE}/collections/${id}/share`, {
+      const res = await fetch(`${getApiBase()}/collections/${id}/share`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -154,12 +153,12 @@ export default function SavedCollections() {
   }
 
   async function persistOrder(next: Collection[]) {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (!token) return;
     try {
       await Promise.all(
         next.map((c, index) =>
-          fetch(`${API_BASE}/collections/${c.id}`, {
+          fetch(`${getApiBase()}/collections/${c.id}`, {
             method: 'PATCH',
             headers: {
               Authorization: `Bearer ${token}`,
@@ -175,11 +174,11 @@ export default function SavedCollections() {
   }
 
   async function setCollectionCoverFromPost(collectionId: string, url: string) {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (!token) return;
     setSavingCoverId(collectionId);
     try {
-      const res = await fetch(`${API_BASE}/collections/${collectionId}`, {
+      const res = await fetch(`${getApiBase()}/collections/${collectionId}`, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -203,7 +202,7 @@ export default function SavedCollections() {
 
   async function shareActiveCollectionToStory() {
     if (!activeCollectionId || savedPosts.length === 0) return;
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (!token) return;
     const collection = collections.find((c) => c.id === activeCollectionId);
     const first = savedPosts[0];
@@ -215,7 +214,7 @@ export default function SavedCollections() {
         media: [{ url: mediaUrl }],
         text: collection ? `Collection · ${collection.name}` : 'Saved collection',
       };
-      const res = await fetch(`${API_BASE}/stories`, {
+      const res = await fetch(`${getApiBase()}/stories`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,

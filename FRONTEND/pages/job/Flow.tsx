@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { getApiBase } from '../../services/api';
+import { JobPageContent } from '../../components/job/JobPageContent';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 export default function Flow() {
   const [boards, setBoards] = useState<any[]>([]);
@@ -57,27 +59,22 @@ export default function Flow() {
   if (loading && !selectedBoard) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="text-slate-500">Loading Flow...</div>
+        <div className="text-[#5E6C84] dark:text-[#8C9BAB] text-sm">Loading Flow…</div>
       </div>
     );
   }
 
   return (
-    <div>
-      <h2 className="text-2xl font-semibold text-slate-800 dark:text-white mb-4">MOxE Flow</h2>
-      <p className="text-slate-600 dark:text-slate-400 mb-6">
-        Visual job-search boards. Drag cards across columns (Wishlist → Applied → Interview → Offer).
-      </p>
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-lg">
-          {error}
-        </div>
-      )}
+    <JobPageContent
+      title="MOxE Flow"
+      description="Visual job-search boards. Drag cards across columns (Wishlist → Applied → Interview → Offer)."
+      error={error}
+    >
       {selectedBoard ? (
         <div>
           <button
             onClick={() => setSelectedBoard(null)}
-            className="text-sm text-indigo-600 dark:text-indigo-400 mb-4"
+            className="text-sm text-[#0052CC] dark:text-[#2684FF] mb-4"
           >
             ← Back to boards
           </button>
@@ -116,22 +113,22 @@ export default function Flow() {
         <div className="space-y-3">
           <button
             onClick={createBoard}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700"
+            className="px-4 py-2 bg-[#0052CC] dark:bg-[#2684FF] text-white rounded-lg font-medium hover:opacity-90"
           >
             + New board
           </button>
           {boards.length === 0 ? (
-            <p className="text-slate-500">No boards yet. Create one to get started.</p>
+            <p className="text-[#5E6C84] dark:text-[#8C9BAB] text-sm">No boards yet. Create one to get started.</p>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {boards.map((b) => (
                 <button
                   key={b.id}
                   onClick={() => openBoard(b.id)}
-                  className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-left hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors"
+                  className="p-4 rounded-lg border border-[#DFE1E6] dark:border-[#2C333A] bg-white dark:bg-[#1D2125] text-left hover:border-[#0052CC] dark:hover:border-[#2684FF] transition-colors shadow-sm"
                 >
-                  <div className="font-medium text-slate-800 dark:text-white">{b.name}</div>
-                  <div className="text-sm text-slate-500 mt-1">
+                  <div className="font-medium text-[#172B4D] dark:text-[#E6EDF3]">{b.name}</div>
+                  <div className="text-sm text-[#5E6C84] dark:text-[#8C9BAB] mt-1">
                     {b.columns?.length || 0} columns
                   </div>
                 </button>
@@ -140,6 +137,6 @@ export default function Flow() {
           )}
         </div>
       )}
-    </div>
+    </JobPageContent>
   );
 }

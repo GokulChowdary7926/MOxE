@@ -5,6 +5,17 @@ import { ReportService } from '../services/report.service';
 const router = Router();
 const service = new ReportService();
 
+/** POST /reports/anonymous – no auth. For anonymous content/account reporting. */
+router.post('/anonymous', async (req, res, next) => {
+  try {
+    const { type, targetId, reason, description } = req.body || {};
+    const result = await service.createAnonymous({ type, targetId, reason, description });
+    res.status(201).json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.use(authenticate);
 
 router.post('/', async (req, res, next) => {

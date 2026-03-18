@@ -5,8 +5,14 @@
     <title>MOxE Web</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#000000" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%231a1a2e'/><text x='16' y='22' font-size='18' font-family='system-ui' fill='%23607dff' text-anchor='middle' font-weight='bold'>M</text></svg>" type="image/svg+xml" />
   </head>
   <body>
+    <script>
+      (function() {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      })();
+    </script>
     <div id="root"></div>
     <script>
       window.process = window.process || { env: { NODE_ENV: 'development' } };

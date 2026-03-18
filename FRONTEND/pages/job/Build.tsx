@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { getApiBase } from '../../services/api';
+import { JobPageContent } from '../../components/job/JobPageContent';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type BuildPipeline = {
   id: string;
@@ -63,18 +65,21 @@ export default function Build() {
     externalKey: '',
   });
 
-  const token = localStorage.getItem('token');
-  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+  function useAuthHeaders(): Record<string, string> {
+    const t = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const h: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (t) h.Authorization = `Bearer ${t}`;
+    return h;
+  }
+  const authHeaders = useAuthHeaders();
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
   const fetchPipelines = async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch(`${API_BASE}/build/pipelines`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: authHeaders,
       });
       if (!res.ok) {
         throw new Error('Failed to load pipelines');
@@ -93,10 +98,7 @@ export default function Build() {
     setError(null);
     try {
       const res = await fetch(`${API_BASE}/build/pipelines/${id}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: authHeaders,
       });
       if (!res.ok) {
         throw new Error('Failed to load pipeline');
@@ -149,10 +151,7 @@ export default function Build() {
 
       const res = await fetch(`${API_BASE}/build/pipelines`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: authHeaders,
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
@@ -186,7 +185,7 @@ export default function Build() {
       return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
     }
     if (s === 'RUNNING' || s === 'IN_PROGRESS') {
-      return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300';
+      return 'bg-[#DEEBFF] text-[#0052CC] dark:bg-[#0052CC]/20 dark:text-[#2684FF]';
     }
     return 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300';
   };
@@ -200,30 +199,26 @@ export default function Build() {
 
   if (loading && pipelines.length === 0) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-slate-500">Loading Build…</div>
-      </div>
+      <JobPageContent title="MOxE Build" description="Define pipelines for your code repositories and track recent runs.">
+        <div className="flex items-center justify-center py-12">
+          <div className="h-16 w-full max-w-xs bg-[#F4F5F7] animate-pulse rounded" />
+        </div>
+      </JobPageContent>
     );
   }
 
   return (
+    <JobPageContent
+      title="MOxE Build"
+      description="Define pipelines for your code repositories and track recent runs for your Job account."
+      error={error}
+    >
     <div>
-      <h2 className="text-2xl font-semibold text-slate-800 dark:text-white mb-2">MOxE Build</h2>
-      <p className="text-slate-600 dark:text-slate-400 mb-6 text-sm">
-        Define pipelines for your code repositories and track recent runs for your Job account.
-      </p>
-
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-lg text-sm">
-          {error}
-        </div>
-      )}
-
       {!selected && (
         <>
           <form
             onSubmit={handleCreate}
-            className="mb-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 space-y-3"
+            className="mb-6 rounded-xl border border-[#DFE1E6] dark:border-slate-700 bg-white dark:bg-slate-900 p-4 space-y-3"
           >
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
@@ -312,7 +307,7 @@ export default function Build() {
               <button
                 type="submit"
                 disabled={creating}
-                className="px-4 py-2 rounded-lg bg-indigo-600 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+                className="px-4 py-2 rounded-lg bg-[#0052CC] text-sm font-medium text-white hover:bg-[#2684FF] disabled:opacity-60"
               >
                 {creating ? 'Creating…' : 'Create pipeline'}
               </button>
@@ -330,7 +325,7 @@ export default function Build() {
                   key={p.id}
                   type="button"
                   onClick={() => openPipeline(p)}
-                  className="w-full text-left p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors"
+                  className="w-full text-left p-4 bg-white dark:bg-slate-800 rounded-xl border border-[#DFE1E6] dark:border-slate-700 hover:border-[#0052CC] dark:hover:border-[#2684FF] transition-colors"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div>
@@ -359,7 +354,7 @@ export default function Build() {
           <button
             type="button"
             onClick={() => setSelected(null)}
-            className="text-sm text-indigo-600 dark:text-indigo-400 mb-3"
+            className="text-sm text-[#0052CC] dark:text-[#2684FF] mb-3"
           >
             ← Back to pipelines
           </button>
@@ -377,7 +372,7 @@ export default function Build() {
               <span className="text-[11px] text-slate-500 dark:text-slate-400">Refreshing…</span>
             )}
           </div>
-          <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
+          <div className="rounded-lg border border-[#DFE1E6] dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
             <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">
               Recent runs
             </p>
@@ -390,7 +385,7 @@ export default function Build() {
               <div className="overflow-x-auto">
                 <table className="min-w-full text-xs">
                   <thead>
-                    <tr className="text-left text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
+                    <tr className="text-left text-slate-500 dark:text-slate-400 border-b border-[#DFE1E6] dark:border-slate-700">
                       <th className="py-1 pr-3">Status</th>
                       <th className="py-1 pr-3">Trigger</th>
                       <th className="py-1 pr-3">Branch</th>
@@ -433,7 +428,7 @@ export default function Build() {
                               href={run.logsUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-indigo-600 dark:text-indigo-400 hover:underline"
+                              className="text-[#0052CC] dark:text-[#2684FF] hover:underline"
                             >
                               View
                             </a>
@@ -451,6 +446,7 @@ export default function Build() {
         </div>
       )}
     </div>
+    </JobPageContent>
   );
 }
 

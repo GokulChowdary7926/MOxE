@@ -75,4 +75,23 @@ export class ReportService {
     });
     return { id: report.id };
   }
+
+  /** Anonymous report – no auth. Creates AnonymousReport. */
+  async createAnonymous(data: { type: string; targetId?: string; reason: string; description?: string }): Promise<{ id: string }> {
+    const { type, targetId, reason, description } = data;
+    const validTypes = ['account', 'post', 'comment', 'story', 'problem'];
+    if (!validTypes.includes(type)) throw new AppError('Invalid report type', 400);
+    if (!reason || reason.length > 200) throw new AppError('Invalid reason', 400);
+    if (type !== 'problem' && !targetId) throw new AppError('targetId required for this type', 400);
+
+    const report = await prisma.anonymousReport.create({
+      data: {
+        type,
+        targetId: targetId ?? null,
+        reason: reason.slice(0, 200),
+        description: description?.slice(0, 1000) ?? null,
+      },
+    });
+    return { id: report.id };
+  }
 }

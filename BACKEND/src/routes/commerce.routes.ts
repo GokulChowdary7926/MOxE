@@ -23,6 +23,29 @@ router.get('/shop/:username', async (req, res, next) => {
   }
 });
 
+/** MOxE Website: public shop data for username.moxe.store (same as shop, for website generation). */
+router.get('/website/:username', async (req, res, next) => {
+  try {
+    const shop = await commerceService.getShopByUsername(req.params.username);
+    if (!shop) return res.status(404).json({ error: 'Shop not found' });
+    res.json(shop);
+  } catch (e) {
+    next(e);
+  }
+});
+
+/** Webinar library: educational videos for sellers (no auth required to list). */
+router.get('/webinars', async (_req, res, next) => {
+  try {
+    const webinars = await prisma.sellerWebinar.findMany({
+      orderBy: [{ topic: 'asc' }, { order: 'asc' }],
+    });
+    res.json(webinars);
+  } catch (e) {
+    next(e);
+  }
+});
+
 /** Public: aggregate rating + count for seller. */
 router.get('/reviews/aggregate', async (req, res, next) => {
   try {

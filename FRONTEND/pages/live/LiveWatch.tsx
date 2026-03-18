@@ -2,8 +2,9 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ThemedView, ThemedText } from '../../components/ui/Themed';
 import { connectTranslateSocket, getTranslateSocket } from '../../services/translateSocket';
+import { getApiBase, getToken } from '../../services/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type LiveDetail = {
   id: string;
@@ -28,6 +29,16 @@ export default function LiveWatch() {
   const [subtitle, setSubtitle] = useState<{ text: string; original: string } | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
+  const [showGiftModal, setShowGiftModal] = useState(false);
+  const [showBadgeModal, setShowBadgeModal] = useState(false);
+  const [giftType, setGiftType] = useState('HEART');
+  const [giftAmount, setGiftAmount] = useState(1);
+  const [giftMessage, setGiftMessage] = useState('');
+  const [badgeTier, setBadgeTier] = useState('BRONZE');
+  const [badgeAmount, setBadgeAmount] = useState(1);
+  const [sendingGift, setSendingGift] = useState(false);
+  const [buyingBadge, setBuyingBadge] = useState(false);
+  const [liveError, setLiveError] = useState<string | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
@@ -35,7 +46,9 @@ export default function LiveWatch() {
     if (!liveId) return;
     setLoading(true);
     setError(null);
-    fetch(`${API_BASE}/live/${liveId}`)
+    const token = getToken();
+    const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+    fetch(`${API_BASE}/live/${liveId}`, { headers })
       .then(async (r) => {
         const data = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(data.error || 'Failed to load live');
@@ -136,6 +149,57 @@ export default function LiveWatch() {
     mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
   };
 
+  const sendGift = async () => {
+    if (!liveId || !live) return;
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setLiveError('Sign in to send a gift');
+      return;
+    }
+    setSendingGift(true);
+    setLiveError(null);
+    try {
+      const res = await fetch(`${API_BASE}/live/${liveId}/gifts`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ giftType, amount: Number(giftAmount) || 1, message: giftMessage.trim() || undefined }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to send gift');
+      setShowGiftModal(false);
+      setGiftMessage('');
+    } catch (e: any) {
+      setLiveError(e.message || 'Failed to send gift');
+    } finally {
+      setSendingGift(false);
+    }
+  };
+
+  const purchaseBadge = async () => {
+    if (!liveId || !live) return;
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setLiveError('Sign in to buy a badge');
+      return;
+    }
+    setBuyingBadge(true);
+    setLiveError(null);
+    try {
+      const res = await fetch(`${API_BASE}/live/${liveId}/badges`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier: badgeTier, amount: Number(badgeAmount) || 1 }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to purchase badge');
+      setShowBadgeModal(false);
+    } catch (e: any) {
+      setLiveError(e.message || 'Failed to purchase badge');
+    } finally {
+      setBuyingBadge(false);
+    }
+  };
+
   return (
     <ThemedView className="min-h-screen flex flex-col pb-20">
       <header className="flex items-center justify-between px-4 py-3 border-b border-moxe-border">
@@ -179,6 +243,27 @@ export default function LiveWatch() {
               )}
             </div>
 
+            {live.status === 'LIVE' && (
+              <div className="flex flex-wrap gap-2 mb-4">
+                <button
+                  type="button"
+                  onClick={() => setShowGiftModal(true)}
+                  className="px-4 py-2 rounded-full bg-rose-500/90 text-white text-sm font-semibold"
+                >
+                  Send gift
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowBadgeModal(true)}
+                  className="px-4 py-2 rounded-full bg-amber-500/90 text-white text-sm font-semibold"
+                >
+                  Buy badge
+                </button>
+              </div>
+            )}
+            {liveError && (
+              <p className="text-sm text-red-500 mb-2">{liveError}</p>
+            )}
             <div className="mt-4 space-y-2">
               <ThemedText className="font-semibold text-moxe-body text-sm">
                 Translation (beta)
@@ -233,6 +318,60 @@ export default function LiveWatch() {
           </>
         )}
       </div>
+
+      {showGiftModal && live && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-slate-800 dark:bg-slate-900 rounded-xl border border-slate-600 p-4 w-full max-w-sm space-y-3">
+            <h3 className="font-semibold text-white">Send gift</h3>
+            <div>
+              <label className="block text-slate-300 text-sm mb-1">Type</label>
+              <select value={giftType} onChange={(e) => setGiftType(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm">
+                <option value="HEART">Heart</option>
+                <option value="STAR">Star</option>
+                <option value="CROWN">Crown</option>
+                <option value="TROPHY">Trophy</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-slate-300 text-sm mb-1">Amount</label>
+              <input type="number" min={1} value={giftAmount} onChange={(e) => setGiftAmount(Number(e.target.value) || 1)} className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm" />
+            </div>
+            <div>
+              <label className="block text-slate-300 text-sm mb-1">Message (optional)</label>
+              <input type="text" value={giftMessage} onChange={(e) => setGiftMessage(e.target.value)} placeholder="Say something" className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm placeholder-slate-400" />
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setShowGiftModal(false)} className="flex-1 py-2 rounded-lg border border-slate-600 text-slate-300 text-sm font-medium">Cancel</button>
+              <button type="button" disabled={sendingGift} onClick={sendGift} className="flex-1 py-2 rounded-lg bg-rose-500 text-white text-sm font-semibold disabled:opacity-50">{sendingGift ? 'Sending…' : 'Send'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showBadgeModal && live && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-slate-800 dark:bg-slate-900 rounded-xl border border-slate-600 p-4 w-full max-w-sm space-y-3">
+            <h3 className="font-semibold text-white">Buy badge</h3>
+            <div>
+              <label className="block text-slate-300 text-sm mb-1">Tier</label>
+              <select value={badgeTier} onChange={(e) => setBadgeTier(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm">
+                <option value="BRONZE">Bronze</option>
+                <option value="SILVER">Silver</option>
+                <option value="GOLD">Gold</option>
+                <option value="PLATINUM">Platinum</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-slate-300 text-sm mb-1">Amount</label>
+              <input type="number" min={1} value={badgeAmount} onChange={(e) => setBadgeAmount(Number(e.target.value) || 1)} className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm" />
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setShowBadgeModal(false)} className="flex-1 py-2 rounded-lg border border-slate-600 text-slate-300 text-sm font-medium">Cancel</button>
+              <button type="button" disabled={buyingBadge} onClick={purchaseBadge} className="flex-1 py-2 rounded-lg bg-amber-500 text-white text-sm font-semibold disabled:opacity-50">{buyingBadge ? 'Buying…' : 'Buy'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </ThemedView>
   );
 }

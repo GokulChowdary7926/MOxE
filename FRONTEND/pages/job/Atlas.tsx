@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { getApiBase } from '../../services/api';
+import { JobPageContent } from '../../components/job/JobPageContent';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type AtlasKeyResult = {
   id: string;
@@ -73,22 +75,15 @@ export default function Atlas() {
   });
 
   const token = localStorage.getItem('token');
-
-  const authHeaders = token
-    ? {
-        Authorization: `Bearer ${token}`,
-      }
-    : {};
+  const authHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) authHeaders.Authorization = `Bearer ${token}`;
 
   const fetchObjectives = async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch(`${API_BASE}/atlas/objectives`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: authHeaders,
       });
       if (!res.ok) {
         throw new Error('Failed to load objectives');
@@ -112,10 +107,7 @@ export default function Atlas() {
     setLoadingProjects(true);
     try {
       const res = await fetch(`${API_BASE}/job/track/projects`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: authHeaders,
       });
       if (!res.ok) {
         throw new Error('Failed to load Track projects');
@@ -137,10 +129,7 @@ export default function Atlas() {
     if (!token) return;
     try {
       const res = await fetch(`${API_BASE}/atlas/objectives/${objectiveId}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: authHeaders,
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -206,10 +195,7 @@ export default function Atlas() {
       };
       const res = await fetch(`${API_BASE}/atlas/objectives`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: authHeaders,
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
@@ -307,10 +293,7 @@ export default function Atlas() {
     try {
       const res = await fetch(`${API_BASE}/atlas/objectives/${objective.id}/state`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: authHeaders,
         body: JSON.stringify({ state: nextState }),
       });
       if (!res.ok) {
@@ -347,10 +330,7 @@ export default function Atlas() {
     try {
       const res = await fetch(`${API_BASE}/atlas/key-results/${kr.id}/progress`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: authHeaders,
         body: JSON.stringify({ value: numericValue, note: input.note || undefined }),
       });
       if (!res.ok) {
@@ -399,10 +379,7 @@ export default function Atlas() {
     try {
       const res = await fetch(`${API_BASE}/atlas/objectives/${selectedObjective.id}/track-project`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: authHeaders,
         body: JSON.stringify({ projectId: selectedProjectId }),
       });
       if (!res.ok) {
@@ -424,10 +401,7 @@ export default function Atlas() {
     try {
       const res = await fetch(`${API_BASE}/atlas/objectives/${selectedObjective.id}/track-project`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: authHeaders,
       });
       if (!res.ok) {
         const text = await res.text();
@@ -448,10 +422,7 @@ export default function Atlas() {
     try {
       const res = await fetch(`${API_BASE}/atlas/key-results/${kr.id}/track-issues`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: authHeaders,
         body: JSON.stringify({ issueId }),
       });
       if (!res.ok) {
@@ -499,25 +470,21 @@ export default function Atlas() {
 
   if (loading && objectives.length === 0) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-slate-500">Loading Atlas...</div>
-      </div>
+      <JobPageContent title="MOxE Atlas" description="Define quarterly objectives and track key results.">
+        <div className="flex items-center justify-center py-12">
+          <div className="h-16 w-full max-w-xs bg-[#F4F5F7] animate-pulse rounded" />
+        </div>
+      </JobPageContent>
     );
   }
 
   return (
+    <JobPageContent
+      title="MOxE Atlas"
+      description="Define quarterly objectives, track key results, and connect work across MOxE Track and Flow."
+      error={error}
+    >
     <div>
-      <h2 className="text-2xl font-semibold text-slate-800 dark:text-white mb-2">MOxE Atlas</h2>
-      <p className="text-slate-600 dark:text-slate-400 mb-6 text-sm">
-        Define quarterly objectives, track key results, and connect work across MOxE Track and Flow.
-      </p>
-
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-lg text-sm">
-          {error}
-        </div>
-      )}
-
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
           Your objectives
@@ -947,6 +914,7 @@ export default function Atlas() {
         </div>
       )}
     </div>
+    </JobPageContent>
   );
 }
 

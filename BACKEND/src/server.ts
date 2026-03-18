@@ -5,7 +5,6 @@ dotenv.config(); // Load .env before any other imports that read process.env
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import morgan from 'morgan';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import path from 'path';
@@ -61,8 +60,15 @@ import compassRoutes from './routes/compass.routes';
 import buildRoutes from './routes/build.routes';
 import atlasRoutes from './routes/atlas.routes';
 import adsRoutes from './routes/ads.routes';
+import activityRoutes from './routes/activity.routes';
+import spotifyRoutes from './routes/spotify.routes';
+import pushRoutes from './routes/push.routes';
+import searchRoutes from './routes/search.routes';
+import rankingRoutes from './routes/ranking.routes';
+import healthRoutes from './routes/health.routes';
 
 import { errorHandler } from './middleware/errorHandler';
+import { requestLogger } from './middleware/logging';
 import { setupSocketHandlers } from './sockets';
 import { ArchiveService } from './services/archive.service';
 import { StoryService } from './services/story.service';
@@ -128,7 +134,7 @@ app.use(
 );
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-app.use(morgan('combined'));
+app.use(requestLogger);
 
 // Ensure uploads directory exists at runtime (for multipart uploads and static serving)
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -199,9 +205,33 @@ app.use('/api/compass', compassRoutes);
 app.use('/api/build', buildRoutes);
 app.use('/api/atlas', atlasRoutes);
 app.use('/api/ads', adsRoutes);
+app.use('/api/activity', activityRoutes);
+app.use('/api/spotify', spotifyRoutes);
+app.use('/api/push', pushRoutes);
+app.use('/api/search', searchRoutes);
+app.use('/api/ranking', rankingRoutes);
+app.use('/api/health', healthRoutes);
 
-app.get('/health', (_req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+app.get('/health', async (_req, res) => {
+  try {
+    const startedAt = new Date();
+    await prisma.$queryRaw`SELECT 1`;
+    const dbCheckedAt = new Date();
+    res.json({
+      status: 'OK',
+      timestamp: startedAt.toISOString(),
+      db: 'OK',
+      dbLatencyMs: dbCheckedAt.getTime() - startedAt.getTime(),
+    });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    res.status(500).json({
+      status: 'ERROR',
+      timestamp: new Date().toISOString(),
+      db: 'ERROR',
+      error: message,
+    });
+  }
 });
 
 app.use(errorHandler);
@@ -251,18 +281,20 @@ setInterval(() => {
     .catch((e: Error) => console.error('[MediaTTL]', e.message));
 }, 60 * 1000);
 
-const PORT = process.env.PORT || 5007;
-httpServer.listen(PORT, () => {
-  console.log(`MOxE server running on port ${PORT}`);
-});
-
-process.on('SIGTERM', async () => {
-  console.log('SIGTERM received, closing connections...');
-  await prisma.$disconnect();
-  httpServer.close(() => {
-    console.log('Server closed');
-    process.exit(0);
+if (require.main === module) {
+  const PORT = process.env.PORT || 5007;
+  httpServer.listen(PORT, () => {
+    console.log(`MOxE server running on port ${PORT}`);
   });
-});
 
-export { io };
+  process.on('SIGTERM', async () => {
+    console.log('SIGTERM received, closing connections...');
+    await prisma.$disconnect();
+    httpServer.close(() => {
+      console.log('Server closed');
+      process.exit(0);
+    });
+  });
+}
+
+export { io, app, httpServer };

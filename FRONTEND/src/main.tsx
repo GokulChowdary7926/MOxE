@@ -4,6 +4,9 @@ import './index.css';
 import App from './App';
 import { Provider } from 'react-redux';
 import { store } from '../store';
+import { initMonitoring } from './utils/monitoring';
+
+initMonitoring();
 
 const root = document.getElementById('root');
 if (root) {

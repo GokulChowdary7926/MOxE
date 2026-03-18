@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate, Link } from 'react-router-dom';
-import { setCredentials } from '../../store/authSlice';
+import { setCredentials, fetchMe } from '../../store/authSlice';
+import { setCurrentAccount, setCapabilities } from '../../store/accountSlice';
+import type { AppDispatch } from '../../store';
+import { getApiBase } from '../../services/api';
 import { AUTH } from './authStyles';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
 
 type Step = 'phone' | 'code';
 
@@ -33,19 +34,23 @@ export default function PhoneVerification() {
     }
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/auth/send-verification-code`, {
+      const res = await fetch(`${getApiBase()}/auth/send-verification-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phoneNumber }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || 'Could not send verification code.');
+        throw new Error(data.error || data.message || 'Could not send verification code.');
       }
       setInfo('We sent a 6‑digit code by SMS. It expires in about 10 minutes.');
       setStep('code');
     } catch (err: any) {
-      setError(err.message || 'Failed to send code.');
+      const msg = err?.message ?? '';
+      const isNetwork = msg === 'Failed to fetch' || err?.name === 'TypeError';
+      setError(isNetwork
+        ? 'Cannot reach server. Start the backend (e.g. run "npm run dev" in the BACKEND folder) and try again.'
+        : (msg || 'Failed to send code.'));
     } finally {
       setLoading(false);
     }
@@ -59,6 +64,16 @@ export default function PhoneVerification() {
       setError('Enter the code, password, username, display name and date of birth.');
       return;
     }
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+    const birth = new Date(dateOfBirth);
+    const age = (Date.now() - birth.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+    if (isNaN(age) || age < 13) {
+      setError('You must be at least 13 years old to sign up.');
+      return;
+    }
     setLoading(true);
     try {
       const body: any = {
@@ -69,7 +84,7 @@ export default function PhoneVerification() {
         displayName: displayName.trim(),
         dateOfBirth: dateOfBirth.trim(),
       };
-      const res = await fetch(`${API_BASE}/auth/verify-code`, {
+      const res = await fetch(`${getApiBase()}/auth/verify-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -82,10 +97,17 @@ export default function PhoneVerification() {
         localStorage.setItem('token', data.token);
         dispatch(
           setCredentials({
-            user: data.user ?? { id: data.userId },
+            user: data.user ?? { id: data.userId ?? data.accountId },
             token: data.token,
           }),
         );
+        try {
+          const me = await dispatch(fetchMe()).unwrap();
+          dispatch(setCurrentAccount({ ...me.account, capabilities: me.capabilities }));
+          dispatch(setCapabilities(me.capabilities ?? null));
+        } catch {
+          // token valid but fetchMe failed; still send user home
+        }
       }
       navigate('/');
     } catch (err: any) {
@@ -99,9 +121,7 @@ export default function PhoneVerification() {
     <div className={`min-h-screen flex flex-col items-center justify-center px-6 py-8 ${AUTH.bg} safe-area-pt safe-area-pb`}>
       <div className={AUTH.container}>
         <div className={AUTH.logoWrapper}>
-          <div className={AUTH.logoBox}>
-            <span className={AUTH.logoLetter}>m</span>
-          </div>
+          <img src="/logo.png" alt="MOxE" className="w-14 h-14 rounded-xl object-cover" />
         </div>
         <h1 className={AUTH.title}>
           {step === 'phone' ? 'Sign up with your phone' : 'Enter confirmation code'}

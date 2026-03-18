@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getToken } from '../../services/api';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
 
@@ -8,6 +9,14 @@ export default function Know() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewPros, setReviewPros] = useState('');
+  const [reviewCons, setReviewCons] = useState('');
+  const [reviewSummary, setReviewSummary] = useState('');
+  const [reviewAnonymous, setReviewAnonymous] = useState(false);
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   useEffect(() => {
     const q = search ? `?search=${encodeURIComponent(search)}` : '';
@@ -19,10 +28,52 @@ export default function Know() {
   }, [search]);
 
   const openCompany = (slug: string) => {
+    setShowReviewForm(false);
+    setReviewError(null);
     fetch(`${API_BASE}/job/know/companies/${slug}`)
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Not found'))))
       .then(setSelectedCompany)
       .catch((e) => setError(e.message));
+  };
+
+  const submitReview = async () => {
+    if (!selectedCompany?.id) return;
+    const token = getToken();
+    if (!token) {
+      setReviewError('You must be logged in to submit a review.');
+      return;
+    }
+    setReviewSubmitting(true);
+    setReviewError(null);
+    try {
+      const res = await fetch(`${API_BASE}/job/know/companies/${selectedCompany.id}/reviews`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          rating: reviewRating,
+          pros: reviewPros.trim() || undefined,
+          cons: reviewCons.trim() || undefined,
+          summary: reviewSummary.trim() || undefined,
+          isAnonymous: reviewAnonymous,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || data.message || 'Failed to submit review.');
+      setShowReviewForm(false);
+      setReviewRating(5);
+      setReviewPros('');
+      setReviewCons('');
+      setReviewSummary('');
+      setReviewAnonymous(false);
+      openCompany(selectedCompany.slug);
+    } catch (e: any) {
+      setReviewError(e.message || 'Failed to submit review.');
+    } finally {
+      setReviewSubmitting(false);
+    }
   };
 
   if (loading && !selectedCompany) {
@@ -79,15 +130,103 @@ export default function Know() {
             <div className="mt-6">
               <h4 className="font-medium text-slate-800 dark:text-white">Reviews</h4>
               <div className="mt-2 space-y-2">
-                {selectedCompany.reviews.slice(0, 5).map((r: any) => (
+                {selectedCompany.reviews.slice(0, 10).map((r: any) => (
                   <div
                     key={r.id}
                     className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg text-sm"
                   >
-                    <span className="text-amber-500">{'★'.repeat(r.rating)}</span>
+                    <span className="text-amber-500">{'★'.repeat(r.rating || 0)}</span>
                     {r.summary && <p className="mt-1">{r.summary}</p>}
+                    {r.pros && <p className="mt-1 text-green-600 dark:text-green-400">Pros: {r.pros}</p>}
+                    {r.cons && <p className="mt-1 text-red-600 dark:text-red-400">Cons: {r.cons}</p>}
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+          <div className="mt-6">
+            <button
+              type="button"
+              onClick={() => setShowReviewForm(true)}
+              className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium"
+            >
+              Add your review
+            </button>
+          </div>
+          {showReviewForm && (
+            <div className="mt-6 p-4 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50">
+              <h4 className="font-medium text-slate-800 dark:text-white mb-3">Write a review</h4>
+              {reviewError && (
+                <p className="text-red-500 text-sm mb-2">{reviewError}</p>
+              )}
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Rating (1–5)</label>
+                  <select
+                    value={reviewRating}
+                    onChange={(e) => setReviewRating(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-white"
+                  >
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <option key={n} value={n}>{n} ★</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Summary</label>
+                  <input
+                    type="text"
+                    value={reviewSummary}
+                    onChange={(e) => setReviewSummary(e.target.value)}
+                    placeholder="Short summary"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Pros</label>
+                  <textarea
+                    value={reviewPros}
+                    onChange={(e) => setReviewPros(e.target.value)}
+                    placeholder="What did you like?"
+                    rows={2}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Cons</label>
+                  <textarea
+                    value={reviewCons}
+                    onChange={(e) => setReviewCons(e.target.value)}
+                    placeholder="What could be better?"
+                    rows={2}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-white"
+                  />
+                </div>
+                <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                  <input
+                    type="checkbox"
+                    checked={reviewAnonymous}
+                    onChange={(e) => setReviewAnonymous(e.target.checked)}
+                  />
+                  Post anonymously
+                </label>
+              </div>
+              <div className="flex gap-2 mt-4">
+                <button
+                  type="button"
+                  onClick={submitReview}
+                  disabled={reviewSubmitting}
+                  className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium"
+                >
+                  {reviewSubmitting ? 'Submitting…' : 'Submit review'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowReviewForm(false); setReviewError(null); }}
+                  className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-sm"
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           )}

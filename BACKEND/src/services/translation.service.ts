@@ -108,6 +108,19 @@ export function getLanguages(): SupportedLanguage[] {
   return getSupportedLanguages();
 }
 
+/** In-feed text translation: translate a single text (e.g. post caption, comment). */
+export async function translateTextForFeed(
+  text: string,
+  sourceLang: string,
+  targetLang: string
+): Promise<string> {
+  if (!text || typeof text !== 'string') return text;
+  const trimmed = text.trim().slice(0, 5000);
+  if (!trimmed) return text;
+  const provider = getTranslationProvider();
+  return provider.translateText(trimmed, sourceLang, targetLang);
+}
+
 /** Process a single audio chunk: transcribe then translate. Used by socket handler. */
 export async function processAudioChunk(
   sessionId: string,

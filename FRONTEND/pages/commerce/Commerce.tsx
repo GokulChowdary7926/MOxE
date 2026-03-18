@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useAccountCapabilities } from '../../hooks/useAccountCapabilities';
 import { Link } from 'react-router-dom';
+import { ShoppingCart, ClipboardList } from 'lucide-react';
+import { useAccountCapabilities } from '../../hooks/useAccountCapabilities';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
 
@@ -63,6 +64,10 @@ export default function Commerce() {
   const [orders, setOrders] = useState<SellerOrder[]>([]);
   const [shopBannerUrl, setShopBannerUrl] = useState('');
   const [featuredProductIds, setFeaturedProductIds] = useState<string[]>([]);
+  const [shopUsername, setShopUsername] = useState('');
+  const [customDomain, setCustomDomain] = useState('');
+  const [customDomainVerifiedAt, setCustomDomainVerifiedAt] = useState<boolean>(false);
+  const [verifyingDomain, setVerifyingDomain] = useState(false);
   const [loading, setLoading] = useState(true);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [productFormOpen, setProductFormOpen] = useState(false);
@@ -86,6 +91,8 @@ export default function Commerce() {
     usageLimit: '',
   });
 
+  const [webinars, setWebinars] = useState<Array<{ id: string; topic: string; title: string; description?: string | null; url: string }>>([]);
+
   useEffect(() => {
     if (!cap.canCommerce) {
       setLoading(false);
@@ -99,11 +106,12 @@ export default function Commerce() {
     const headers = { Authorization: `Bearer ${token}` };
     async function load() {
       try {
-        const [prodRes, ordersRes, meRes, couponsRes] = await Promise.all([
+        const [prodRes, ordersRes, meRes, couponsRes, webinarsRes] = await Promise.all([
           fetch(`${API_BASE}/commerce/products`, { headers }),
           fetch(`${API_BASE}/commerce/orders`, { headers }),
           fetch(`${API_BASE}/accounts/me`, { headers }),
           fetch(`${API_BASE}/commerce/coupons`, { headers }),
+          fetch(`${API_BASE}/commerce/webinars`),
         ]);
         if (prodRes.ok) {
           const data = await prodRes.json();
@@ -119,11 +127,18 @@ export default function Commerce() {
           if (acc) {
             setShopBannerUrl(acc.shopBannerUrl || '');
             setFeaturedProductIds(Array.isArray(acc.featuredProductIds) ? acc.featuredProductIds : []);
+            setShopUsername(acc.username || '');
+            setCustomDomain(acc.customDomain || '');
+            setCustomDomainVerifiedAt(!!acc.customDomainVerifiedAt);
           }
         }
         if (couponsRes.ok) {
           const data = await couponsRes.json();
           setCoupons(Array.isArray(data) ? (data as SellerCoupon[]) : []);
+        }
+        if (webinarsRes.ok) {
+          const data = await webinarsRes.json();
+          setWebinars(Array.isArray(data) ? data : []);
         }
       } catch {
         // ignore
@@ -345,10 +360,13 @@ export default function Commerce() {
         body: JSON.stringify({
           shopBannerUrl: shopBannerUrl.trim() || null,
           featuredProductIds,
+          customDomain: customDomain.trim() || null,
         }),
       });
       if (res.ok) {
-        // optional: show brief success
+        const data = await res.json().catch(() => ({}));
+        if (data.customDomain !== undefined) setCustomDomain(data.customDomain || '');
+        if (data.customDomainVerifiedAt !== undefined) setCustomDomainVerifiedAt(!!data.customDomainVerifiedAt);
       }
     } catch {
       // ignore
@@ -420,11 +438,45 @@ export default function Commerce() {
 
   if (!cap.canCommerce) {
     return (
-      <div className="p-4 max-w-xl mx-auto">
-        <p className="text-slate-500">Commerce is available for Business accounts.</p>
-        <Link to="/settings" className="text-indigo-600 dark:text-indigo-400 text-sm mt-2 inline-block">
-          Settings
-        </Link>
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <h1 className="text-2xl font-bold text-[#172B4D] dark:text-white mb-2">MOxE Shop</h1>
+        <p className="text-[#5E6C84] dark:text-slate-400 mb-8">
+          Browse products, manage your cart, and track orders.
+        </p>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          <Link
+            to="/checkout"
+            className="flex items-center gap-4 p-6 bg-white dark:bg-slate-900 border border-[#DFE1E6] dark:border-slate-700 rounded-lg hover:shadow-md transition-shadow"
+          >
+            <ShoppingCart className="w-8 h-8 text-[#0052CC] flex-shrink-0" />
+            <div>
+              <h2 className="text-lg font-semibold text-[#172B4D] dark:text-slate-100">Cart & Checkout</h2>
+              <p className="text-[#5E6C84] dark:text-slate-400 text-sm">Review your cart and complete purchases</p>
+            </div>
+          </Link>
+          <Link
+            to="/commerce/orders"
+            className="flex items-center gap-4 p-6 bg-white dark:bg-slate-900 border border-[#DFE1E6] dark:border-slate-700 rounded-lg hover:shadow-md transition-shadow"
+          >
+            <ClipboardList className="w-8 h-8 text-[#0052CC] flex-shrink-0" />
+            <div>
+              <h2 className="text-lg font-semibold text-[#172B4D] dark:text-slate-100">My Orders</h2>
+              <p className="text-[#5E6C84] dark:text-slate-400 text-sm">Track your purchases and reorder</p>
+            </div>
+          </Link>
+        </div>
+
+        <div className="mt-8 p-4 bg-[#F4F5F7] dark:bg-slate-800 border border-[#DFE1E6] dark:border-slate-700 rounded-lg">
+          <p className="text-[#5E6C84] dark:text-slate-400 text-sm">
+            Products can be discovered in{' '}
+            <Link to="/explore" className="text-[#0052CC] hover:underline font-medium">
+              Explore
+            </Link>{' '}
+            and on posts with product tags.
+            <span className="block mt-1 text-sm">Only Business accounts can sell on MOxE.</span>
+          </p>
+        </div>
       </div>
     );
   }
@@ -450,6 +502,130 @@ export default function Commerce() {
         <p className="text-slate-500 text-sm">Loading commerce data…</p>
       ) : (
         <>
+          {/* MOxE Website & Custom domain */}
+          <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+            <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-3">MOxE Website</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+              Your shop has a public website. Products sync automatically.
+            </p>
+            {shopUsername && (
+              <div className="mb-3">
+                <span className={labelClass}>Default website</span>
+                <a
+                  href={`${window.location.origin}/shop/${encodeURIComponent(shopUsername)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-indigo-600 dark:text-indigo-400 text-sm hover:underline"
+                >
+                  https://{shopUsername}.moxe.store
+                </a>
+                <span className="text-xs text-slate-500 dark:text-slate-400 ml-2">
+                  (opens in-app shop for now)
+                </span>
+              </div>
+            )}
+            <div className="mb-3">
+              <label className={labelClass}>Custom domain</label>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
+                Use your own domain (e.g. www.yourstore.com). Add a CNAME record pointing to shop.moxe.store, then verify.
+              </p>
+              <input
+                type="text"
+                value={customDomain}
+                onChange={(e) => setCustomDomain(e.target.value)}
+                placeholder="www.yourstore.com"
+                className={inputClass}
+              />
+              {customDomainVerifiedAt && (
+                <span className="inline-block mt-1 text-xs text-green-600 dark:text-green-400">Verified</span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const token = localStorage.getItem('token');
+                  if (!token) return;
+                  setSavingShopSettings(true);
+                  fetch(`${API_BASE}/commerce/shop-settings`, {
+                    method: 'PATCH',
+                    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      shopBannerUrl: shopBannerUrl.trim() || null,
+                      featuredProductIds,
+                      customDomain: customDomain.trim() || null,
+                    }),
+                  })
+                    .then((res) => res.json().catch(() => ({})))
+                    .then((data) => {
+                      if (data.customDomain !== undefined) setCustomDomain(data.customDomain || '');
+                      setCustomDomainVerifiedAt(!!data.customDomainVerifiedAt);
+                    })
+                    .finally(() => setSavingShopSettings(false));
+                }}
+                disabled={savingShopSettings}
+                className="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 text-sm font-medium disabled:opacity-60"
+              >
+                {savingShopSettings ? 'Saving…' : 'Save domain'}
+              </button>
+              {customDomain.trim() && (
+                <button
+                  type="button"
+                  disabled={verifyingDomain}
+                  onClick={async () => {
+                    const token = localStorage.getItem('token');
+                    if (!token) return;
+                    setVerifyingDomain(true);
+                    try {
+                      const res = await fetch(`${API_BASE}/commerce/custom-domain/verify`, {
+                        method: 'POST',
+                        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                      });
+                      const data = await res.json().catch(() => ({}));
+                      if (res.ok && data.verified) setCustomDomainVerifiedAt(true);
+                      else alert(data.error || 'Verification failed. Check your CNAME record.');
+                    } finally {
+                      setVerifyingDomain(false);
+                    }
+                  }}
+                  className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium disabled:opacity-60"
+                >
+                  {verifyingDomain ? 'Verifying…' : 'Verify domain'}
+                </button>
+              )}
+            </div>
+          </section>
+
+          {/* Webinar library */}
+          <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+            <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-3">Webinar library</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+              Educational videos for sellers: photography, marketing, shipping, and more.
+            </p>
+            {webinars.length === 0 ? (
+              <p className="text-xs text-slate-500 dark:text-slate-400">No webinars available yet. Check back later.</p>
+            ) : (
+              <ul className="space-y-2">
+                {webinars.map((w) => (
+                  <li key={w.id} className="flex items-start gap-2">
+                    <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 uppercase shrink-0">{w.topic}</span>
+                    <a
+                      href={w.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+                    >
+                      {w.title}
+                    </a>
+                    {w.description && (
+                      <span className="text-xs text-slate-500 dark:text-slate-400 truncate hidden sm:inline"> — {w.description}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
           {/* Shop settings */}
           <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
             <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-3">Shop settings</h2>

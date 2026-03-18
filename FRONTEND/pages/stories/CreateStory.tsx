@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ThemedView, ThemedHeader, ThemedText, ThemedButton, ThemedInput } from '../../components/ui/Themed';
 import { useAccountCapabilities } from '../../hooks/useAccountCapabilities';
+import { getApiBase } from '../../services/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type StorySticker =
   | { type: 'poll'; question: string; options: string[] }
@@ -48,6 +49,8 @@ export default function CreateStory() {
   const [isSubscriberOnly, setIsSubscriberOnly] = useState(false);
   const [subscriberTierKeys, setSubscriberTierKeys] = useState<string[]>([]);
   const [creatorTiers, setCreatorTiers] = useState<{ key: string; name?: string; price?: number }[]>([]);
+  const [allowReplies, setAllowReplies] = useState(true);
+  const [allowReshares, setAllowReshares] = useState(true);
 
   const cap = useAccountCapabilities();
 
@@ -63,6 +66,14 @@ export default function CreateStory() {
       .then((data) => setCreatorTiers(Array.isArray(data?.tiers) ? data.tiers : []))
       .catch(() => {});
   }, [cap?.canSubscriptions]);
+
+  // Prefill file from camera capture or add-story flow
+  React.useEffect(() => {
+    const state = (location && (location.state as any)) || null;
+    if (state?.file && state.file instanceof File) {
+      setFile(state.file);
+    }
+  }, [location?.state]);
 
   // Prefill from "share question answer as story" flow
   React.useEffect(() => {
@@ -130,6 +141,8 @@ export default function CreateStory() {
           }),
         altText: altText.trim() || undefined,
         stickers: stickers.length ? stickers : undefined,
+        allowReplies,
+        allowReshares,
         ...(cap?.canSubscriptions && isSubscriberOnly && { isSubscriberOnly: true, subscriberTierKeys: subscriberTierKeys.length > 0 ? subscriberTierKeys : undefined }),
       };
       const storyRes = await fetch(`${API_BASE}/stories`, {
@@ -382,6 +395,17 @@ export default function CreateStory() {
               onChange={(e) => setAltText(e.target.value)}
               placeholder="Describe this story image or video for people using screen readers"
             />
+          </div>
+          <div className="space-y-2 pt-2 border-t border-moxe-border">
+            <p className="text-xs text-moxe-caption mb-1">Who can interact</p>
+            <label className="flex items-center gap-2 text-sm text-moxe-body">
+              <input type="checkbox" checked={allowReplies} onChange={(e) => setAllowReplies(e.target.checked)} className="w-4 h-4 rounded border-moxe-border bg-moxe-background" />
+              Allow replies
+            </label>
+            <label className="flex items-center gap-2 text-sm text-moxe-body">
+              <input type="checkbox" checked={allowReshares} onChange={(e) => setAllowReshares(e.target.checked)} className="w-4 h-4 rounded border-moxe-border bg-moxe-background" />
+              Allow resharing
+            </label>
           </div>
           {cap?.canSubscriptions && (
             <div className="space-y-2 pt-2 border-t border-moxe-border">

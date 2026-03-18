@@ -1,25 +1,17 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { ThemedView, ThemedText, ThemedHeader } from '../../components/ui/Themed';
+import ComingSoon from '../../components/ComingSoon';
 
 interface Props {
   title: string;
+  backTo?: string;
+  /** Optional description for the coming soon message */
+  description?: string;
 }
 
-export default function StubSetting({ title }: Props) {
-  return (
-    <ThemedView className="min-h-screen flex flex-col pb-20">
-      <ThemedHeader
-        title={title}
-        left={
-          <Link to="/settings" className="text-moxe-text text-2xl leading-none" aria-label="Back">
-            ←
-          </Link>
-        }
-      />
-      <div className="flex-1 px-moxe-md py-moxe-md">
-        <ThemedText secondary>Coming soon.</ThemedText>
-      </div>
-    </ThemedView>
-  );
+/**
+ * Placeholder for settings and app features that are not yet built.
+ * Renders a consistent "Coming soon" page with back navigation.
+ */
+export default function StubSetting({ title, backTo = '/settings', description }: Props) {
+  return <ComingSoon title={title} backTo={backTo} description={description} />;
 }

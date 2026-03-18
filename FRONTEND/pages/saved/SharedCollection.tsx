@@ -28,7 +28,7 @@ export default function SharedCollection() {
       try {
         setLoading(true);
         setError(null);
-        const res = await fetch(`${API_BASE}/collections/shared/${encodeURIComponent(token)}`);
+        const res = await fetch(`${API_BASE}/collections/shared/${encodeURIComponent(token ?? '')}`);
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           throw new Error(data.error || 'Collection not found.');
@@ -90,7 +90,7 @@ export default function SharedCollection() {
                   avatarUri: p.account.profilePhoto ?? undefined,
                 }}
                 location={p.location ?? undefined}
-                mediaUri={mediaUrl}
+                mediaUris={mediaUrl ? [mediaUrl] : []}
                 caption={p.caption ?? undefined}
                 likeCount={p._count?.likes ?? 0}
                 commentCount={p._count?.comments ?? 0}

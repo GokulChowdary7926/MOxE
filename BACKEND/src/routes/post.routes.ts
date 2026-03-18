@@ -101,11 +101,23 @@ router.post('/', authenticate, async (req, res, next) => {
   }
 });
 
+// Fetch a single post by id.
+router.get('/:postId', optionalAuthenticate, async (req, res, next) => {
+  try {
+    const post = await postService.getById(req.params.postId);
+    res.json(post);
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.post('/:postId/like', authenticate, async (req, res, next) => {
   try {
     const accountId = (req as any).user?.accountId;
     if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
-    const result = await postService.like(accountId, req.params.postId);
+    const postId = req.params.postId;
+    const result = await postService.like(accountId, postId);
+    feedService.recordInteraction(accountId, postId, 'LIKE').catch(() => {});
     res.json(result);
   } catch (e) {
     next(e);
@@ -116,7 +128,8 @@ router.delete('/:postId/like', authenticate, async (req, res, next) => {
   try {
     const accountId = (req as any).user?.accountId;
     if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
-    const result = await postService.unlike(accountId, req.params.postId);
+    const postId = req.params.postId;
+    const result = await postService.unlike(accountId, postId);
     res.json(result);
   } catch (e) {
     next(e);
@@ -128,8 +141,27 @@ router.post('/:postId/comments', authenticate, async (req, res, next) => {
     const accountId = (req as any).user?.accountId;
     if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
     const { content, parentId } = req.body;
-    const comment = await postService.comment(accountId, req.params.postId, content, parentId);
+    const postId = req.params.postId;
+    const comment = await postService.comment(accountId, postId, content, parentId);
+    feedService.recordInteraction(accountId, postId, 'COMMENT').catch(() => {});
     res.status(201).json(comment);
+  } catch (e) {
+    next(e);
+  }
+});
+
+/** Lightweight interaction endpoint so frontend can record feed views, saves, etc. */
+router.post('/:postId/interactions', authenticate, async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const postId = req.params.postId;
+    const { type, value } = req.body as { type?: string; value?: number };
+    if (!type || !['VIEW', 'LIKE', 'COMMENT', 'SAVE'].includes(type)) {
+      return res.status(400).json({ error: 'Invalid interaction type' });
+    }
+    await feedService.recordInteraction(accountId, postId, type as any, typeof value === 'number' ? value : undefined);
+    res.json({ ok: true });
   } catch (e) {
     next(e);
   }

@@ -125,6 +125,9 @@ export default function CreatorStudio() {
             <Link to="/analytics" className="px-3 py-2 rounded-lg text-sm font-medium bg-[#363636] border border-[#363636] text-white">
               Analytics
             </Link>
+            <Link to="/ads/tools" className="px-3 py-2 rounded-lg text-sm font-medium bg-[#363636] border border-[#363636] text-white">
+              Ad tools
+            </Link>
           </div>
         </section>
 

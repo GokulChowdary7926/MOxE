@@ -28,6 +28,24 @@ export class SupportService {
     });
   }
 
+  /** For support agents: list all tickets with priority (Star tier) first. */
+  async listQueue(_accountId: string) {
+    const tickets = await prisma.supportTicket.findMany({
+      orderBy: [{ isPriority: 'desc' }, { createdAt: 'desc' }],
+    });
+    if (tickets.length === 0) return [];
+    const accountIds = [...new Set(tickets.map((t) => t.accountId))];
+    const accounts = await prisma.account.findMany({
+      where: { id: { in: accountIds } },
+      select: { id: true, username: true, displayName: true },
+    });
+    const accountMap = new Map(accounts.map((a) => [a.id, a]));
+    return tickets.map((t) => ({
+      ...t,
+      account: accountMap.get(t.accountId) ?? null,
+    }));
+  }
+
   async getTicketById(accountId: string, ticketId: string) {
     const ticket = await prisma.supportTicket.findFirst({
       where: { id: ticketId, accountId },

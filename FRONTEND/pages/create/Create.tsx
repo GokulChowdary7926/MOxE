@@ -1,40 +1,58 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { Image, Camera, Film, Radio } from 'lucide-react';
-import { PageLayout } from '../../components/layout/PageLayout';
-import { ThemedText } from '../../components/ui/Themed';
+import { Link, useNavigate } from 'react-router-dom';
+import { Film, LayoutGrid, Image, PlusCircle, Heart, Radio, Sparkles } from 'lucide-react';
+import { ThemedView, ThemedText } from '../../components/ui/Themed';
 
-const modes = [
-  { to: '/create/post', label: 'Post', icon: Image, description: 'Share a photo or carousel' },
-  { to: '/create/story', label: 'Story', icon: Camera, description: 'Share to your story' },
-  { to: '/create/reel', label: 'Reel', icon: Film, description: 'Short-form video' },
-  { to: '/live', label: 'Live', icon: Radio, description: 'Go live' },
+/**
+ * Create page – bottom sheet style, same for all accounts.
+ * Options: Reel, Edits (NEW), Post, Story, Highlights, Live, AI.
+ */
+const options = [
+  { key: 'reel', label: 'Reel', icon: Film, to: '/create/reel' },
+  { key: 'edits', label: 'Edits', icon: LayoutGrid, to: '/create/reel', badge: 'NEW' },
+  { key: 'post', label: 'Post', icon: Image, to: '/create/post' },
+  { key: 'story', label: 'Story', icon: PlusCircle, to: '/stories/create' },
+  { key: 'highlights', label: 'Highlights', icon: Heart, to: '/highlights/manage' },
+  { key: 'live', label: 'Live', icon: Radio, to: '/live' },
+  { key: 'ai', label: 'AI', icon: Sparkles, to: '/create/reel' },
 ];
 
 export default function Create() {
+  const navigate = useNavigate();
+
   return (
-    <PageLayout title="Create" backTo="/">
-      <div className="py-4 px-4 space-y-2">
-        <ThemedText secondary className="text-moxe-body block mb-4">
-          Choose what you want to share.
-        </ThemedText>
-        {modes.map(({ to, label, icon: Icon, description }) => (
-          <Link
-            key={to}
-            to={to}
-            className="flex items-center gap-4 py-3 px-4 rounded-moxe-md bg-moxe-surface border border-moxe-border active:bg-moxe-surface/80"
-          >
-            <div className="w-12 h-12 rounded-full bg-moxe-background flex items-center justify-center">
-              <Icon className="w-6 h-6 text-moxe-textSecondary" />
-            </div>
-            <div className="flex-1">
-              <ThemedText className="font-semibold text-moxe-body">{label}</ThemedText>
-              <ThemedText secondary className="text-moxe-caption block">{description}</ThemedText>
-            </div>
-            <span className="text-moxe-textSecondary">›</span>
-          </Link>
-        ))}
+    <ThemedView className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={() => navigate(-1)}>
+      <div className="w-full max-w-[428px] mx-auto flex flex-col items-stretch">
+        <div
+          className="w-full rounded-t-2xl bg-[#1c1c1e] border-t border-[#262626] pb-8 safe-area-pb"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="pt-2 pb-1">
+            <div className="w-8 h-0.5 rounded-full bg-white/30 mx-auto" />
+          </div>
+          <p className="text-white font-semibold text-lg text-center py-3">Create</p>
+          <div className="px-4 space-y-0">
+            {options.map(({ key, label, icon: Icon, to, badge }) => (
+              <Link
+                key={key}
+                to={to}
+                className="flex items-center gap-4 py-3.5 border-b border-[#262626] last:border-0 active:bg-white/5"
+              >
+                <div className="w-10 h-10 rounded-full bg-[#262626] flex items-center justify-center text-white">
+                  <Icon className="w-5 h-5" />
+                </div>
+                <span className="text-white font-medium flex-1">{label}</span>
+                {badge && (
+                  <span className="px-2 py-0.5 rounded-full bg-[#0095f6] text-white text-[10px] font-semibold">
+                    {badge}
+                  </span>
+                )}
+                <span className="text-[#737373]">›</span>
+              </Link>
+            ))}
+          </div>
+        </div>
       </div>
-    </PageLayout>
+    </ThemedView>
   );
 }

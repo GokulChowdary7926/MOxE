@@ -1,16 +1,41 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { getApiBase, getToken } from '../../services/api';
+import { JobPageContent } from '../../components/job/JobPageContent';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 export default function Track() {
   const [applications, setApplications] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
   const [pipelines, setPipelines] = useState<any[]>([]);
   const [tab, setTab] = useState<'applications' | 'jobs' | 'pipelines'>('applications');
+  const [jobSearch, setJobSearch] = useState('');
+  const [applyModalJob, setApplyModalJob] = useState<any | null>(null);
+  const [coverLetter, setCoverLetter] = useState('');
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [applySubmitting, setApplySubmitting] = useState(false);
+  const [applyError, setApplyError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [savedSearches, setSavedSearches] = useState<any[]>([]);
+  const [showSaveSearchModal, setShowSaveSearchModal] = useState(false);
+  const [saveSearchName, setSaveSearchName] = useState('');
+  const [saveSearchAlert, setSaveSearchAlert] = useState(false);
+  const [saveSearchSubmitting, setSaveSearchSubmitting] = useState(false);
 
-  const token = localStorage.getItem('token');
+  const token = getToken();
+
+  const appliedJobIds = useMemo(() => new Set(applications.map((a) => a.jobPostingId || a.jobPosting?.id).filter(Boolean)), [applications]);
+  const filteredJobs = useMemo(() => {
+    if (!jobSearch.trim()) return jobs;
+    const q = jobSearch.trim().toLowerCase();
+    return jobs.filter(
+      (j) =>
+        (j.title || '').toLowerCase().includes(q) ||
+        (j.companyName || j.company?.name || '').toLowerCase().includes(q) ||
+        (j.location || '').toLowerCase().includes(q),
+    );
+  }, [jobs, jobSearch]);
 
   const fetchApplications = async () => {
     if (!token) return;
@@ -19,17 +44,17 @@ export default function Track() {
     });
     if (res.ok) {
       const data = await res.json();
-      setApplications(data);
+      setApplications(Array.isArray(data) ? data : []);
     }
   };
 
   const fetchJobs = async () => {
-    const res = await fetch(`${API_BASE}/job/track/jobs`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
+    const headers: Record<string, string> = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/job/track/jobs`, { headers });
     if (res.ok) {
       const data = await res.json();
-      setJobs(data);
+      setJobs(Array.isArray(data) ? data : []);
     }
   };
 
@@ -40,14 +65,124 @@ export default function Track() {
     });
     if (res.ok) {
       const data = await res.json();
-      setPipelines(data);
+      setPipelines(Array.isArray(data) ? data : []);
+    }
+  };
+
+  const fetchSavedSearches = async () => {
+    if (!token) return;
+    const res = await fetch(`${API_BASE}/job/track/saved-searches`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setSavedSearches(Array.isArray(data) ? data : []);
+    }
+  };
+
+  const handleSaveSearch = async () => {
+    if (!token || !saveSearchName.trim()) return;
+    setSaveSearchSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/job/track/saved-searches`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: saveSearchName.trim(),
+          query: jobSearch.trim() || undefined,
+          alertEnabled: saveSearchAlert,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || data.message || 'Failed to save search.');
+      setShowSaveSearchModal(false);
+      setSaveSearchName('');
+      setSaveSearchAlert(false);
+      await fetchSavedSearches();
+    } catch (e: any) {
+      setApplyError(e.message || 'Failed to save search.');
+    } finally {
+      setSaveSearchSubmitting(false);
+    }
+  };
+
+  const loadSavedSearch = (s: any) => {
+    if (s.query) setJobSearch(s.query);
+  };
+
+  const toggleSavedSearchAlert = async (s: any) => {
+    if (!token) return;
+    try {
+      await fetch(`${API_BASE}/job/track/saved-searches/${s.id}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ alertEnabled: !s.alertEnabled }),
+      });
+      await fetchSavedSearches();
+    } catch (_) {}
+  };
+
+  const deleteSavedSearch = async (id: string) => {
+    if (!token) return;
+    try {
+      await fetch(`${API_BASE}/job/track/saved-searches/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      await fetchSavedSearches();
+    } catch (_) {}
+  };
+
+  const handleApply = async () => {
+    if (!applyModalJob || !token) return;
+    setApplySubmitting(true);
+    setApplyError(null);
+    try {
+      let resumeUrl: string | undefined;
+      if (resumeFile) {
+        const form = new FormData();
+        form.append('file', resumeFile);
+        const up = await fetch(`${getApiBase()}/upload`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: form,
+        });
+        const upData = await up.json().catch(() => ({}));
+        if (!up.ok || !upData.url) throw new Error(upData.error || 'Resume upload failed.');
+        resumeUrl = upData.url;
+      }
+      const res = await fetch(`${API_BASE}/job/track/apply/${applyModalJob.id}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ coverLetter: coverLetter.trim() || undefined, resumeUrl }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || data.message || 'Apply failed.');
+      setApplyModalJob(null);
+      setCoverLetter('');
+      setResumeFile(null);
+      await fetchApplications();
+      await fetchJobs();
+    } catch (e: any) {
+      setApplyError(e.message || 'Failed to apply.');
+    } finally {
+      setApplySubmitting(false);
     }
   };
 
   useEffect(() => {
     setLoading(true);
     setError(null);
-    Promise.all([fetchApplications(), fetchJobs(), fetchPipelines()])
+    Promise.all([fetchApplications(), fetchJobs(), fetchPipelines(), fetchSavedSearches()])
       .catch((e) => setError(e.message || 'Failed to load'))
       .finally(() => setLoading(false));
   }, []);
@@ -55,31 +190,26 @@ export default function Track() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="text-slate-500">Loading Track...</div>
+        <div className="text-[#5E6C84] dark:text-[#8C9BAB] text-sm">Loading Track…</div>
       </div>
     );
   }
 
   return (
-    <div>
-      <h2 className="text-2xl font-semibold text-slate-800 dark:text-white mb-4">MOxE Track</h2>
-      <p className="text-slate-600 dark:text-slate-400 mb-6">
-        Manage job applications and recruitment pipelines.
-      </p>
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-lg">
-          {error}
-        </div>
-      )}
-      <div className="flex gap-2 mb-6">
+    <JobPageContent
+      title="MOxE Track"
+      description="Manage job applications and recruitment pipelines."
+      error={error}
+    >
+      <div className="flex gap-2 mb-4">
         {(['applications', 'jobs', 'pipelines'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`px-4 py-2 rounded-lg font-medium ${
+            className={`px-4 py-2 rounded-lg font-medium text-sm ${
               tab === t
-                ? 'bg-indigo-600 text-white'
-                : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                ? 'bg-[#0052CC] dark:bg-[#2684FF] text-white'
+                : 'bg-[#F4F5F7] dark:bg-[#2C333A] text-[#5E6C84] dark:text-[#8C9BAB]'
             }`}
           >
             {t.charAt(0).toUpperCase() + t.slice(1)}
@@ -89,17 +219,17 @@ export default function Track() {
       {tab === 'applications' && (
         <div className="space-y-3">
           {applications.length === 0 ? (
-            <p className="text-slate-500">No applications yet.</p>
+            <p className="text-[#5E6C84] dark:text-[#8C9BAB] text-sm">No applications yet.</p>
           ) : (
             applications.map((app) => (
               <div
                 key={app.id}
-                className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"
+                className="p-4 rounded-lg border border-[#DFE1E6] dark:border-[#2C333A] bg-white dark:bg-[#1D2125] shadow-sm"
               >
-                <div className="font-medium text-slate-800 dark:text-white">
+                <div className="font-medium text-[#172B4D] dark:text-[#E6EDF3]">
                   {app.jobPosting?.title} at {app.jobPosting?.companyName}
                 </div>
-                <div className="text-sm text-slate-500 mt-1">
+                <div className="text-sm text-[#5E6C84] dark:text-[#8C9BAB] mt-1">
                   Status: {app.status} · Applied {new Date(app.appliedAt).toLocaleDateString()}
                 </div>
               </div>
@@ -109,35 +239,152 @@ export default function Track() {
       )}
       {tab === 'jobs' && (
         <div className="space-y-3">
-          {jobs.length === 0 ? (
-            <p className="text-slate-500">No job postings.</p>
-          ) : (
-            jobs.map((job) => (
-              <div
-                key={job.id}
-                className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"
-              >
-                <div className="font-medium text-slate-800 dark:text-white">{job.title}</div>
-                <div className="text-sm text-slate-500 mt-1">
-                  {job.companyName} · {job.location || 'Remote'} · {job.applicationCount} applications
-                </div>
-              </div>
-            ))
+          <div className="flex gap-2 flex-wrap items-center">
+            <input
+              type="text"
+              value={jobSearch}
+              onChange={(e) => setJobSearch(e.target.value)}
+              placeholder="Search jobs by title, company, location…"
+              className="flex-1 min-w-[200px] px-3 py-2 rounded-lg border border-[#DFE1E6] dark:border-[#2C333A] bg-white dark:bg-[#1D2125] text-[#172B4D] dark:text-[#E6EDF3] text-sm placeholder:text-[#5E6C84]"
+            />
+            <button
+              type="button"
+              onClick={() => setShowSaveSearchModal(true)}
+              className="px-3 py-2 rounded-lg border border-[#0052CC] dark:border-[#2684FF] text-[#0052CC] dark:text-[#2684FF] text-sm font-medium hover:bg-[#DEEBFF] dark:hover:bg-[#2C333A]"
+            >
+              Save this search
+            </button>
+          </div>
+          {savedSearches.length > 0 && (
+            <div className="rounded-lg border border-[#DFE1E6] dark:border-[#2C333A] bg-white dark:bg-[#1D2125] p-3">
+              <p className="text-xs font-medium text-[#5E6C84] dark:text-[#8C9BAB] mb-2">Saved searches</p>
+              <ul className="space-y-1">
+                {savedSearches.map((s) => (
+                  <li key={s.id} className="flex items-center justify-between gap-2 text-sm">
+                    <button
+                      type="button"
+                      onClick={() => loadSavedSearch(s)}
+                      className="text-slate-800 dark:text-slate-200 hover:underline truncate"
+                    >
+                      {s.name}
+                      {s.query && ` · "${s.query}"`}
+                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => toggleSavedSearchAlert(s)}
+                        title={s.alertEnabled ? 'Disable job alerts' : 'Enable job alerts'}
+                        className={`px-2 py-0.5 rounded text-xs ${s.alertEnabled ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'}`}
+                      >
+                        {s.alertEnabled ? 'Alerts on' : 'Alerts off'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteSavedSearch(s.id)}
+                        className="text-red-600 dark:text-red-400 hover:underline text-xs"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
+          {filteredJobs.length === 0 ? (
+            <p className="text-[#5E6C84] dark:text-[#8C9BAB] text-sm">No job postings match your search.</p>
+          ) : (
+            filteredJobs.map((job) => {
+              const applied = appliedJobIds.has(job.id);
+              return (
+                <div
+                  key={job.id}
+                  className="p-4 rounded-lg border border-[#DFE1E6] dark:border-[#2C333A] bg-white dark:bg-[#1D2125] flex justify-between items-start gap-3 shadow-sm"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-[#172B4D] dark:text-[#E6EDF3]">{job.title}</div>
+                    <div className="text-sm text-[#5E6C84] dark:text-[#8C9BAB] mt-1">
+                      {job.companyName || job.company?.name} · {job.location || 'Remote'}
+                      {typeof job.applicationCount === 'number' && ` · ${job.applicationCount} applications`}
+                    </div>
+                  </div>
+                  {applied ? (
+                    <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 shrink-0">Applied</span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setApplyModalJob(job)}
+                      className="shrink-0 px-3 py-1.5 rounded-lg bg-[#0052CC] dark:bg-[#2684FF] text-white text-sm font-medium hover:opacity-90"
+                    >
+                      Apply
+                    </button>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+      {applyModalJob && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white dark:bg-[#1D2125] border border-[#DFE1E6] dark:border-[#2C333A] p-4 shadow-xl">
+            <h3 className="text-lg font-semibold text-[#172B4D] dark:text-[#E6EDF3] mb-1">Apply to {applyModalJob.title}</h3>
+            <p className="text-sm text-[#5E6C84] dark:text-[#8C9BAB] mb-4">{applyModalJob.companyName || applyModalJob.company?.name}</p>
+            <label className="block text-sm font-medium text-[#172B4D] dark:text-[#8C9BAB] mb-1">Cover letter (optional)</label>
+            <textarea
+              value={coverLetter}
+              onChange={(e) => setCoverLetter(e.target.value)}
+              placeholder="Introduce yourself…"
+              rows={4}
+              className="w-full px-3 py-2 rounded-lg border border-[#DFE1E6] dark:border-[#2C333A] bg-white dark:bg-[#161A1D] text-[#172B4D] dark:text-[#E6EDF3] text-sm mb-3"
+            />
+            <label className="block text-sm font-medium text-[#172B4D] dark:text-[#8C9BAB] mb-1">Resume (optional)</label>
+            <input
+              type="file"
+              accept=".pdf,.doc,.docx"
+              onChange={(e) => setResumeFile(e.target.files?.[0] || null)}
+              className="w-full text-sm text-[#5E6C84] dark:text-[#8C9BAB] mb-3"
+            />
+            {applyError && (
+              <p className="text-sm text-[#BF2600] dark:text-red-400 mb-2">{applyError}</p>
+            )}
+            <div className="flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setApplyModalJob(null);
+                  setCoverLetter('');
+                  setResumeFile(null);
+                  setApplyError(null);
+                }}
+                className="px-3 py-1.5 rounded-lg border border-[#DFE1E6] dark:border-[#2C333A] text-[#5E6C84] dark:text-[#8C9BAB] text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleApply}
+                disabled={applySubmitting}
+                className="px-3 py-1.5 rounded-lg bg-[#0052CC] dark:bg-[#2684FF] text-white text-sm font-medium disabled:opacity-50"
+              >
+                {applySubmitting ? 'Submitting…' : 'Submit application'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
       {tab === 'pipelines' && (
         <div className="space-y-3">
           {pipelines.length === 0 ? (
-            <p className="text-slate-500">No pipelines yet.</p>
+            <p className="text-[#5E6C84] dark:text-[#8C9BAB] text-sm">No pipelines yet.</p>
           ) : (
             pipelines.map((p) => (
               <div
                 key={p.id}
-                className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"
+                className="p-4 rounded-lg border border-[#DFE1E6] dark:border-[#2C333A] bg-white dark:bg-[#1D2125] shadow-sm"
               >
-                <div className="font-medium text-slate-800 dark:text-white">{p.name}</div>
-                <div className="text-sm text-slate-500 mt-1">
+                <div className="font-medium text-[#172B4D] dark:text-[#E6EDF3]">{p.name}</div>
+                <div className="text-sm text-[#5E6C84] dark:text-[#8C9BAB] mt-1">
                   {p.stages?.length || 0} stages
                 </div>
               </div>
@@ -145,6 +392,48 @@ export default function Track() {
           )}
         </div>
       )}
-    </div>
+      {showSaveSearchModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-white dark:bg-[#1D2125] border border-[#DFE1E6] dark:border-[#2C333A] p-4 shadow-xl">
+            <h3 className="text-lg font-semibold text-[#172B4D] dark:text-[#E6EDF3] mb-3">Save job search</h3>
+            <p className="text-sm text-[#5E6C84] dark:text-[#8C9BAB] mb-2">
+              Current query: {jobSearch.trim() || '(none)'}
+            </p>
+            <input
+              type="text"
+              value={saveSearchName}
+              onChange={(e) => setSaveSearchName(e.target.value)}
+              placeholder="e.g. Frontend in NYC"
+              className="w-full px-3 py-2 rounded-lg border border-[#DFE1E6] dark:border-[#2C333A] bg-white dark:bg-[#161A1D] text-[#172B4D] dark:text-[#E6EDF3] text-sm mb-3"
+            />
+            <label className="flex items-center gap-2 text-sm text-[#172B4D] dark:text-[#8C9BAB] mb-4">
+              <input
+                type="checkbox"
+                checked={saveSearchAlert}
+                onChange={(e) => setSaveSearchAlert(e.target.checked)}
+              />
+              Email me when new jobs match
+            </label>
+            <div className="flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => { setShowSaveSearchModal(false); setSaveSearchName(''); setSaveSearchAlert(false); }}
+                className="px-3 py-1.5 rounded-lg border border-[#DFE1E6] dark:border-[#2C333A] text-[#5E6C84] dark:text-[#8C9BAB] text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveSearch}
+                disabled={saveSearchSubmitting || !saveSearchName.trim()}
+                className="px-3 py-1.5 rounded-lg bg-[#0052CC] dark:bg-[#2684FF] text-white text-sm font-medium disabled:opacity-50"
+              >
+                {saveSearchSubmitting ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </JobPageContent>
   );
 }

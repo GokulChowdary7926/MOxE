@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { getApiBase } from '../../services/api';
+import { JobPageContent } from '../../components/job/JobPageContent';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type TrackProject = {
   id: string;
@@ -31,14 +33,11 @@ type BoardResponse = {
   columns: BoardColumn[];
 };
 
-function useAuthHeaders() {
+function useAuthHeaders(): Record<string, string> {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  return token
-    ? {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      }
-    : { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
 }
 
 export default function Agile() {
@@ -180,24 +179,16 @@ export default function Agile() {
     projects.find((p) => p.id === selectedProjectId) || null;
 
   return (
+    <JobPageContent
+      title="MOxE Agile"
+      description="Plan and track agile projects with boards, issues, and sprints."
+      error={error}
+    >
     <div className="flex flex-col lg:flex-row gap-6">
       <div className="w-full lg:w-64 xl:w-72">
-        <h2 className="text-2xl font-semibold text-slate-800 dark:text-white mb-2">
-          MOxE TRACK Agile
-        </h2>
-        <p className="text-slate-600 dark:text-slate-400 mb-4 text-sm">
-          Plan and track agile projects with boards, issues, and sprints.
-        </p>
-
-        {error && (
-          <div className="mb-3 p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-200 rounded-lg text-xs">
-            {error}
-          </div>
-        )}
-
         <form
           onSubmit={handleCreateProject}
-          className="mb-4 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 space-y-2"
+          className="mb-4 p-3 rounded-xl border border-[#DFE1E6] dark:border-slate-700 bg-white dark:bg-slate-800 space-y-2"
         >
           <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">
             New project
@@ -225,7 +216,7 @@ export default function Agile() {
           <button
             type="submit"
             disabled={creatingProject}
-            className="w-full mt-1 inline-flex justify-center items-center rounded-md bg-indigo-600 text-white text-xs font-medium py-1.5 hover:bg-indigo-700 disabled:opacity-50"
+            className="w-full mt-1 inline-flex justify-center items-center rounded-md bg-[#0052CC] text-white text-xs font-medium py-1.5 hover:bg-[#2684FF] disabled:opacity-50"
           >
             {creatingProject ? 'Creating...' : 'Create project'}
           </button>
@@ -247,8 +238,8 @@ export default function Agile() {
                 onClick={() => setSelectedProjectId(p.id)}
                 className={`w-full text-left px-3 py-2 border-b border-slate-100 dark:border-slate-700 last:border-b-0 text-xs ${
                   selectedProjectId === p.id
-                    ? 'bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-200'
-                    : 'hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
+                    ? 'bg-[#DEEBFF] dark:bg-[#0052CC]/20 text-[#0052CC] dark:text-[#2684FF]'
+                    : 'hover:bg-[#F4F5F7] dark:hover:bg-slate-700 text-[#172B4D] dark:text-slate-200'
                 }`}
               >
                 <div className="font-medium truncate">{p.name}</div>
@@ -280,7 +271,7 @@ export default function Agile() {
 
             <form
               onSubmit={handleCreateIssue}
-              className="mb-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 space-y-2"
+              className="mb-3 p-3 rounded-lg border border-[#DFE1E6] dark:border-slate-700 bg-white dark:bg-slate-800 space-y-2"
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">
@@ -289,7 +280,7 @@ export default function Agile() {
                 <button
                   type="submit"
                   disabled={creatingIssue}
-                  className="inline-flex items-center px-3 py-1.5 rounded-md bg-indigo-600 text-[11px] font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                  className="inline-flex items-center px-3 py-1.5 rounded-md bg-[#0052CC] text-[11px] font-medium text-white hover:bg-[#2684FF] disabled:opacity-50"
                 >
                   {creatingIssue ? 'Creating...' : 'Create issue'}
                 </button>
@@ -332,7 +323,7 @@ export default function Agile() {
             {board.columns.map((col) => (
               <div
                 key={col.id}
-                className="min-w-[240px] max-w-xs bg-slate-100 dark:bg-slate-800/70 rounded-xl p-3"
+                className="min-w-[240px] max-w-xs bg-[#F4F5F7] dark:bg-slate-800/70 rounded-xl p-3 border border-[#DFE1E6] dark:border-slate-700"
               >
                 <div className="flex items-center justify-between mb-2">
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
@@ -347,7 +338,7 @@ export default function Agile() {
                   {(col.issues || []).map((issue) => (
                     <div
                       key={issue.id}
-                      className="rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs"
+                      className="rounded-lg bg-white dark:bg-slate-900 border border-[#DFE1E6] dark:border-slate-700 px-3 py-2 text-xs"
                     >
                       <div className="font-medium text-slate-800 dark:text-slate-100 mb-0.5">
                         {issue.summary}
@@ -397,6 +388,7 @@ export default function Agile() {
         )}
       </div>
     </div>
+    </JobPageContent>
   );
 }
 

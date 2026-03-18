@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ThemedView, ThemedText, ThemedButton } from '../../components/ui/Themed';
+import { Avatar } from '../../components/ui/Avatar';
 import { getSocket } from '../../services/socket';
-import { Heart } from 'lucide-react';
+import { getApiBase } from '../../services/api';
+import { Heart, X, Star, Users, Bookmark, AtSign, MoreVertical } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type StoryItem = {
   id: string;
@@ -38,6 +40,14 @@ export default function StoryViewer() {
   const [likes, setLikes] = useState<{ id: string; username: string; displayName?: string | null; profilePhoto?: string | null }[]>([]);
   const [likesLoading, setLikesLoading] = useState(false);
   const [likesError, setLikesError] = useState<string | null>(null);
+  const [showViewersSheet, setShowViewersSheet] = useState(false);
+  const [showHighlightSheet, setShowHighlightSheet] = useState(false);
+  const [showMentionSheet, setShowMentionSheet] = useState(false);
+  const [showMoreSheet, setShowMoreSheet] = useState(false);
+  const [isCloseFriends, setIsCloseFriends] = useState(false);
+  const [storyOwnerAvatar] = useState<string | null>(null);
+  const [audioLabel] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,7 +92,7 @@ export default function StoryViewer() {
     return () => {
       cancelled = true;
     };
-  }, [username]);
+  }, [username, retryKey]);
 
   // Subscribe to lightweight poll / emoji updates via Socket.IO (if available)
   useEffect(() => {
@@ -365,22 +375,54 @@ export default function StoryViewer() {
     (s) => s && typeof s === 'object' && (s as any).type === 'donation',
   ) as any | undefined;
 
+  // Compute story age for header (e.g. "8h")
+  const storyTimeLabel = current?.createdAt
+    ? (() => {
+        const d = new Date(current.createdAt);
+        const diff = (Date.now() - d.getTime()) / 60000;
+        if (diff < 60) return `${Math.round(diff)}m`;
+        if (diff < 1440) return `${Math.round(diff / 60)}h`;
+        return `${Math.round(diff / 1440)}d`;
+      })()
+    : '';
+
   return (
-    <ThemedView className="fixed inset-0 z-40 flex items-center justify-center bg-black/90">
-      <div className="w-full max-w-[428px] h-full flex flex-col">
-        <div className="flex items-center justify-between px-moxe-md py-3">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="text-moxe-textSecondary text-xl leading-none"
-            aria-label="Close"
-          >
-            ✕
-          </button>
-          <ThemedText className="text-moxe-caption">
-            {username ? `Stories from @${username}` : 'Stories'}
-          </ThemedText>
-          <div className="w-6" />
+    <ThemedView className="fixed inset-0 z-40 flex flex-col bg-black">
+      <div className="w-full max-w-[428px] h-full flex flex-col mx-auto">
+        {/* Header: avatar + Your story + time + audio (left); Close Friends + X (right) – same for all accounts */}
+        <div className="flex items-center justify-between px-4 py-3 safe-area-pt">
+          <div className="flex items-center gap-3 min-w-0">
+            <Avatar uri={storyOwnerAvatar} size={36} />
+            <div className="min-w-0">
+              <p className="text-white font-semibold text-sm truncate">
+                {username ? `@${username}` : 'Your story'}
+              </p>
+              {storyTimeLabel && (
+                <p className="text-[#a8a8a8] text-xs">{storyTimeLabel}</p>
+              )}
+              {audioLabel && (
+                <p className="text-[#a8a8a8] text-xs flex items-center gap-1">
+                  <span className="inline-block w-3 h-3 bg-white/20 rounded-sm" />
+                  {audioLabel} &gt;
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {isCloseFriends && (
+              <span className="flex items-center justify-center w-8 h-8 rounded-full bg-white/10 text-[#00c853]">
+                <Star className="w-4 h-4 fill-current" />
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="p-2 text-white"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 flex items-center justify-center px-moxe-md">
@@ -390,9 +432,17 @@ export default function StoryViewer() {
             </ThemedText>
           )}
           {error && !loading && (
-            <ThemedText className="text-moxe-caption text-moxe-danger">
-              {error}
-            </ThemedText>
+            <div className="flex flex-col items-center gap-3 text-center">
+              <ThemedText className="text-moxe-caption text-moxe-danger">{error}</ThemedText>
+              <ThemedButton
+                label="Try again"
+                onClick={() => {
+                  setError(null);
+                  setLoading(true);
+                  setRetryKey((k) => k + 1);
+                }}
+              />
+            </div>
           )}
           {!loading && !error && !current && (
             <ThemedText secondary className="text-moxe-caption">
@@ -619,6 +669,44 @@ export default function StoryViewer() {
             </div>
           )}
         </div>
+
+        {/* Bottom bar: Activity, Highlight, Mention, More – same for all accounts */}
+        {current && (
+          <div className="flex items-center justify-around px-4 py-3 border-t border-white/10 bg-black/50 safe-area-pb">
+            <button
+              type="button"
+              onClick={() => setShowViewersSheet(true)}
+              className="flex flex-col items-center gap-0.5 text-white"
+            >
+              <Users className="w-6 h-6" />
+              <span className="text-[10px]">Activity</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowHighlightSheet(true)}
+              className="flex flex-col items-center gap-0.5 text-white"
+            >
+              <Bookmark className="w-6 h-6" />
+              <span className="text-[10px]">Highlight</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowMentionSheet(true)}
+              className="flex flex-col items-center gap-0.5 text-white"
+            >
+              <AtSign className="w-6 h-6" />
+              <span className="text-[10px]">Mention</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowMoreSheet(true)}
+              className="flex flex-col items-center gap-0.5 text-white"
+            >
+              <MoreVertical className="w-6 h-6" />
+              <span className="text-[10px]">More</span>
+            </button>
+          </div>
+        )}
       </div>
       {showLikesSheet && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center">
@@ -676,6 +764,83 @@ export default function StoryViewer() {
                   </div>
                 ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* More menu (Story settings in story): Delete, Archive, Highlight, Save, Edit AI label, Story settings, Cancel */}
+      {showMoreSheet && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center" onClick={() => setShowMoreSheet(false)}>
+          <div className="w-full max-w-[428px] bg-[#1c1c1e] rounded-t-2xl border-t border-[#262626] pb-8 safe-area-pb" onClick={(e) => e.stopPropagation()}>
+            <div className="pt-2 pb-1">
+              <div className="w-8 h-0.5 rounded-full bg-white/30 mx-auto" />
+            </div>
+            <button type="button" className="w-full py-3.5 text-red-500 font-semibold text-sm">Delete story</button>
+            <button type="button" className="w-full py-3.5 text-white font-semibold text-sm">Archive</button>
+            <button type="button" className="w-full py-3.5 text-white font-semibold text-sm" onClick={() => { setShowMoreSheet(false); setShowHighlightSheet(true); }}>Highlight</button>
+            <button type="button" className="w-full py-3.5 text-white font-semibold text-sm">Save...</button>
+            <button type="button" className="w-full py-3.5 text-white font-semibold text-sm">Edit AI label</button>
+            <button type="button" className="w-full py-3.5 text-white font-semibold text-sm" onClick={() => { setShowMoreSheet(false); navigate('/settings/story'); }}>Story settings</button>
+            <div className="border-t border-[#262626] mt-2 pt-2">
+              <button type="button" className="w-full py-3.5 text-white font-semibold text-sm" onClick={() => setShowMoreSheet(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add to highlights sheet */}
+      {showHighlightSheet && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center" onClick={() => setShowHighlightSheet(false)}>
+          <div className="w-full max-w-[428px] bg-[#1c1c1e] rounded-t-2xl border-t border-[#262626] pb-8 safe-area-pb" onClick={(e) => e.stopPropagation()}>
+            <div className="pt-2 pb-1">
+              <div className="w-8 h-0.5 rounded-full bg-white/30 mx-auto" />
+            </div>
+            <div className="flex items-center justify-between px-4 py-3">
+              <span className="text-white font-semibold text-base">Add to highlights</span>
+              <button type="button" className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white text-xl font-light">+</button>
+            </div>
+            <div className="flex gap-3 overflow-x-auto px-4 pb-4 no-scrollbar">
+              {['Wheels', 'PICS'].map((label, i) => (
+                <button key={i} type="button" className="flex-shrink-0 w-20 h-24 rounded-lg bg-black flex flex-col items-center justify-center gap-1">
+                  <span className="text-white text-sm font-medium">{label}</span>
+                  <span className="text-white/60 text-xs">*</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Story viewers list placeholder – full page can be /stories/:username/viewers */}
+      {showViewersSheet && (
+        <div className="fixed inset-0 z-50 bg-black flex flex-col" onClick={() => setShowViewersSheet(false)}>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[#262626]" onClick={(e) => e.stopPropagation()}>
+            <span className="text-[#a8a8a8]">Settings</span>
+            <button type="button" className="p-2 text-white" onClick={() => setShowViewersSheet(false)}><X className="w-5 h-5" /></button>
+          </div>
+          <div className="flex-1 overflow-auto px-4 py-4">
+            <p className="text-white font-semibold mb-2">Who viewed this story</p>
+            <ThemedText secondary className="text-sm">Viewers will appear here.</ThemedText>
+          </div>
+        </div>
+      )}
+
+      {/* Story mention sheet placeholder */}
+      {showMentionSheet && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center" onClick={() => setShowMentionSheet(false)}>
+          <div className="w-full max-w-[428px] max-h-[80vh] bg-[#202020] rounded-t-2xl border-t border-[#262626] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="pt-2 pb-1">
+              <div className="w-8 h-0.5 rounded-full bg-white/30 mx-auto" />
+            </div>
+            <input type="text" placeholder="Search" className="mx-4 mt-2 mb-3 px-4 py-2.5 rounded-lg bg-[#363636] text-white placeholder:text-[#737373] text-sm" />
+            <div className="flex-1 overflow-auto px-4 pb-4">
+              <ThemedText secondary className="text-sm">Search for people to mention.</ThemedText>
+            </div>
+            <div className="flex items-center justify-between px-4 py-3 border-t border-[#262626]">
+              <label className="text-white text-sm flex-1">Allow people you mention to add this to their story</label>
+              <button type="button" role="switch" className="w-11 h-6 rounded-full bg-[#363636]" />
+            </div>
+            <button type="button" className="mx-4 mb-4 py-3 rounded-lg bg-[#0095f6] text-white font-semibold text-sm">Mention</button>
           </div>
         </div>
       )}

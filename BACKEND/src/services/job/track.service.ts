@@ -335,4 +335,45 @@ export class TrackService {
       job.hiringManagerId === accountId;
     if (!canAccess) throw new AppError('Not authorized to modify this job', 403);
   }
+
+  async listSavedJobSearches(accountId: string) {
+    return prisma.savedJobSearch.findMany({
+      where: { accountId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async createSavedJobSearch(accountId: string, data: {
+    name: string;
+    query?: string;
+    location?: string;
+    locationType?: string;
+    jobType?: string;
+    alertEnabled?: boolean;
+  }) {
+    return prisma.savedJobSearch.create({
+      data: {
+        accountId,
+        name: data.name,
+        query: data.query ?? null,
+        location: data.location ?? null,
+        locationType: data.locationType ?? null,
+        jobType: data.jobType ?? null,
+        alertEnabled: data.alertEnabled ?? false,
+      },
+    });
+  }
+
+  async updateSavedJobSearch(accountId: string, searchId: string, data: { alertEnabled?: boolean; name?: string }) {
+    await prisma.savedJobSearch.findFirstOrThrow({ where: { id: searchId, accountId } });
+    return prisma.savedJobSearch.update({
+      where: { id: searchId },
+      data: { ...(data.alertEnabled !== undefined && { alertEnabled: data.alertEnabled }), ...(data.name && { name: data.name }) },
+    });
+  }
+
+  async deleteSavedJobSearch(accountId: string, searchId: string) {
+    await prisma.savedJobSearch.findFirstOrThrow({ where: { id: searchId, accountId } });
+    await prisma.savedJobSearch.delete({ where: { id: searchId } });
+  }
 }

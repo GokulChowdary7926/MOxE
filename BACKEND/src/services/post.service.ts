@@ -26,7 +26,14 @@ export class PostService {
     brandedContentDisclosure?: boolean;
     isScheduled?: boolean;
     scheduledFor?: string;
+    mentionedUserIds?: string[];
   }) {
+    // Basic media validation: require at least one media item with a URL.
+    const mediaArray = Array.isArray(data.media) ? data.media : [];
+    if (!Array.isArray(mediaArray) || mediaArray.length === 0) {
+      throw new AppError('At least one media item is required', 400);
+    }
+
     const privacy = (data.privacy as 'PUBLIC' | 'FOLLOWERS_ONLY' | 'CLOSE_FRIENDS_ONLY' | 'ONLY_ME') || 'PUBLIC';
     const productTags = Array.isArray(data.productTags) ? data.productTags.slice(0, 5) : [];
     if (productTags.length > 0) {
@@ -42,7 +49,7 @@ export class PostService {
     const post = await prisma.post.create({
       data: {
         accountId,
-        media: (data.media as any) ?? [],
+        media: mediaArray as any,
         caption: data.caption ?? null,
         altText: data.altText ? String(data.altText).slice(0, 500) : null,
         location: data.location ?? null,
@@ -73,6 +80,20 @@ export class PostService {
         })),
       });
     }
+    const mentionedIds = Array.isArray(data.mentionedUserIds) ? [...new Set(data.mentionedUserIds)].slice(0, 20) : [];
+    if (mentionedIds.length > 0) {
+      const validAccounts = await prisma.account.findMany({
+        where: { id: { in: mentionedIds }, isActive: true },
+        select: { id: true },
+      });
+      const validIds = new Set(validAccounts.map((a) => a.id));
+      await prisma.mention.createMany({
+        data: [...validIds].map((mentionedAccountId) => ({
+          accountId: mentionedAccountId,
+          postId: post.id,
+        })),
+      });
+    }
     const withTags = await prisma.post.findUnique({
       where: { id: post.id },
       include: {
@@ -81,6 +102,20 @@ export class PostService {
       },
     });
     return withTags ?? post;
+  }
+
+  async getById(postId: string) {
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      include: {
+        account: { select: { id: true, username: true, displayName: true, profilePhoto: true } },
+        ProductTag: { include: { product: { select: { id: true, name: true, price: true, images: true } } } },
+      },
+    });
+    if (!post || (post as any).isDeleted) {
+      throw new AppError('Post not found', 404);
+    }
+    return post;
   }
 
   async like(accountId: string, postId: string) {
@@ -164,6 +199,10 @@ export class PostService {
   }
 
   async getComments(postId: string, cursor?: string, limit = 30) {
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      select: { accountId: true },
+    });
     const comments = await prisma.comment.findMany({
       where: { postId, parentId: null, isHidden: false },
       orderBy: { createdAt: 'desc' },
@@ -172,7 +211,26 @@ export class PostService {
       include: { account: { select: { id: true, username: true, displayName: true, profilePhoto: true } } },
     });
     const nextCursor = comments.length > limit ? comments[limit - 1].id : null;
-    return { items: comments.slice(0, limit), nextCursor };
+    const items = comments.slice(0, limit);
+    let subscriberTiers: Map<string, string> = new Map();
+    if (post?.accountId) {
+      const subs = await prisma.subscription.findMany({
+        where: { creatorId: post.accountId, status: 'ACTIVE' },
+        select: { subscriberId: true, tier: true },
+      });
+      subs.forEach((s) => subscriberTiers.set(s.subscriberId, s.tier));
+    }
+    const enriched = items.map((c) => {
+      const tier = subscriberTiers.get(c.accountId);
+      const account = c.account as any;
+      return {
+        ...c,
+        account: account
+          ? { ...account, isSubscriber: !!tier, subscriberTierKey: tier ?? undefined }
+          : account,
+      };
+    });
+    return { items: enriched, nextCursor };
   }
 
   async getHiddenComments(postId: string, ownerAccountId: string) {

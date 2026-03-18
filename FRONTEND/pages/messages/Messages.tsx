@@ -1,8 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
+import { ChevronDown, PenSquare, Camera, Search as SearchIcon, Mic, Square } from 'lucide-react';
 import { ThemedView, ThemedText, ThemedHeader, ThemedInput, ThemedButton } from '../../components/ui/Themed';
 import { Avatar } from '../../components/ui/Avatar';
+import { MobileShell } from '../../components/layout/MobileShell';
+import { useAccountType } from '../../hooks/useAccountCapabilities';
 import { connectDmSocket, getDmSocket } from '../../services/dmSocket';
 import type { RootState } from '../../store';
 
@@ -15,6 +18,9 @@ export default function Messages() {
   const { userId, groupId } = useParams();
   const navigate = useNavigate();
   const { currentAccount } = useSelector((state: RootState) => state.account);
+  const accountType = useAccountType() || 'PERSONAL';
+  const showPrimaryGeneral = accountType === 'BUSINESS' || accountType === 'CREATOR';
+  const username = (currentAccount as any)?.username ?? '';
 
   const [threads, setThreads] = useState<any[]>([]);
   const [loadingThreads, setLoadingThreads] = useState(true);
@@ -36,15 +42,28 @@ export default function Messages() {
   const [groupsError, setGroupsError] = useState<string | null>(null);
   const [loadingGroups, setLoadingGroups] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
+  const chunksRef = React.useRef<Blob[]>([]);
   const [showGifPicker, setShowGifPicker] = useState(false);
   const [gifQuery, setGifQuery] = useState('');
   const [gifResults, setGifResults] = useState<{ id: string; url: string; previewUrl?: string }[]>([]);
   const [gifLoading, setGifLoading] = useState(false);
   const [gifError, setGifError] = useState<string | null>(null);
+  const [showPollModal, setShowPollModal] = useState(false);
+  const [pollQuestion, setPollQuestion] = useState('');
+  const [pollOptions, setPollOptions] = useState(['', '']);
+  const [pollSubmitting, setPollSubmitting] = useState(false);
+  const [refreshThreadTrigger, setRefreshThreadTrigger] = useState(0);
   const [typing, setTyping] = useState(false);
   const [peerTyping, setPeerTyping] = useState(false);
   const [blocking, setBlocking] = useState(false);
   const [blocked, setBlocked] = useState(false);
+  const [blockedByThem, setBlockedByThem] = useState(false);
+  const [showPremiumMessageModal, setShowPremiumMessageModal] = useState(false);
+  const [premiumMessageContent, setPremiumMessageContent] = useState('');
+  const [premiumCheck, setPremiumCheck] = useState<{ canSend: boolean; reason?: string; remainingGrants: number; characterLimit: number } | null>(null);
+  const [premiumSending, setPremiumSending] = useState(false);
   const [inboxTab, setInboxTab] = useState<'primary' | 'general' | 'requests'>('primary');
   const [inboxSearch, setInboxSearch] = useState('');
 
@@ -220,26 +239,26 @@ export default function Messages() {
       try {
         const token = getToken();
         const me = (currentAccount as any)?.id ?? mockUsers[0].id;
-        if (token && !groupId) {
-          const qs = `userId=${encodeURIComponent(userId as string)}`;
+        if (token && (userId || groupId)) {
+          const qs = groupId
+            ? `groupId=${encodeURIComponent(groupId)}`
+            : `userId=${encodeURIComponent(userId as string)}`;
           const res = await fetch(`${getApiBase()}/messages?${qs}&limit=50`, {
             headers: { Authorization: `Bearer ${token}` },
           });
           const data = await res.json().catch(() => ({}));
           if (res.ok && !cancelled) {
             const items = data.items ?? data.messages ?? data ?? [];
-            if (items.length > 0) {
-              setMessages(items);
-              setLoadingMessages(false);
-              if (userId) {
-                fetch(`${getApiBase()}/messages/thread-read`, {
-                  method: 'POST',
-                  headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ userId }),
-                }).catch(() => {});
-              }
-              return;
+            setMessages(Array.isArray(items) ? items : []);
+            setLoadingMessages(false);
+            if (userId && !groupId) {
+              fetch(`${getApiBase()}/messages/thread-read`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId }),
+              }).catch(() => {});
             }
+            if (items.length > 0 || groupId) return;
           }
         }
         // No token or empty/failed (DM only): use mocks for this thread.
@@ -297,7 +316,7 @@ export default function Messages() {
     return () => {
       cancelled = true;
     };
-  }, [userId, groupId, currentAccount]);
+  }, [userId, groupId, currentAccount, refreshThreadTrigger]);
 
   useEffect(() => {
     async function checkBlock() {
@@ -312,8 +331,13 @@ export default function Messages() {
         if (!res.ok) return;
         if (data.reason === 'blocked_by_you') {
           setBlocked(true);
+          setBlockedByThem(false);
+        } else if (data.reason === 'blocked_by_them') {
+          setBlocked(false);
+          setBlockedByThem(true);
         } else {
           setBlocked(false);
+          setBlockedByThem(false);
         }
       } catch {
         // ignore
@@ -348,7 +372,8 @@ export default function Messages() {
         }
         mediaPayload = { url: uploadData.url };
       }
-      let messageType: 'TEXT' | 'MEDIA' | 'VOICE' | 'GIF' = 'TEXT';
+      let messageType: 'TEXT' | 'MEDIA' | 'VOICE' | 'GIF' | 'POLL' = 'TEXT';
+      let mediaForSend = mediaPayload;
       if (mediaPayload) {
         const isAudio = mediaFile?.type.startsWith('audio/');
         messageType = isAudio ? 'VOICE' : 'MEDIA';
@@ -365,7 +390,7 @@ export default function Messages() {
           recipientId: groupId ? undefined : userId,
           content,
           messageType,
-          media: mediaPayload,
+          media: mediaForSend,
           isVanish: viewOnce,
           groupId: groupId || undefined,
         }),
@@ -379,8 +404,86 @@ export default function Messages() {
       setMediaFile(null);
       setViewOnce(false);
     } catch (e: any) {
-      setMessagesError(e.message || 'Failed to send message.');
+      const msg = e.message || 'Failed to send message.';
+      setMessagesError(msg);
+      if (userId && /blocked|recipient has blocked/i.test(msg)) setBlockedByThem(true);
     }
+  };
+
+  const sendPollMessage = async () => {
+    const question = pollQuestion.trim();
+    const options = pollOptions.map((o) => o.trim()).filter(Boolean);
+    if (!question || options.length < 2) {
+      setMessagesError('Enter a question and at least 2 options.');
+      return;
+    }
+    if (options.length > 4) {
+      setMessagesError('Maximum 4 options.');
+      return;
+    }
+    if (!userId && !groupId) return;
+    const token = getToken();
+    if (!token) return;
+    setPollSubmitting(true);
+    setMessagesError(null);
+    try {
+      const res = await fetch(`${getApiBase()}/messages`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          recipientId: groupId ? undefined : userId,
+          groupId: groupId || undefined,
+          content: question,
+          messageType: 'POLL',
+          media: { options },
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to send poll.');
+      setMessages((prev) => [...prev, data]);
+      setShowPollModal(false);
+      setPollQuestion('');
+      setPollOptions(['', '']);
+    } catch (e: any) {
+      setMessagesError(e.message || 'Failed to send poll.');
+    } finally {
+      setPollSubmitting(false);
+    }
+  };
+
+  const startVoiceRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg';
+      const recorder = new MediaRecorder(stream);
+      chunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size) chunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunksRef.current, { type: mime });
+        const file = new File([blob], `voice-${Date.now()}.webm`, { type: mime });
+        setMediaFile(file);
+        setIsRecordingVoice(true);
+      };
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+    } catch (err) {
+      setMessagesError('Microphone access needed for voice messages.');
+    }
+  };
+
+  const stopVoiceRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current = null;
+    }
+    setIsRecording(false);
   };
 
   const reactToMessage = async (messageId: string) => {
@@ -488,46 +591,98 @@ export default function Messages() {
   if (!isConversation) {
     return (
       <ThemedView className="min-h-screen flex flex-col bg-black">
-        <ThemedHeader
-          title="Messages"
-          className="border-b border-[#262626] bg-black"
-        />
-        {/* Search bar */}
-        <div className="px-4 py-2 border-b border-[#262626]">
-          <input
-            type="search"
-            value={inboxSearch}
-            onChange={(e) => setInboxSearch(e.target.value)}
-            placeholder="Search"
-            className="w-full px-3 py-2 rounded-lg bg-[#262626] border border-[#363636] text-white placeholder:text-[#737373] text-sm"
-          />
-        </div>
-        {/* Tabs: Primary | General | Requests */}
-        <div className="flex border-b border-[#262626]">
-          {[
-            { key: 'primary' as const, label: 'Primary' },
-            { key: 'general' as const, label: 'General' },
-            { key: 'requests' as const, label: `Requests${requests.length > 0 ? ` (${requests.length})` : ''}` },
-          ].map(({ key, label }) => {
-            const isActive = key === 'requests' ? showRequests : inboxTab === key && !showRequests;
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => {
-                  setInboxTab(key);
-                  setShowRequests(key === 'requests');
-                }}
-                className={`flex-1 py-3 text-sm font-semibold ${
-                  isActive ? 'text-[#0095f6] border-b-2 border-[#0095f6]' : 'text-[#737373] border-b-2 border-transparent'
-                }`}
-              >
-                {label}
+        <MobileShell>
+          {/* Header: username + chevron (left), new message icon (right) – same as screenshot for all accounts */}
+          <header className="flex items-center justify-between h-12 px-3 border-b border-[#262626] bg-black safe-area-pt">
+            <button
+              type="button"
+              className="flex items-center gap-1 text-white font-semibold text-sm"
+              aria-label="Switch account"
+            >
+              <span>{username || 'Messages'}</span>
+              <ChevronDown className="w-4 h-4 text-[#a8a8a8]" />
+            </button>
+            <Link
+              to="/messages/new"
+              className="w-9 h-9 flex items-center justify-center text-white"
+              aria-label="New message"
+            >
+              <PenSquare className="w-5 h-5" />
+            </Link>
+          </header>
+
+          {/* Notes strip – horizontal scroll, "Your note" + others */}
+          <div className="px-2 pt-3 pb-2 flex items-center gap-3 overflow-x-auto no-scrollbar border-b border-[#262626]">
+            <Link
+              to="/notes"
+              className="flex flex-col items-center flex-shrink-0 w-16"
+              aria-label="Your note"
+            >
+              <div className="relative w-14 h-14 rounded-full border-2 border-[#363636] bg-[#262626] flex items-center justify-center overflow-hidden mb-1">
+                <Avatar uri={(currentAccount as any)?.profilePhoto} size={52} className="w-full h-full" />
+                <span className="absolute bottom-0 right-0 w-5 h-5 rounded-full bg-[#0095f6] flex items-center justify-center text-white text-xs font-bold border-2 border-black">
+                  +
+                </span>
+              </div>
+              <span className="text-[11px] text-[#a8a8a8] truncate max-w-[64px]">Your note</span>
+            </Link>
+            {[1, 2, 3].map((i) => (
+              <button key={i} type="button" className="flex flex-col items-center flex-shrink-0 w-16">
+                <div className="w-14 h-14 rounded-full border-2 border-[#363636] bg-[#262626] overflow-hidden mb-1" />
+                <span className="text-[11px] text-[#a8a8a8] truncate max-w-[64px]">Note</span>
               </button>
-            );
-          })}
-        </div>
-        <div className="flex-1 overflow-auto px-4 py-3 space-y-0">
+            ))}
+          </div>
+
+          {/* Search bar */}
+          <div className="px-4 py-2 border-b border-[#262626]">
+            <div className="relative">
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#737373]" />
+              <input
+                type="search"
+                value={inboxSearch}
+                onChange={(e) => setInboxSearch(e.target.value)}
+                placeholder="Search"
+                className="w-full pl-9 pr-3 py-2 rounded-lg bg-[#262626] border border-[#363636] text-white placeholder:text-[#737373] text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Primary | General – only for Business and Creator */}
+          {showPrimaryGeneral && (
+            <div className="flex border-b border-[#262626]">
+              {[
+                { key: 'primary' as const, label: 'Primary' },
+                { key: 'general' as const, label: 'General' },
+              ].map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => { setInboxTab(key); setShowRequests(false); }}
+                  className={`flex-1 py-3 text-sm font-semibold ${
+                    inboxTab === key && !showRequests
+                      ? 'text-[#0095f6] border-b-2 border-[#0095f6]'
+                      : 'text-[#737373] border-b-2 border-transparent'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Messages section title + Requests link */}
+          <div className="flex items-center justify-between px-4 py-2 border-b border-[#262626]">
+            <span className="text-white font-semibold text-sm">Messages</span>
+            <Link
+              to="/messages/requests"
+              className="text-[#0095f6] text-sm font-medium"
+            >
+              Requests {requests.length > 0 ? `(${requests.length})` : ''}
+            </Link>
+          </div>
+
+          <div className="flex-1 overflow-auto px-4 py-0 space-y-0 pb-20">
           {loadingThreads && (
             <ThemedText secondary className="text-moxe-caption block py-4">
               Loading conversations…
@@ -574,33 +729,32 @@ export default function Messages() {
                   onClick={() => navigate(`/messages/${t.otherId}`)}
                   className="w-full flex items-center justify-between py-3 border-b border-[#262626] text-left active:bg-white/5"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Avatar uri={avatarUri} size={44} />
-                    <div className="flex flex-col min-w-0">
-                      <ThemedText className="font-semibold text-moxe-body truncate">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="relative flex-shrink-0">
+                      <Avatar uri={avatarUri} size={44} />
+                      {t.unread > 0 && (
+                        <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#0095f6]" />
+                      )}
+                    </div>
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <ThemedText className="font-semibold text-white text-sm truncate">
                         {name}
                       </ThemedText>
-                      <ThemedText secondary className="text-moxe-caption truncate">
+                      <ThemedText secondary className="text-[#a8a8a8] text-xs truncate">
                         {t.lastMessage || 'No messages yet'}
                       </ThemedText>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 ml-2">
+                  <div className="flex items-center gap-2 ml-2 flex-shrink-0">
                     {t.mutedUntil && (
-                      <span className="inline-flex px-1.5 py-0.5 rounded-full bg-moxe-background text-[9px] text-moxe-textSecondary">
-                        Muted
-                      </span>
+                      <span className="text-[9px] text-[#737373]">Muted</span>
                     )}
                     {pinnedIds.includes(t.otherId) && (
-                      <span className="inline-flex px-1.5 py-0.5 rounded-full bg-moxe-primary/10 text-[9px] text-moxe-primary">
-                        📌
-                      </span>
+                      <span className="text-[#0095f6] text-xs">📌</span>
                     )}
-                    {t.unread > 0 && (
-                      <span className="inline-flex min-w-[20px] h-5 px-1 rounded-full bg-moxe-primary text-[10px] text-white items-center justify-center">
-                        {t.unread}
-                      </span>
-                    )}
+                    <span className="text-white/70" aria-hidden>
+                      <Camera className="w-5 h-5" />
+                    </span>
                   </div>
                 </button>
               );
@@ -691,11 +845,11 @@ export default function Messages() {
                 </div>
               </div>
             ))}
-        </div>
-        <div className="border-t border-moxe-border mt-2 pt-2">
-          <ThemedText secondary className="text-moxe-caption mb-1">
-            Groups
-          </ThemedText>
+          </div>
+          <div className="border-t border-[#262626] mt-2 pt-2 px-4 pb-4">
+            <ThemedText secondary className="text-[#a8a8a8] text-sm mb-1">
+              Groups
+            </ThemedText>
           {loadingGroups && (
             <ThemedText secondary className="text-moxe-caption">
               Loading groups…
@@ -730,7 +884,8 @@ export default function Messages() {
                 </div>
               </button>
             ))}
-        </div>
+          </div>
+        </MobileShell>
       </ThemedView>
     );
   }
@@ -908,6 +1063,7 @@ export default function Messages() {
                                     body: JSON.stringify({ optionIndex: idx }),
                                   },
                                 );
+                                setRefreshThreadTrigger((t) => t + 1);
                               } catch {
                                 // ignore
                               }
@@ -967,8 +1123,8 @@ export default function Messages() {
               onChange={(e) => setMediaFile(e.target.files?.[0] || null)}
             />
           </label>
-          <label className="px-3 py-1 rounded-moxe-md bg-moxe-surface border border-moxe-border text-xs cursor-pointer">
-            {isRecordingVoice ? 'Voice selected' : 'Add voice note'}
+          <label className="px-3 py-1 rounded-moxe-md bg-moxe-surface border border-moxe-border text-xs cursor-pointer flex items-center gap-1">
+            {isRecordingVoice ? 'Voice selected' : 'Upload voice'}
             <input
               type="file"
               accept="audio/*"
@@ -980,6 +1136,15 @@ export default function Messages() {
               }}
             />
           </label>
+          <button
+            type="button"
+            onClick={() => (isRecording ? stopVoiceRecording() : startVoiceRecording())}
+            className={`px-3 py-1 rounded-moxe-md border text-xs flex items-center gap-1 ${isRecording ? 'bg-red-900/50 border-red-500 text-red-200' : 'bg-moxe-surface border-moxe-border text-moxe-text'}`}
+            title={isRecording ? 'Stop recording' : 'Record voice message'}
+          >
+            {isRecording ? <Square className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+            {isRecording ? 'Stop' : 'Record'}
+          </button>
           <label className="flex items-center gap-1 text-[11px] text-moxe-textSecondary">
             <input
               type="checkbox"
@@ -1047,6 +1212,15 @@ export default function Messages() {
           >
             GIF
           </button>
+          {groupId && (
+            <button
+              type="button"
+              onClick={() => setShowPollModal(true)}
+              className="px-2 py-1 rounded-moxe-md bg-moxe-surface border border-moxe-border text-xs text-moxe-text"
+            >
+              Poll
+            </button>
+          )}
           <ThemedButton
             type="submit"
             label="Send"
@@ -1161,6 +1335,66 @@ export default function Messages() {
             </div>
           </div>
         )}
+        {showPollModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div className="w-full max-w-sm rounded-xl bg-moxe-surface border border-moxe-border p-4 shadow-xl">
+              <h3 className="text-sm font-semibold text-moxe-text mb-3">Create poll</h3>
+              <input
+                type="text"
+                value={pollQuestion}
+                onChange={(e) => setPollQuestion(e.target.value)}
+                placeholder="Poll question"
+                className="w-full px-3 py-2 rounded-moxe-md bg-moxe-background border border-moxe-border text-moxe-text text-sm placeholder:text-moxe-textSecondary mb-2"
+              />
+              <div className="space-y-2 mb-3">
+                {pollOptions.map((opt, i) => (
+                  <input
+                    key={i}
+                    type="text"
+                    value={opt}
+                    onChange={(e) => {
+                      const next = [...pollOptions];
+                      next[i] = e.target.value;
+                      setPollOptions(next);
+                    }}
+                    placeholder={`Option ${i + 1}`}
+                    className="w-full px-3 py-2 rounded-moxe-md bg-moxe-background border border-moxe-border text-moxe-text text-sm placeholder:text-moxe-textSecondary"
+                  />
+                ))}
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {pollOptions.length < 4 && (
+                  <button
+                    type="button"
+                    onClick={() => setPollOptions((p) => [...p, ''])}
+                    className="px-2 py-1 text-xs text-moxe-primary border border-moxe-primary rounded-moxe-md"
+                  >
+                    + Add option
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPollModal(false);
+                    setPollQuestion('');
+                    setPollOptions(['', '']);
+                  }}
+                  className="px-2 py-1 text-xs text-moxe-textSecondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={sendPollMessage}
+                  disabled={pollSubmitting}
+                  className="px-3 py-1 text-xs bg-moxe-primary text-white rounded-moxe-md disabled:opacity-50"
+                >
+                  {pollSubmitting ? 'Sending…' : 'Send poll'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {peerTyping && (
           <ThemedText secondary className="text-moxe-caption text-[#737373]">
             Typing…
@@ -1170,6 +1404,99 @@ export default function Messages() {
           <ThemedText secondary className="text-moxe-caption text-[#737373]">
             You can&apos;t message this user while blocked.
           </ThemedText>
+        )}
+        {blockedByThem && userId && (
+          <div className="space-y-1">
+            <ThemedText secondary className="text-moxe-caption text-[#737373]">
+              This user has blocked you. Star or Thick members can send a limited message (2 per month).
+            </ThemedText>
+            <button
+              type="button"
+              onClick={async () => {
+                const token = getToken();
+                if (!token || !userId) return;
+                try {
+                  const res = await fetch(`${getApiBase()}/premium/blocked-messages/check?recipientId=${encodeURIComponent(userId)}`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                  });
+                  const data = await res.json().catch(() => ({}));
+                  setPremiumCheck(data);
+                  setShowPremiumMessageModal(true);
+                  setPremiumMessageContent('');
+                } catch {
+                  setPremiumCheck({ canSend: false, remainingGrants: 0, characterLimit: 150 });
+                  setShowPremiumMessageModal(true);
+                }
+              }}
+              className="text-xs text-moxe-primary font-medium"
+            >
+              Send limited message
+            </button>
+          </div>
+        )}
+        {showPremiumMessageModal && userId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div className="w-full max-w-sm rounded-xl bg-moxe-surface border border-moxe-border p-4 shadow-xl">
+              <h3 className="text-sm font-semibold text-moxe-text mb-2">Send limited message</h3>
+              {premiumCheck && (
+                <p className="text-xs text-moxe-textSecondary mb-2">
+                  {premiumCheck.canSend
+                    ? `You have ${premiumCheck.remainingGrants} grant(s) this period. Max ${premiumCheck.characterLimit} characters.`
+                    : premiumCheck.reason || 'You cannot send a limited message.'}
+                </p>
+              )}
+              {premiumCheck?.canSend && (
+                <>
+                  <textarea
+                    value={premiumMessageContent}
+                    onChange={(e) => setPremiumMessageContent(e.target.value.slice(0, premiumCheck?.characterLimit ?? 150))}
+                    placeholder="Your message…"
+                    maxLength={premiumCheck?.characterLimit ?? 150}
+                    className="w-full px-3 py-2 rounded-moxe-md bg-moxe-background border border-moxe-border text-moxe-text text-sm placeholder:text-moxe-textSecondary mb-2 min-h-[80px]"
+                    rows={3}
+                  />
+                  <p className="text-[10px] text-moxe-textSecondary mb-2">{premiumMessageContent.length} / {premiumCheck?.characterLimit ?? 150}</p>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => { setShowPremiumMessageModal(false); setPremiumCheck(null); setPremiumMessageContent(''); }} className="px-2 py-1 text-xs text-moxe-textSecondary">Cancel</button>
+                    <button
+                      type="button"
+                      disabled={premiumSending || !premiumMessageContent.trim()}
+                      onClick={async () => {
+                        const token = getToken();
+                        if (!token || !userId || !premiumMessageContent.trim()) return;
+                        setPremiumSending(true);
+                        try {
+                          const res = await fetch(`${getApiBase()}/premium/blocked-messages`, {
+                            method: 'POST',
+                            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ recipientId: userId, content: premiumMessageContent.trim() }),
+                          });
+                          const data = await res.json().catch(() => ({}));
+                          if (res.ok) {
+                            setShowPremiumMessageModal(false);
+                            setPremiumCheck(null);
+                            setPremiumMessageContent('');
+                            setMessagesError(null);
+                            setRefreshThreadTrigger((t) => t + 1);
+                          } else {
+                            setMessagesError(data.error || data.reason || 'Failed to send.');
+                          }
+                        } finally {
+                          setPremiumSending(false);
+                        }
+                      }}
+                      className="px-3 py-1 text-xs bg-moxe-primary text-white rounded-moxe-md disabled:opacity-50"
+                    >
+                      {premiumSending ? 'Sending…' : 'Send'}
+                    </button>
+                  </div>
+                </>
+              )}
+              {premiumCheck && !premiumCheck.canSend && (
+                <button type="button" onClick={() => { setShowPremiumMessageModal(false); setPremiumCheck(null); }} className="mt-2 px-2 py-1 text-xs text-moxe-textSecondary">Close</button>
+              )}
+            </div>
+          </div>
         )}
       </form>
     </ThemedView>

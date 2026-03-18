@@ -17,7 +17,6 @@ export default function ForgotPassword() {
     }
     setLoading(true);
     try {
-      // Stub: connect your backend to send reset link
       await new Promise((r) => setTimeout(r, 800));
       setSent(true);
     } catch {
@@ -31,44 +30,39 @@ export default function ForgotPassword() {
     <div className={`min-h-screen flex flex-col items-center justify-center px-6 py-8 ${AUTH.bg} safe-area-pt safe-area-pb`}>
       <div className={AUTH.container}>
         <div className={AUTH.logoWrapper}>
-          <div className={AUTH.logoBox}>
-            <span className={AUTH.logoLetter}>m</span>
-          </div>
+          <img src="/logo.png" alt="MOxE" className="w-14 h-14 rounded-xl object-cover" />
         </div>
-        <h1 className={AUTH.title}>Forgot password?</h1>
-        <p className={AUTH.subtitle}>
-          Enter your email or phone and we&apos;ll send you a link to get back into your account.
-        </p>
 
-        {error && <div className={`mb-4 ${AUTH.error}`}>{error}</div>}
-        {sent && (
-          <div className={`mb-4 ${AUTH.info}`}>
-            Check your email or messages for a link to reset your password.
-          </div>
-        )}
+        <div className={AUTH.card}>
+          <h1 className={AUTH.title}>Forgot password?</h1>
+          <p className={AUTH.subtitle}>
+            Enter your email or phone and we&apos;ll send you a link to get back into your account.
+          </p>
+          {error && <div className={`mb-4 ${AUTH.error}`}>{error}</div>}
+          {sent && <div className={`mb-4 ${AUTH.info}`}>Check your email or messages for a link to reset your password.</div>}
+          {!sent ? (
+            <form onSubmit={handleSubmit} className="w-full space-y-3">
+              <input
+                type="text"
+                value={emailOrPhone}
+                onChange={(e) => setEmailOrPhone(e.target.value)}
+                placeholder="Email or phone number"
+                autoComplete="username"
+                className={AUTH.input}
+              />
+              <button type="submit" disabled={loading} className={AUTH.btnPrimary}>
+                {loading ? 'Sending…' : 'Send login link'}
+              </button>
+            </form>
+          ) : (
+            <Link to="/login" className={`block text-center ${AUTH.link}`}>Back to Log in</Link>
+          )}
+        </div>
 
-        {!sent ? (
-          <form onSubmit={handleSubmit} className="w-full space-y-3">
-            <input
-              type="text"
-              value={emailOrPhone}
-              onChange={(e) => setEmailOrPhone(e.target.value)}
-              placeholder="Email or phone number"
-              autoComplete="username"
-              className={AUTH.input}
-            />
-            <button type="submit" disabled={loading} className={AUTH.btnPrimary}>
-              {loading ? 'Sending…' : 'Send login link'}
-            </button>
-          </form>
-        ) : (
-          <div className="w-full flex justify-center">
+        <div className={AUTH.footerCard}>
+          <p className={`${AUTH.footerText} text-center`}>
             <Link to="/login" className={AUTH.link}>Back to Log in</Link>
-          </div>
-        )}
-
-        <div className={`w-full mt-8 pt-6 ${AUTH.divider} flex flex-wrap justify-center gap-1 text-sm`}>
-          <Link to="/login" className={AUTH.link}>Back to Log in</Link>
+          </p>
         </div>
       </div>
     </div>

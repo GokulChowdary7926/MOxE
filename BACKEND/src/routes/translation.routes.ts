@@ -4,6 +4,7 @@ import {
   startTranslationSession,
   stopTranslationSession,
   getLanguages,
+  translateTextForFeed,
 } from '../services/translation.service';
 import { prisma } from '../server';
 
@@ -53,6 +54,28 @@ router.post('/stop', async (req, res, next) => {
 
     await stopTranslationSession(sessionId, accountId);
     res.json({ ok: true, message: 'Session ended' });
+  } catch (e: any) {
+    next(e);
+  }
+});
+
+/** POST /api/translate/text – In-feed text translation (post/comment). Body: { text, sourceLang?, targetLang }. */
+router.post('/text', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { text, sourceLang = 'en', targetLang = 'es' } = (req.body || {}) as {
+      text?: string;
+      sourceLang?: string;
+      targetLang?: string;
+    };
+    if (!text || typeof text !== 'string') {
+      return res.status(400).json({ error: 'Missing or invalid text' });
+    }
+
+    const translated = await translateTextForFeed(text, sourceLang, targetLang);
+    res.json({ translatedText: translated, sourceLang, targetLang });
   } catch (e: any) {
     next(e);
   }

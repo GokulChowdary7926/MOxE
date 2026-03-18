@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ThemedView, ThemedHeader, ThemedText, ThemedButton, ThemedInput } from '../../components/ui/Themed';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+import { getApiBase } from '../../services/api';
+const API_BASE = getApiBase();
 
 type ArchivedStory = {
   id: string;
@@ -267,8 +268,14 @@ export default function ManageHighlights() {
                       className="px-2 py-1 text-[11px]"
                     />
                     <Link
+                      to={`/highlights/${encodeURIComponent(h.id)}/edit`}
+                      className="text-moxe-primary text-[11px]"
+                    >
+                      Edit
+                    </Link>
+                    <Link
                       to={`/highlights/${encodeURIComponent(h.id)}`}
-                      className="ml-auto text-moxe-primary text-[11px]"
+                      className="text-moxe-primary text-[11px]"
                     >
                       View
                     </Link>

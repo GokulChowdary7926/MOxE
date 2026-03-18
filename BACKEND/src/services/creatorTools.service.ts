@@ -267,6 +267,49 @@ export class CreatorToolsService {
     return { applications: list };
   }
 
+  /** List applications to my campaigns (brand side): pending and approved for approve/decline UI. */
+  async listBrandCampaignApplications(brandId: string, status?: 'PENDING' | 'ACCEPTED' | 'REJECTED') {
+    const where: { campaign: { brandId: string }; status?: string } = { campaign: { brandId } };
+    if (status) where.status = status;
+    const list = await prisma.brandCampaignApplication.findMany({
+      where,
+      include: {
+        campaign: { select: { id: true, title: true } },
+        creator: { select: { id: true, username: true, displayName: true, profilePhoto: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return { applications: list };
+  }
+
+  async approveBrandCampaignApplication(brandId: string, applicationId: string) {
+    const app = await prisma.brandCampaignApplication.findUnique({
+      where: { id: applicationId },
+      include: { campaign: { select: { brandId: true } } },
+    });
+    if (!app || app.campaign.brandId !== brandId) throw new AppError('Application not found', 404);
+    if (app.status !== 'PENDING') throw new AppError('Application already processed', 400);
+    return prisma.brandCampaignApplication.update({
+      where: { id: applicationId },
+      data: { status: 'ACCEPTED' },
+      include: { creator: { select: { id: true, username: true, displayName: true } } },
+    });
+  }
+
+  async declineBrandCampaignApplication(brandId: string, applicationId: string) {
+    const app = await prisma.brandCampaignApplication.findUnique({
+      where: { id: applicationId },
+      include: { campaign: { select: { brandId: true } } },
+    });
+    if (!app || app.campaign.brandId !== brandId) throw new AppError('Application not found', 404);
+    if (app.status !== 'PENDING') throw new AppError('Application already processed', 400);
+    return prisma.brandCampaignApplication.update({
+      where: { id: applicationId },
+      data: { status: 'REJECTED' },
+      include: { creator: { select: { id: true, username: true, displayName: true } } },
+    });
+  }
+
   /** 9.4 Reel bonus (creator view) */
   async listMyReelBonuses(accountId: string) {
     const list = await prisma.reelBonus.findMany({

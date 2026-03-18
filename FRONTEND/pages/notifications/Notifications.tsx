@@ -1,15 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, Heart, MessageCircle, ChevronRight } from 'lucide-react';
-import { PageLayout } from '../../components/layout/PageLayout';
-import { ThemedText } from '../../components/ui/Themed';
+import { Bell, Heart, MessageCircle, ChevronRight, ChevronLeft, ChevronDown } from 'lucide-react';
+import { ThemedView, ThemedText } from '../../components/ui/Themed';
+import { MobileShell } from '../../components/layout/MobileShell';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { Avatar } from '../../components/ui/Avatar';
 import { UI } from '../../constants/uiTheme';
 import { getApiBase, getToken } from '../../services/api';
-import { mockNotifications } from '../../mocks/notifications';
-import { mockUsers } from '../../mocks/users';
+import { useCurrentAccount } from '../../hooks/useAccountCapabilities';
 
 type NotificationItem = {
   id: string;
@@ -50,10 +49,11 @@ function sectionLabel(date: string): 'Today' | 'Yesterday' | 'Last 7 days' | nul
 }
 
 export default function Notifications() {
+  const currentAccount = useCurrentAccount() as any;
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [followRequestCount] = useState(4); // mock: "ramnaidu365 + 3 others"
+  const [followRequestCount, setFollowRequestCount] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,64 +62,40 @@ export default function Notifications() {
       setError(null);
       try {
         const token = getToken();
-        if (token) {
-          const res = await fetch(`${getApiBase()}/notifications`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          const data = await res.json().catch(() => ({}));
-          if (res.ok && !cancelled) {
-            const list = data.items ?? data.notifications ?? data ?? [];
-            if (list.length > 0) {
-              const mapped: NotificationItem[] = list.map((n: any) => ({
-                id: n.id,
-                type: n.type,
-                actorId: n.actorId ?? n.accountId,
-                actorUsername: n.actor?.username ?? n.account?.username,
-                actorAvatar: n.actor?.profilePhoto ?? n.actor?.avatarUrl,
-                message: n.message ?? n.text ?? '',
-                createdAt: n.createdAt ?? n.timestamp,
-                targetPostId: n.targetPostId ?? n.postId,
-                postThumbUrl: n.postThumbUrl ?? n.mediaUrl,
-              }));
-              setItems(mapped);
-              setLoading(false);
-              return;
-            }
-          }
+        if (!token) {
+          if (!cancelled) setItems([]);
+          return;
         }
-        if (!cancelled) {
-          const mapped: NotificationItem[] = mockNotifications.map((n) => {
-            const actor = mockUsers.find((u) => u.id === n.actorId) ?? mockUsers[0];
-            return {
+        const res = await fetch(`${getApiBase()}/notifications`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!res.ok) {
+          setError((data as { error?: string }).error || 'Failed to load notifications.');
+          setItems([]);
+          return;
+        }
+        const list = data.items ?? data.notifications ?? data ?? [];
+        const mapped: NotificationItem[] = Array.isArray(list)
+          ? list.map((n: any) => ({
               id: n.id,
               type: n.type,
-              actorId: actor.id,
-              actorUsername: actor.username,
-              actorAvatar: actor.avatarUrl,
-              message: n.message,
-              createdAt: n.createdAt,
-              targetPostId: n.targetPostId,
-            };
-          });
-          setItems(mapped);
-        }
+              actorId: n.actorId ?? n.accountId,
+              actorUsername: n.actor?.username ?? n.account?.username,
+              actorAvatar: n.actor?.profilePhoto ?? n.actor?.avatarUrl,
+              message: n.message ?? n.text ?? '',
+              createdAt: n.createdAt ?? n.timestamp,
+              targetPostId: n.targetPostId ?? n.postId,
+              postThumbUrl: n.postThumbUrl ?? n.mediaUrl,
+            }))
+          : [];
+        setItems(mapped);
+        if (typeof data.followRequestCount === 'number') setFollowRequestCount(data.followRequestCount);
       } catch (e: any) {
         if (!cancelled) {
           setError(e.message || 'Failed to load notifications.');
-          const mapped: NotificationItem[] = mockNotifications.map((n) => {
-            const actor = mockUsers.find((u) => u.id === n.actorId) ?? mockUsers[0];
-            return {
-              id: n.id,
-              type: n.type,
-              actorId: actor.id,
-              actorUsername: actor.username,
-              actorAvatar: actor.avatarUrl,
-              message: n.message,
-              createdAt: n.createdAt,
-              targetPostId: n.targetPostId,
-            };
-          });
-          setItems(mapped);
+          setItems([]);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -146,9 +122,35 @@ export default function Notifications() {
     return groups;
   }, [items]);
 
+  const username = currentAccount?.username ?? currentAccount?.handle ?? '';
+
   return (
-    <PageLayout title="Notifications" backTo="/">
-      <div className="py-0">
+    <ThemedView className="min-h-screen flex flex-col bg-black">
+      <MobileShell>
+        {/* Header – account name with dropdown + heart icon, Instagram-style */}
+        <header className="flex items-center justify-between h-12 px-3 border-b border-white/10 bg-black/95 safe-area-pt">
+          <div className="flex items-center gap-2">
+            <Link to="/" className="flex items-center text-white" aria-label="Back">
+              <ChevronLeft className="w-5 h-5" />
+            </Link>
+            <button
+              type="button"
+              className="flex items-center gap-1 text-white font-semibold text-sm"
+            >
+              <span>{username}</span>
+              <ChevronDown className="w-4 h-4" />
+            </button>
+          </div>
+          <button
+            type="button"
+            className="w-8 h-8 flex items-center justify-center text-white"
+            aria-label="Activity"
+          >
+            <Heart className="w-5 h-5" />
+          </button>
+        </header>
+
+        <div className="flex-1 overflow-auto pb-20">
         {followRequestCount > 0 && (
           <Link
             to="/follow/requests"
@@ -174,71 +176,72 @@ export default function Notifications() {
           </Link>
         )}
 
-        {loading && (
-          <ThemedText secondary className="text-[#737373] px-4 py-3">
-            Loading…
-          </ThemedText>
-        )}
-        {error && !loading && (
-          <div className="px-4 py-2">
-            <ErrorState message={error} onRetry={() => window.location.reload()} />
-          </div>
-        )}
-        {!loading && items.length === 0 && !error && (
-          <EmptyState
-            icon={
-              <div className="w-16 h-16 rounded-full bg-[#262626] border border-[#363636] flex items-center justify-center">
-                <Bell className="w-8 h-8 text-[#737373]" />
-              </div>
-            }
-            title="No notifications yet"
-            message="When you get likes, comments, or new followers, you'll see them here."
-          />
-        )}
-        {!loading && items.length > 0 && (
-          <ul className="divide-y divide-[#262626]">
-            {grouped.map(({ label, items: sectionItems }) => (
-              <li key={label}>
-                <h2 className={UI.sectionTitle}>{label}</h2>
-                {sectionItems.map((n) => (
-                  <Link
-                    key={n.id}
-                    to={n.targetPostId ? `/post/${n.targetPostId}` : `/profile/${n.actorUsername ?? n.actorId}`}
-                    className={UI.listRow}
-                  >
-                    <div className={`${UI.listAvatar} relative`}>
-                      <Avatar uri={n.actorAvatar} size={44} className="w-full h-full" />
-                      {n.type === 'like' && (
-                        <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-black flex items-center justify-center">
-                          <Heart className="w-3 h-3 text-red-500 fill-red-500" />
-                        </span>
-                      )}
-                      {n.type === 'comment' && (
-                        <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-black flex items-center justify-center">
-                          <MessageCircle className="w-3 h-3 text-white" />
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <ThemedText className="text-white text-sm">
-                        {n.message}{' '}
-                        <span className="text-[#737373] font-normal">{relativeTime(n.createdAt)}</span>
-                      </ThemedText>
-                    </div>
-                    {n.postThumbUrl ? (
-                      <div className={UI.listThumb}>
-                        <img src={n.postThumbUrl} alt="" className="w-full h-full object-cover" />
+          {loading && (
+            <ThemedText secondary className="text-[#737373] px-4 py-3">
+              Loading…
+            </ThemedText>
+          )}
+          {error && !loading && (
+            <div className="px-4 py-2">
+              <ErrorState message={error} onRetry={() => window.location.reload()} />
+            </div>
+          )}
+          {!loading && items.length === 0 && !error && (
+            <EmptyState
+              icon={
+                <div className="w-16 h-16 rounded-full bg-[#262626] border border-[#363636] flex items-center justify-center">
+                  <Bell className="w-8 h-8 text-[#737373]" />
+                </div>
+              }
+              title="No notifications yet"
+              message="When you get likes, comments, or new followers, you'll see them here."
+            />
+          )}
+          {!loading && items.length > 0 && (
+            <ul className="divide-y divide-[#262626]">
+              {grouped.map(({ label, items: sectionItems }) => (
+                <li key={label}>
+                  <h2 className={UI.sectionTitle}>{label}</h2>
+                  {sectionItems.map((n) => (
+                    <Link
+                      key={n.id}
+                      to={n.targetPostId ? `/post/${n.targetPostId}` : `/profile/${n.actorUsername ?? n.actorId}`}
+                      className={UI.listRow}
+                    >
+                      <div className={`${UI.listAvatar} relative`}>
+                        <Avatar uri={n.actorAvatar} size={44} className="w-full h-full" />
+                        {n.type === 'like' && (
+                          <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-black flex items-center justify-center">
+                            <Heart className="w-3 h-3 text-red-500 fill-red-500" />
+                          </span>
+                        )}
+                        {n.type === 'comment' && (
+                          <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-black flex items-center justify-center">
+                            <MessageCircle className="w-3 h-3 text-white" />
+                          </span>
+                        )}
                       </div>
-                    ) : (
-                      <div className={UI.listThumb} />
-                    )}
-                  </Link>
-                ))}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </PageLayout>
+                      <div className="flex-1 min-w-0">
+                        <ThemedText className="text-white text-sm">
+                          {n.message}{' '}
+                          <span className="text-[#737373] font-normal">{relativeTime(n.createdAt)}</span>
+                        </ThemedText>
+                      </div>
+                      {n.postThumbUrl ? (
+                        <div className={UI.listThumb}>
+                          <img src={n.postThumbUrl} alt="" className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        <div className={UI.listThumb} />
+                      )}
+                    </Link>
+                  ))}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </MobileShell>
+    </ThemedView>
   );
 }

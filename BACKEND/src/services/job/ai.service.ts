@@ -40,17 +40,37 @@ export class JobAIService {
       },
     });
 
-    // Very simple deterministic "AI" response as placeholder.
+    // Contextual, helpful reply (placeholder when no external LLM is configured).
+    const lower = prompt.toLowerCase();
+    let guidance = '';
+    if (/\b(job|posting|requisition|hire|recruit)\b/.test(lower)) {
+      guidance =
+        'Job postings & recruiting: Use MOxE Recruiter (or Track) to create job postings, set up pipelines, and move candidates through stages. Create a job from the Recruiter or Track tab, then add pipeline stages and start receiving applications.';
+    } else if (/\b(track|board|sprint|agile|backlog|issue)\b/.test(lower)) {
+      guidance =
+        'Track & Agile: Use MOxE Track for job requisitions and pipelines, and Agile for project boards, sprints, and issues. Create a project, add issues to the backlog, and run sprints from the Agile tab.';
+    } else if (/\b(code|repo|source|search)\b/.test(lower)) {
+      guidance =
+        'Code & search: Use Code for repos and Code Search to find code across your Job workspace. Link repos to projects in Track/Agile for traceability.';
+    } else if (/\b(doc|know|wiki|page)\b/.test(lower)) {
+      guidance =
+        '**Docs & Know:** Use **MOxE Know** for spaces and pages (wiki-style), and **Docs** for real-time collaborative documents. Create a space, then add pages or invite others to edit.';
+    } else if (/\b(flow|work|chat|ticket)\b/.test(lower)) {
+      guidance =
+        'Flow, Work & Chat: Flow is for lightweight boards; Work for tasks and time; Chat for support-style tickets and conversations. Pick the tool that matches how your team works.';
+    } else {
+      guidance =
+        `You asked: "${prompt.slice(0, 200)}${prompt.length > 200 ? '…' : ''}"\n\n` +
+        'Quick tips:\n' +
+        '• Track — Job postings, pipelines, applications.\n' +
+        '• Agile — Projects, sprints, issues, board view.\n' +
+        '• Know — Spaces and pages (wiki).\n' +
+        '• Code / Code Search — Repos and code search.\n' +
+        '• Docs — Real-time documents.\n\n' +
+        'Tell me what you want to do (e.g. create a job, set up a sprint, or find code), and I can give step-by-step guidance.';
+    }
     const responseText =
-      'MOxE AI (Job) received your prompt and is not yet wired to a live model. ' +
-      'Here is a structured echo you can use for planning:\n\n' +
-      '---\n' +
-      `Prompt summary: ${prompt.slice(0, 280)}\n\n` +
-      'Next actions:\n' +
-      '- Clarify the specific objective and constraints.\n' +
-      '- Identify the MOxE Job tools and data involved.\n' +
-      '- Break the work into small, testable steps.\n\n' +
-      'When a real AI backend is configured, this endpoint will return model-generated guidance instead of this placeholder.';
+      'Here’s how MOxE can help:\n\n' + guidance + "\n\nTo get deeper, model-generated answers, configure an AI provider in your environment.";
 
     const assistantMessage = await prisma.jobAIAudit.create({
       data: {
