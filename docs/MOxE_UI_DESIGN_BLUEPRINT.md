@@ -1,15 +1,15 @@
-# MOxE UI Design Blueprint – Instagram-Aligned
+# MOxE UI Design Blueprint – MOxE-Aligned
 
-This document is the **single source of truth** for MOxE’s Instagram-style UI: layout, typography, colors, and components. Use it for implementation and design QA.
+This document is the **single source of truth** for MOxE’s MOxE-style UI: layout, typography, colors, and components. Use it for implementation and design QA.
 
 **References:**
-- **Instagram Complete Architectural Deep Dive** – Features, personas, bottom tabs, page layouts, Map tab (Nearby/People/Alerts, SOS), and workflows. MOxE mirrors this spec.
+- **MOxE Complete Architectural Deep Dive** – Features, personas, bottom tabs, page layouts, Map tab (Nearby/People/Alerts, SOS), and workflows. MOxE mirrors this spec.
 - **MOxE End-to-End Implementation Blueprint** (`MOxE_END_TO_END_BLUEPRINT.md`) – System architecture, frontend/backend/data layers, feature implementation, location deep dive, workflows, and development roadmap. Use it for full-stack planning; the current repo (React web + Node + Prisma) implements the same patterns and can evolve toward that target stack.
 - **MOxE Web / Mobile Alignment** (`MOXE_WEB_MOBILE_ALIGNMENT.md`) – Design tokens, bottom nav, and screen layout are aligned between the web app (FRONTEND) and the mobile app (MOBILE). Follow it for consistent UI end-to-end.
 
 ---
 
-## 1. Architecture & Navigation (Instagram Pattern)
+## 1. Architecture & Navigation (MOxE Pattern)
 
 ### 1.1 Shell
 - **Container:** Single column, max-width **428px** (mobile-first), centered on larger screens.
@@ -20,7 +20,7 @@ This document is the **single source of truth** for MOxE’s Instagram-style UI:
 - **Height:** 48px (12 in 4px grid).
 - **Content:** Logo (left), primary actions (right): Create (+), Notifications (bell), Menu (grid).
 - **Background:** `#111111` (moxe-surface). Border bottom: `#262626` (moxe-border).
-- **No** status text or extra line under the logo (Instagram: logo + icons only).
+- **No** status text or extra line under the logo (MOxE: logo + icons only).
 
 ### 1.3 Bottom Tab Bar (Primary Navigation)
 - **Personal:** Home | Explore | Reels | Map | Messages | Profile.
@@ -71,7 +71,7 @@ This document is the **single source of truth** for MOxE’s Instagram-style UI:
 
 ---
 
-## 4. Colors (Dark Default – Instagram-Like)
+## 4. Colors (Dark Default – MOxE-Like)
 
 | Role           | Token            | Hex       | Use                    |
 |----------------|------------------|-----------|------------------------|
@@ -90,7 +90,7 @@ This document is the **single source of truth** for MOxE’s Instagram-style UI:
 
 ---
 
-## 5. Key Screens (Instagram Parity)
+## 5. Key Screens (MOxE Parity)
 
 ### 5.1 Home
 - **Layout:** Full-bleed. Story tray (horizontal scroll) → Feed (vertical list).
@@ -103,7 +103,7 @@ This document is the **single source of truth** for MOxE’s Instagram-style UI:
 ### 5.3 Reels
 - **Layout:** Full-bleed vertical scroll. Sticky header: Back + “Reels”. Player per reel.
 
-### 5.4 Map (MOxE – Instagram-style location)
+### 5.4 Map (MOxE – MOxE-style location)
 - **Layout:** Search bar (places/users) → map canvas → **floating SOS button** (always visible) → bottom sheet tabs **[Nearby] [People] [Alerts]**.
 - **Nearby:** Nearby places (businesses, landmarks); list + map pins when available.
 - **People:** Nearby people (opt-in); list with Message action; respects Ghost Mode.
@@ -127,9 +127,9 @@ This document is the **single source of truth** for MOxE’s Instagram-style UI:
 
 ---
 
-## Architecture map (Instagram doc → MOxE)
+## Architecture map (MOxE doc → MOxE)
 
-| Layer | Instagram | MOxE |
+| Layer | MOxE | MOxE |
 |-------|-----------|------|
 | **Presentation** | React Native UI components | React (web) – ThemedView, PageLayout, FeedPost, StoryCircle, etc. |
 | **Application** | Redux/MobX, tab/stack nav | Redux (auth, account), React Router, BottomNav by account type |
@@ -161,7 +161,7 @@ This document is the **single source of truth** for MOxE’s Instagram-style UI:
 
 ---
 
-## 8. Consistency Checklist (Instagram parity)
+## 8. Consistency Checklist (MOxE parity)
 
 - [x] **Shell:** max-width 428px, centered, `.mobile-shell` in CSS; safe-area-pt/pb on header and main.
 - [x] **Top bar:** Logo (left), Create (+), Notifications (bell), Menu (grid) only; no status text under logo. Shop / Voice in menu.
@@ -176,9 +176,9 @@ This document is the **single source of truth** for MOxE’s Instagram-style UI:
 
 ---
 
-## 9. Instagram UI reference – Settings & sub-features (from reference screens)
+## 9. MOxE UI reference – Settings & sub-features (from reference screens)
 
-Use these patterns so MOxE settings and sub-features match Instagram's look and behaviour.
+Use these patterns so MOxE settings and sub-features match MOxE's look and behaviour.
 
 ### 9.1 Settings sub-screens (stack)
 - **Header:** Back (chevron left), **title centered**, no right icon unless needed.
@@ -190,7 +190,7 @@ Use these patterns so MOxE settings and sub-features match Instagram's look and 
 - **Copy (below toggle):** Two short paragraphs: (1) Public: "When your account is public, your profile and posts can be seen by anyone, on or off MOxE, even if they don't have an account." (2) Private: "When your account is private, only the followers that you approve can see what you share, including your photos or videos on hashtag and location pages, and your followers and following lists. Certain info on your profile, such as your profile picture and username, is visible to everyone on and off MOxE."
 - **Link:** "Learn more" in primary color (moxe-primary).
 
-### 9.3 Notification / preference sub-screens (e.g. "Posts, stories and comments", "Following and followers", "Messages", "Email notifications", "From Instagram", "Live and reels")
+### 9.3 Notification / preference sub-screens (e.g. "Posts, stories and comments", "Following and followers", "Messages", "Email notifications", "From MOxE", "Live and reels")
 - **Sections:** Bold section heading; then **radio options** (Off / On, or Off / From profiles I follow / From everyone, etc.); **example/helper text** below in lighter grey (e.g. "johnappleseed added your photo to their post.").
 - **Radio:** Circle outline; selected = filled inner circle; options on the right of each row.
 

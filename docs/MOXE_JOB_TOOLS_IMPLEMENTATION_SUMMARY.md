@@ -29,7 +29,7 @@ Summary of layout/styling fixes and patterns to apply across Job tools.
 | **`JobPageContent`** | Consistent wrapper: title, description, error styling, spacing |
 | **`getApiBase()`** | Unified API URL from `services/api` (no hardcoded env) |
 
-### 1.4 Styling (Atlassian-style tokens)
+### 1.4 Styling (MOxE-style tokens)
 
 ```css
 --text-primary: #172B4D;
@@ -51,12 +51,12 @@ Summary of layout/styling fixes and patterns to apply across Job tools.
 | **Overview** | `getApiBase()`, correct layout |
 | **Track** | `JobPageContent`, loading/empty, modal styling |
 | **Flow** | `JobPageContent`, board cards, "New board" button |
-| **Recruiter** | JobPageContent, getApiBase, Atlassian styling |
-| **Agile** | JobPageContent, getApiBase, Atlassian styling |
-| **Code** | JobPageContent, getApiBase, Atlassian styling (repo list, buttons, borders) |
-| **Docs** | JobPageContent, getApiBase, Atlassian styling (buttons, borders, doc list) |
-| **Status** | JobPageContent, getApiBase, Atlassian styling |
-| **Build** | JobPageContent, getApiBase, Atlassian styling |
+| **Recruiter** | JobPageContent, getApiBase, MOxE styling |
+| **Agile** | JobPageContent, getApiBase, MOxE styling |
+| **Code** | JobPageContent, getApiBase, MOxE styling (repo list, buttons, borders) |
+| **Docs** | JobPageContent, getApiBase, MOxE styling (buttons, borders, doc list) |
+| **Status** | JobPageContent, getApiBase, MOxE styling |
+| **Build** | JobPageContent, getApiBase, MOxE styling |
 | **Compass** | JobPageContent, getApiBase |
 | **Atlas** | JobPageContent, getApiBase |
 
@@ -99,8 +99,8 @@ const res = await fetch(`${apiBase}/job/your-endpoint`, { headers });
 | **Agile** | `/job/agile` | High | Updated (JobPageContent, getApiBase, styling) |
 | **Code** | `/job/code` | Medium | Updated (JobPageContent, getApiBase, styling) |
 | **Docs** | `/job/docs` | Medium | Updated (JobPageContent, getApiBase, styling) |
-| **Status** | `/job/status` | Low | Updated (JobPageContent, getApiBase, Atlassian styling) |
-| **Build** | `/job/build` | Low | Updated (JobPageContent, getApiBase, Atlassian styling) |
+| **Status** | `/job/status` | Low | Updated (JobPageContent, getApiBase, MOxE styling) |
+| **Build** | `/job/build` | Low | Updated (JobPageContent, getApiBase, MOxE styling) |
 | **Compass** | `/job/compass` | Low | Updated (JobPageContent, getApiBase) |
 | **Atlas** | `/job/atlas` | Low | Updated (JobPageContent, getApiBase) |
 | **Video** | `/job/video` | Low | ⬜ |
@@ -122,7 +122,7 @@ const res = await fetch(`${apiBase}/job/your-endpoint`, { headers });
 - [ ] Loading states show skeleton or clear loading UI
 - [ ] Empty states show message + CTA
 - [ ] Error states show message + retry
-- [ ] Buttons use Atlassian primary/secondary colors
+- [ ] Buttons use MOxE primary/secondary colors
 - [ ] Cards use border `#DFE1E6`
 - [ ] Text: primary `#172B4D`, secondary `#5E6C84`
 - [ ] API calls use `getApiBase()`

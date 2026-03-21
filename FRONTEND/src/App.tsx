@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { Toaster } from 'react-hot-toast';
@@ -8,7 +8,6 @@ import Splash from '../pages/auth/Splash';
 import Login from '../pages/auth/Login';
 import Register from '../pages/auth/Register';
 import Onboarding from '../pages/auth/Onboarding';
-import PhoneVerification from '../pages/auth/PhoneVerification';
 import ForgotPassword from '../pages/auth/ForgotPassword';
 import AuthCallback from '../pages/auth/AuthCallback';
 import ComingSoonPage from '../pages/ComingSoonPage';
@@ -42,6 +41,7 @@ import Reels from '../pages/reels/Reels';
 import Live from '../pages/live/Live';
 import LiveReplay from '../pages/live/LiveReplay';
 import LiveWatch from '../pages/live/LiveWatch';
+import LiveStart from '../pages/live/LiveStart';
 import CreateStoryPage from '../pages/stories/CreateStory';
 import AddStoryPage from '../pages/stories/AddStoryPage';
 import CameraPage from '../pages/stories/CameraPage';
@@ -156,6 +156,7 @@ import StoryLiveLocationSettings from '../pages/settings/StoryLiveLocationSettin
 import MapWhoCanSeeLocation from '../pages/settings/MapWhoCanSeeLocation';
 import ActivityInFriendsTabSettings from '../pages/settings/ActivityInFriendsTabSettings';
 import MessageAndStoryReplySettings from '../pages/settings/MessageAndStoryReplySettings';
+import BlockedMessagingSettings from '../pages/settings/BlockedMessagingSettings';
 import MessageRequestSettings from '../pages/settings/MessageRequestSettings';
 import StoryReplySettings from '../pages/settings/StoryReplySettings';
 import ShowActivityStatusSettings from '../pages/settings/ShowActivityStatusSettings';
@@ -310,7 +311,8 @@ import { ThemeRouter } from './theme/ThemeRouter';
 import ThemeSettingsPage from '../pages/settings/ThemeSettingsPage';
 
 import { RootState, store } from '../store';
-import { initializeSocket } from '../services/socket';
+import { initializeSocket, registerAccount } from '../services/socket';
+import { getApiBase, getToken } from '../services/api';
 import { setCurrentAccount, setCapabilities } from '../store/accountSlice';
 import { fetchMe, logoutThunk } from '../store/authSlice';
 
@@ -343,7 +345,9 @@ function ConditionalAppHeader() {
     pathname === '/' ||
     pathname.startsWith('/messages') ||
     pathname.startsWith('/map') ||
-    pathname.startsWith('/profile');
+    pathname.startsWith('/profile') ||
+    pathname.startsWith('/settings') ||
+    pathname.startsWith('/job');
   if (!isAuthenticated || hasOwnHeader) return null;
   return <MobileHeader />;
 }
@@ -351,12 +355,17 @@ function ConditionalAppHeader() {
 function App() {
   const { isAuthenticated, user, token } = useSelector((state: RootState) => state.auth);
   const { currentAccount } = useSelector((state: RootState) => state.account);
+  const lastLocationSyncRef = useRef(0);
 
   useEffect(() => {
     if (isAuthenticated && user) {
-      initializeSocket(user.id);
+      initializeSocket(user.id, currentAccount?.id);
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, currentAccount?.id]);
+
+  useEffect(() => {
+    if (currentAccount?.id) registerAccount(currentAccount.id);
+  }, [currentAccount?.id]);
 
   useEffect(() => {
     if (!isAuthenticated || !token) return;
@@ -372,14 +381,45 @@ function App() {
       });
   }, [isAuthenticated, token]);
 
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (!navigator.geolocation) return;
+    const authToken = getToken();
+    if (!authToken) return;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const now = Date.now();
+        if (now - lastLocationSyncRef.current < 30000) return;
+        lastLocationSyncRef.current = now;
+        fetch(`${getApiBase()}/location`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+          }),
+        }).catch(() => {});
+      },
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 15000, timeout: 15000 },
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [isAuthenticated, token]);
+
   return (
     <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <QueryClientProvider client={queryClient}>
+      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <ThemeRouter />
           <MobileShell>
           <ConditionalAppHeader />
-
+          
           <MainWithPadding>
             <Routes>
               <Route path="/splash" element={<Splash />} />
@@ -390,7 +430,7 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
               <Route path="/register" element={<Register />} />
-              <Route path="/verify" element={<PhoneVerification />} />
+              <Route path="/verify" element={<Navigate to="/register" replace />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
 
                 <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
@@ -410,7 +450,7 @@ function App() {
                 <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
                 <Route path="/profile/:username/followers" element={<ProtectedRoute><Followers /></ProtectedRoute>} />
                 <Route path="/profile/:username/following" element={<ProtectedRoute><FollowingPage /></ProtectedRoute>} />
-                <Route path="/profile/edit" element={<ProtectedRoute><EditProfile /></ProtectedRoute>} />
+              <Route path="/profile/edit" element={<ProtectedRoute><EditProfile /></ProtectedRoute>} />
                 <Route path="/profile/:username?" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                 <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
                 <Route path="/settings/algorithm-preferences" element={<ProtectedRoute><AlgorithmPreferencesPage /></ProtectedRoute>} />
@@ -503,7 +543,7 @@ function App() {
                 <Route path="/settings/device-permissions/:perm" element={<ProtectedRoute><DevicePermissionDetailPage /></ProtectedRoute>} />
                 <Route path="/settings/archiving-downloading" element={<ProtectedRoute><ArchivingDownloadingSettings /></ProtectedRoute>} />
                 <Route path="/settings/download-your-data" element={<ProtectedRoute><DownloadYourDataPage /></ProtectedRoute>} />
-                <Route path="/settings/accessibility" element={<ProtectedRoute><AccessibilitySettings /></ProtectedRoute>} />
+              <Route path="/settings/accessibility" element={<ProtectedRoute><AccessibilitySettings /></ProtectedRoute>} />
                 <Route path="/settings/media-quality" element={<ProtectedRoute><MediaQualitySettings /></ProtectedRoute>} />
                 <Route path="/settings/app-website-permissions" element={<ProtectedRoute><AppWebsitePermissionsSettings /></ProtectedRoute>} />
                 <Route path="/settings/app-website-permissions/apps" element={<ProtectedRoute><AppsAndWebsitesPage /></ProtectedRoute>} />
@@ -523,10 +563,12 @@ function App() {
                 <Route path="/settings/content-preferences/political" element={<ProtectedRoute><PoliticalContentSettings /></ProtectedRoute>} />
                 <Route path="/settings/content-preferences/not-interested" element={<ProtectedRoute><NotInterestedSettings /></ProtectedRoute>} />
                 <Route path="/settings/like-share-counts" element={<ProtectedRoute><LikeShareCountsSettings /></ProtectedRoute>} />
+                <Route path="/settings/subscription" element={<ProtectedRoute><SubscriptionPlansPage /></ProtectedRoute>} />
                 <Route path="/settings/subscriptions" element={<ProtectedRoute><SubscriptionsSettings /></ProtectedRoute>} />
                 <Route path="/settings/subscriptions/plans" element={<ProtectedRoute><SubscriptionPlansPage /></ProtectedRoute>} />
                 <Route path="/settings/activity-friends-tab" element={<ProtectedRoute><ActivityInFriendsTabSettings /></ProtectedRoute>} />
                 <Route path="/settings/messages" element={<ProtectedRoute><MessageAndStoryReplySettings /></ProtectedRoute>} />
+                <Route path="/settings/blocked-messaging" element={<ProtectedRoute><BlockedMessagingSettings /></ProtectedRoute>} />
                 <Route path="/settings/messages/message-requests" element={<ProtectedRoute><MessageRequestSettings /></ProtectedRoute>} />
                 <Route path="/settings/messages/story-replies" element={<ProtectedRoute><StoryReplySettings /></ProtectedRoute>} />
                 <Route path="/settings/messages/activity-status" element={<ProtectedRoute><ShowActivityStatusSettings /></ProtectedRoute>} />
@@ -686,6 +728,7 @@ function App() {
                 <Route path="/create/reel/fundraiser" element={<ProtectedRoute><ReelFundraiserPage /></ProtectedRoute>} />
                 <Route path="/reels" element={<ProtectedRoute><Reels /></ProtectedRoute>} />
                 <Route path="/live" element={<ProtectedRoute><Live /></ProtectedRoute>} />
+                <Route path="/live/start" element={<ProtectedRoute><LiveStart /></ProtectedRoute>} />
                 <Route path="/live/replay/:liveId" element={<ProtectedRoute><LiveReplay /></ProtectedRoute>} />
                 <Route path="/live/:liveId" element={<ProtectedRoute><LiveWatch /></ProtectedRoute>} />
                 <Route path="/live/:liveId/messages" element={<ProtectedRoute><LiveMessagePage /></ProtectedRoute>} />
@@ -722,8 +765,8 @@ function App() {
               style: { background: '#262626', color: '#fff' },
           }}
         />
-        </Router>
-      </QueryClientProvider>
+      </Router>
+    </QueryClientProvider>
     </ThemeProvider>
   );
 }

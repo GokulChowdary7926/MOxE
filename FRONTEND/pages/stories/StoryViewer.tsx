@@ -4,6 +4,7 @@ import { ThemedView, ThemedText, ThemedButton } from '../../components/ui/Themed
 import { Avatar } from '../../components/ui/Avatar';
 import { getSocket } from '../../services/socket';
 import { getApiBase } from '../../services/api';
+import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
 import { Heart, X, Star, Users, Bookmark, AtSign, MoreVertical } from 'lucide-react';
 
 const API_BASE = getApiBase();
@@ -474,7 +475,7 @@ export default function StoryViewer() {
                 ))}
               </div>
               <img
-                src={current.mediaUrl}
+                src={ensureAbsoluteMediaUrl(current.mediaUrl)}
                 alt={current.text || 'Story'}
                 className="w-full h-full object-cover select-none"
               />

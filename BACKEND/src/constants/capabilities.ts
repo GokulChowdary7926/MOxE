@@ -15,6 +15,8 @@ export type SubscriptionTier = (typeof SUBSCRIPTION_TIERS)[number];
 /** Creator FREE: basic creator (live, schedule, analytics 7d, 5 links); Creator THICK (Paid $5): + subscriptions, badges, gifts, full analytics, Blue Badge */
 /** Job: Paid only ($10/mo). Track, Know, Flow, dual profile, job feed, networking. Purple Verification Badge when verified. 10GB base storage. */
 
+import { getFullCapabilities, type FullAccountCapabilities } from './tierCapabilities';
+
 export interface AccountCapabilities {
   // Content
   canPost: boolean;
@@ -43,111 +45,111 @@ export interface AccountCapabilities {
   canDualProfile: boolean;
   canJobFeed: boolean;
   canNetworking: boolean;
-  // Real-time translation (4.3.1) – paid only
   canLiveTranslation: boolean;
-  // Meta
   label: string;
   description: string;
+  // Extended (subscription system) – included in /accounts/me capabilities
+  cloudStorageGB?: number;
+  hasBlueBadge?: boolean;
+  hasPurpleBadge?: boolean;
+  hasAds?: boolean;
+  canViewProfileVisitors?: boolean;
+  anonymousStoryViewsPerDay?: number;
+  canSendToBlockedUsers?: number;
+  hasDownloadProtection?: boolean;
+  hasVoiceCommands?: 'none' | 'basic' | 'advanced';
+  hasTrendingAudio?: boolean;
+  hasContentIdeas?: boolean;
+  hasContentCalendar?: boolean;
+  canRunAds?: boolean;
+  maxProducts?: number;
+  hasLiveShopping?: boolean;
+  hasTeamManagement?: boolean;
+  canUseSubscriptions?: boolean;
+  canUseBadges?: boolean;
+  canUseGifts?: boolean;
+  canUseBrandedContent?: boolean;
+  hasBrandMarketplace?: boolean;
+  hasJobTools?: boolean;
+  professionalTools?: string[];
+  supportPriority?: 'standard' | 'priority' | 'emergency';
+  supportResponseTime?: string;
+  nearbyMessagingFreePosts?: number;
+  nearbyMessagingFreeMessages?: number;
+  nearbyMessagingExtraCost?: number;
+}
+
+function mapFullToLegacy(full: FullAccountCapabilities, accountType: AccountType): AccountCapabilities {
+  const base: AccountCapabilities = {
+    canPost: true,
+    canStory: true,
+    canReel: true,
+    canLive: accountType === 'BUSINESS' || accountType === 'CREATOR',
+    canSchedulePosts: full.canSchedulePosts,
+    maxLinks: accountType === 'PERSONAL' && full.subscriptionTier !== 'STAR' ? 1 : 5,
+    canDm: true,
+    canExplore: true,
+    canCloseFriends: true,
+    canSavedCollections: true,
+    canCommerce: accountType === 'BUSINESS',
+    canSubscriptions: full.canUseSubscriptions || accountType === 'BUSINESS',
+    canBadgesGifts: full.canUseBadges || full.canUseGifts || accountType === 'BUSINESS',
+    canBusinessHours: accountType === 'BUSINESS',
+    canActionButtons: accountType === 'BUSINESS' || accountType === 'CREATOR',
+    canAnalytics: true,
+    canTrack: full.hasJobTools,
+    canKnow: full.hasJobTools,
+    canFlow: full.hasJobTools,
+    canWork: full.hasJobTools,
+    canDualProfile: full.hasJobTools,
+    canJobFeed: full.hasJobTools,
+    canNetworking: full.hasJobTools,
+    canLiveTranslation: full.hasVoiceCommands !== 'none',
+    label: full.accountType === 'PERSONAL' ? (full.subscriptionTier === 'STAR' ? 'Personal (Star)' : 'Personal') : full.accountType,
+    description: '',
+    cloudStorageGB: full.cloudStorageGB,
+    hasBlueBadge: full.hasBlueBadge,
+    hasPurpleBadge: full.hasPurpleBadge,
+    hasAds: full.hasAds,
+    canViewProfileVisitors: full.canViewProfileVisitors,
+    anonymousStoryViewsPerDay: full.anonymousStoryViewsPerDay,
+    canSendToBlockedUsers: full.canSendToBlockedUsers,
+    hasDownloadProtection: full.hasDownloadProtection,
+    hasVoiceCommands: full.hasVoiceCommands,
+    hasTrendingAudio: full.hasTrendingAudio,
+    hasContentIdeas: full.hasContentIdeas,
+    hasContentCalendar: full.hasContentCalendar,
+    canRunAds: full.canRunAds,
+    maxProducts: full.maxProducts,
+    hasLiveShopping: full.hasLiveShopping,
+    hasTeamManagement: full.hasTeamManagement,
+    canUseSubscriptions: full.canUseSubscriptions,
+    canUseBadges: full.canUseBadges,
+    canUseGifts: full.canUseGifts,
+    canUseBrandedContent: full.canUseBrandedContent,
+    hasBrandMarketplace: full.hasBrandMarketplace,
+    hasJobTools: full.hasJobTools,
+    professionalTools: full.professionalTools,
+    supportPriority: full.supportPriority,
+    supportResponseTime: full.supportResponseTime,
+    nearbyMessagingFreePosts: full.nearbyMessagingFreePosts,
+    nearbyMessagingFreeMessages: full.nearbyMessagingFreeMessages,
+    nearbyMessagingExtraCost: full.nearbyMessagingExtraCost,
+  };
+  if (accountType === 'PERSONAL') base.description = full.subscriptionTier === 'STAR' ? 'Star: scheduling, insights, close friends, collections' : 'Free: feed, posts, stories, DMs, 1 link';
+  else if (accountType === 'BUSINESS') base.description = 'Thick: commerce, live, business hours, action buttons, analytics';
+  else if (accountType === 'CREATOR') base.description = full.subscriptionTier === 'THICK' ? 'Creator Paid: live, subscriptions, badges, gifts, full analytics, Blue Badge' : 'Creator Free: live, schedule, basic analytics, 5 links';
+  else if (accountType === 'JOB') base.description = 'Track, Know, Flow, dual profile, job feed, networking';
+  else base.description = 'Free account';
+  return base;
 }
 
 export function getCapabilities(
   accountType: AccountType,
   subscriptionTier: SubscriptionTier
 ): AccountCapabilities {
-  const base = {
-    canPost: true,
-    canStory: true,
-    canReel: true,
-    canLive: false,
-    canSchedulePosts: false,
-    maxLinks: 1,
-    canDm: true,
-    canExplore: true,
-    canCloseFriends: false,
-    canSavedCollections: false,
-    canCommerce: false,
-    canSubscriptions: false,
-    canBadgesGifts: false,
-    canBusinessHours: false,
-    canActionButtons: false,
-    canAnalytics: false,
-    canTrack: false,
-    canKnow: false,
-    canFlow: false,
-    canWork: false,
-    canDualProfile: false,
-    canJobFeed: false,
-    canNetworking: false,
-    canLiveTranslation: false,
-    label: '',
-    description: '',
-  };
-
-  switch (accountType) {
-    case 'PERSONAL':
-      base.label = subscriptionTier === 'STAR' ? 'Personal (Star)' : 'Personal';
-      base.description =
-        subscriptionTier === 'STAR'
-          ? 'Star: scheduling, insights, close friends, collections'
-          : 'Free: feed, posts, stories, DMs, 1 link';
-      base.canCloseFriends = true;
-      base.canSavedCollections = true;
-      base.canSchedulePosts = subscriptionTier === 'STAR';
-      base.canAnalytics = subscriptionTier === 'STAR';
-      base.canLiveTranslation = subscriptionTier === 'STAR';
-      if (subscriptionTier === 'STAR') base.maxLinks = 5;
-      break;
-    case 'BUSINESS':
-      base.label = 'Business';
-      base.description = 'Thick: commerce, live, business hours, action buttons, analytics';
-      base.canLive = true;
-      base.canSchedulePosts = true;
-      base.canCommerce = true;
-      base.canBusinessHours = true;
-      base.canActionButtons = true;
-      base.canAnalytics = true;
-      base.canSubscriptions = true;
-      base.canBadgesGifts = true;
-      base.maxLinks = 5;
-      break;
-    case 'CREATOR':
-      // Creator includes ALL Personal account features (Guide Section 0: Close Friends, Archive, Highlights, Save & Collections)
-      base.label = subscriptionTier === 'THICK' ? 'Creator (Paid)' : 'Creator';
-      base.description =
-        subscriptionTier === 'THICK'
-          ? 'Creator Paid: live, subscriptions, badges, gifts, full analytics, Blue Badge'
-          : 'Creator Free: live, schedule, basic analytics, 5 links';
-      base.canLive = true;
-      base.canSchedulePosts = true;
-      base.canAnalytics = true;
-      base.maxLinks = 5;
-      base.canCloseFriends = true;
-      base.canSavedCollections = true;
-      base.canSubscriptions = subscriptionTier === 'THICK';
-      base.canBadgesGifts = subscriptionTier === 'THICK';
-      base.canActionButtons = true;
-      base.canLiveTranslation = subscriptionTier === 'THICK';
-      break;
-    case 'JOB':
-      base.label = 'Job';
-      base.description = 'Track, Know, Flow, dual profile, job feed, networking';
-      base.canTrack = true;
-      base.canKnow = true;
-      base.canFlow = true;
-      base.canWork = true;
-      base.canDualProfile = true;
-      base.canJobFeed = true;
-      base.canNetworking = true;
-      base.canSchedulePosts = true;
-      base.canSavedCollections = true;
-      base.canCloseFriends = true;
-      base.maxLinks = 5;
-      break;
-    default:
-      base.label = 'Personal';
-      base.description = 'Free account';
-  }
-  return base;
+  const full = getFullCapabilities(accountType, subscriptionTier);
+  return mapFullToLegacy(full, accountType);
 }
 
 export function canAccessFeature(

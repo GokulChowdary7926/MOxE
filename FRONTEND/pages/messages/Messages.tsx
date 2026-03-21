@@ -1,15 +1,17 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { ChevronDown, PenSquare, Camera, Search as SearchIcon, Mic, Square } from 'lucide-react';
+import { PenSquare, Camera, Search as SearchIcon, Mic, Square, StickyNote } from 'lucide-react';
 import { ThemedView, ThemedText, ThemedHeader, ThemedInput, ThemedButton } from '../../components/ui/Themed';
 import { Avatar } from '../../components/ui/Avatar';
 import { MobileShell } from '../../components/layout/MobileShell';
+import { MoxePageHeader } from '../../components/layout/MoxePageHeader';
 import { useAccountType } from '../../hooks/useAccountCapabilities';
 import { connectDmSocket, getDmSocket } from '../../services/dmSocket';
 import type { RootState } from '../../store';
 
 import { getApiBase, getToken } from '../../services/api';
+import { normalizeToArray } from '../../utils/safeAccess';
 import { mockThreads } from '../../mocks/messages';
 import { mockMessages as mockMessagesList } from '../../mocks/messages';
 import { mockUsers } from '../../mocks/users';
@@ -64,8 +66,31 @@ export default function Messages() {
   const [premiumMessageContent, setPremiumMessageContent] = useState('');
   const [premiumCheck, setPremiumCheck] = useState<{ canSend: boolean; reason?: string; remainingGrants: number; characterLimit: number } | null>(null);
   const [premiumSending, setPremiumSending] = useState(false);
+  const [premiumBlockedReceivedItems, setPremiumBlockedReceivedItems] = useState<any[]>([]);
+  const [loadingPremiumBlockedReceived, setLoadingPremiumBlockedReceived] = useState(false);
+  const [premiumBlockedReceivedError, setPremiumBlockedReceivedError] = useState<string | null>(null);
+  const [premiumBlockedViewItem, setPremiumBlockedViewItem] = useState<any | null>(null);
   const [inboxTab, setInboxTab] = useState<'primary' | 'general' | 'requests'>('primary');
   const [inboxSearch, setInboxSearch] = useState('');
+
+  const buildMockThreads = useCallback(() => {
+    const me = (currentAccount as any)?.id ?? mockUsers[0].id;
+    let source = mockThreads.filter((t) => t.userId === me);
+    // If current account has no dedicated mock seed, fall back to global mock list
+    // so the inbox never renders as a broken/blank state.
+    if (source.length === 0) source = mockThreads;
+    return source.map((t) => {
+      const other = mockUsers.find((u) => u.id === t.otherUserId) ?? mockUsers[0];
+      return {
+        otherId: t.otherUserId,
+        other: { id: other.id, username: other.username, displayName: other.displayName, profilePhoto: other.avatarUrl },
+        lastMessage: t.lastMessage,
+        unread: t.unreadCount,
+        isMuted: t.isMuted,
+        updatedAt: t.updatedAt,
+      };
+    });
+  }, [currentAccount]);
 
   // Realtime DM socket: join /dm namespace and listen for message / typing / read events.
   useEffect(() => {
@@ -137,7 +162,7 @@ export default function Messages() {
           });
           const data = await res.json().catch(() => ({}));
           if (res.ok && !cancelled) {
-            const threadsArr = (data.threads ?? data) || [];
+            const threadsArr = normalizeToArray(data.threads ?? data);
             if (threadsArr.length > 0) {
               setThreads(threadsArr);
               setRequests(data.requests ?? []);
@@ -149,41 +174,13 @@ export default function Messages() {
         }
         // No token or empty/failed: use mocks so inbox is always populated.
         if (!cancelled) {
-          const me = (currentAccount as any)?.id ?? mockUsers[0].id;
-          const mapped = mockThreads
-            .filter((t) => t.userId === me)
-            .map((t) => {
-              const other = mockUsers.find((u) => u.id === t.otherUserId) ?? mockUsers[0];
-              return {
-                otherId: t.otherUserId,
-                other: { id: other.id, username: other.username, displayName: other.displayName, profilePhoto: other.avatarUrl },
-                lastMessage: t.lastMessage,
-                unread: t.unreadCount,
-                isMuted: t.isMuted,
-                updatedAt: t.updatedAt,
-              };
-            });
-          setThreads(mapped);
+          setThreads(buildMockThreads());
           setPinnedIds(mockThreads.filter((t) => t.isPinned).map((t) => t.otherUserId));
         }
       } catch (e: any) {
         if (!cancelled) {
           setThreadsError(e.message || 'Failed to load messages.');
-          const me = (currentAccount as any)?.id ?? mockUsers[0].id;
-          const mapped = mockThreads
-            .filter((t) => t.userId === me)
-            .map((t) => {
-              const other = mockUsers.find((u) => u.id === t.otherUserId) ?? mockUsers[0];
-              return {
-                otherId: t.otherUserId,
-                other: { id: other.id, username: other.username, displayName: other.displayName, profilePhoto: other.avatarUrl },
-                lastMessage: t.lastMessage,
-                unread: t.unreadCount,
-                isMuted: t.isMuted,
-                updatedAt: t.updatedAt,
-              };
-            });
-          setThreads(mapped);
+          setThreads(buildMockThreads());
         }
       } finally {
         if (!cancelled) setLoadingThreads(false);
@@ -193,7 +190,7 @@ export default function Messages() {
     return () => {
       cancelled = true;
     };
-  }, [currentAccount]);
+  }, [currentAccount, buildMockThreads]);
 
   // Load groups list
   useEffect(() => {
@@ -216,7 +213,8 @@ export default function Messages() {
           throw new Error(data.error || 'Unable to load groups.');
         }
         if (cancelled) return;
-        setGroups(data.groups ?? data ?? []);
+        const groupsArr = normalizeToArray(data.groups ?? data);
+        setGroups(groupsArr);
       } catch (e: any) {
         if (!cancelled) setGroupsError(e.message || 'Failed to load groups.');
       } finally {
@@ -248,8 +246,8 @@ export default function Messages() {
           });
           const data = await res.json().catch(() => ({}));
           if (res.ok && !cancelled) {
-            const items = data.items ?? data.messages ?? data ?? [];
-            setMessages(Array.isArray(items) ? items : []);
+            const items = normalizeToArray(data.items ?? data.messages ?? data);
+            setMessages(items);
             setLoadingMessages(false);
             if (userId && !groupId) {
               fetch(`${getApiBase()}/messages/thread-read`, {
@@ -346,11 +344,53 @@ export default function Messages() {
     checkBlock();
   }, [userId]);
 
+  // If you have blocked the peer, premium blocked-messages may still exist (recipient-side view).
+  useEffect(() => {
+    async function loadPremiumBlockedReceived() {
+      if (!userId) return;
+      if (groupId) return; // only DM view
+      if (!blocked) {
+        setPremiumBlockedReceivedItems([]);
+        setPremiumBlockedViewItem(null);
+        return;
+      }
+
+      const token = getToken();
+      if (!token) return;
+
+      setLoadingPremiumBlockedReceived(true);
+      setPremiumBlockedReceivedError(null);
+      try {
+        const res = await fetch(`${getApiBase()}/premium/blocked-messages/received?senderId=${encodeURIComponent(userId)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || data?.reason || 'Failed to load blocked messages.');
+        setPremiumBlockedReceivedItems(Array.isArray(data?.items) ? data.items : []);
+      } catch (e: any) {
+        setPremiumBlockedReceivedItems([]);
+        setPremiumBlockedReceivedError(e?.message || 'Failed to load premium blocked messages.');
+      } finally {
+        setLoadingPremiumBlockedReceived(false);
+      }
+    }
+
+    void loadPremiumBlockedReceived();
+  }, [userId, groupId, blocked, refreshThreadTrigger]);
+
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     const content = newMessage.trim();
     if (!content && !mediaFile) return;
     if (!userId && !groupId) return;
+    if (blocked) {
+      setMessagesError('Unblock to message this user.');
+      return;
+    }
+    if (blockedByThem) {
+      setMessagesError('Use "Send limited message" to contact this user.');
+      return;
+    }
     const token = getToken();
     if (!token) {
       setMessagesError('You must be logged in to send messages.');
@@ -406,11 +446,105 @@ export default function Messages() {
     } catch (e: any) {
       const msg = e.message || 'Failed to send message.';
       setMessagesError(msg);
-      if (userId && /blocked|recipient has blocked/i.test(msg)) setBlockedByThem(true);
+      const lower = msg.toLowerCase();
+      if (lower.includes('recipient has blocked you')) {
+        setBlockedByThem(true);
+        setBlocked(false);
+      } else if (lower.includes('you have blocked this recipient')) {
+        setBlocked(true);
+        setBlockedByThem(false);
+      }
+    }
+  };
+
+  const handlePremiumBlockedView = async (item: any) => {
+    if (!userId) return;
+    const token = getToken();
+    if (!token) return;
+    setPremiumBlockedViewItem(item);
+
+    try {
+      const actionRes = await fetch(`${getApiBase()}/premium/blocked-messages/${encodeURIComponent(item.id)}/action`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'viewed' }),
+      });
+      const actionData = await actionRes.json().catch(() => ({}));
+      if (!actionRes.ok) throw new Error(actionData?.error || actionData?.reason || 'Failed to mark as viewed.');
+
+      // View requires normal chat access; remove the privacy block for this peer.
+      await fetch(`${getApiBase()}/privacy/block/${encodeURIComponent(userId)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => undefined);
+
+      setBlocked(false);
+      setBlockedByThem(false);
+      setPremiumBlockedViewItem(item);
+      setRefreshThreadTrigger((t) => t + 1);
+    } catch (e: any) {
+      setPremiumBlockedReceivedError(e?.message || 'Failed to view message.');
+    }
+  };
+
+  const handlePremiumBlockedReblock = async (item: any) => {
+    if (!userId) return;
+    const token = getToken();
+    if (!token) return;
+
+    try {
+      const actionRes = await fetch(`${getApiBase()}/premium/blocked-messages/${encodeURIComponent(item.id)}/action`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reblocked' }),
+      });
+      const actionData = await actionRes.json().catch(() => ({}));
+      if (!actionRes.ok) throw new Error(actionData?.error || actionData?.reason || 'Failed to re-block.');
+
+      setBlocked(true);
+      setBlockedByThem(false);
+      setPremiumBlockedViewItem(null);
+      setRefreshThreadTrigger((t) => t + 1);
+    } catch (e: any) {
+      setPremiumBlockedReceivedError(e?.message || 'Failed to re-block.');
+    }
+  };
+
+  const handlePremiumBlockedReport = async (item: any) => {
+    if (!userId) return;
+    const token = getToken();
+    if (!token) return;
+
+    const reason = window.prompt('Why are you reporting this message?')?.trim();
+    if (!reason) return;
+    const details = window.prompt('Optional details (helps us review)')?.trim() || reason;
+
+    try {
+      const actionRes = await fetch(`${getApiBase()}/premium/blocked-messages/${encodeURIComponent(item.id)}/action`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reported', reason, details }),
+      });
+      const actionData = await actionRes.json().catch(() => ({}));
+      if (!actionRes.ok) throw new Error(actionData?.error || actionData?.reason || 'Failed to report.');
+
+      // Refresh list; sender may lose premium ability after enough strikes.
+      setPremiumBlockedReceivedError(null);
+      setRefreshThreadTrigger((t) => t + 1);
+    } catch (e: any) {
+      setPremiumBlockedReceivedError(e?.message || 'Failed to report.');
     }
   };
 
   const sendPollMessage = async () => {
+    if (blocked) {
+      setMessagesError('Unblock to send messages to this user.');
+      return;
+    }
+    if (blockedByThem) {
+      setMessagesError('Use "Send limited message" to contact this user.');
+      return;
+    }
     const question = pollQuestion.trim();
     const options = pollOptions.map((o) => o.trim()).filter(Boolean);
     if (!question || options.length < 2) {
@@ -593,46 +727,29 @@ export default function Messages() {
       <ThemedView className="min-h-screen flex flex-col bg-black">
         <MobileShell>
           {/* Header: username + chevron (left), new message icon (right) – same as screenshot for all accounts */}
-          <header className="flex items-center justify-between h-12 px-3 border-b border-[#262626] bg-black safe-area-pt">
-            <button
-              type="button"
-              className="flex items-center gap-1 text-white font-semibold text-sm"
-              aria-label="Switch account"
-            >
-              <span>{username || 'Messages'}</span>
-              <ChevronDown className="w-4 h-4 text-[#a8a8a8]" />
-            </button>
-            <Link
-              to="/messages/new"
-              className="w-9 h-9 flex items-center justify-center text-white"
-              aria-label="New message"
-            >
-              <PenSquare className="w-5 h-5" />
-            </Link>
-          </header>
-
-          {/* Notes strip – horizontal scroll, "Your note" + others */}
-          <div className="px-2 pt-3 pb-2 flex items-center gap-3 overflow-x-auto no-scrollbar border-b border-[#262626]">
-            <Link
-              to="/notes"
-              className="flex flex-col items-center flex-shrink-0 w-16"
-              aria-label="Your note"
-            >
-              <div className="relative w-14 h-14 rounded-full border-2 border-[#363636] bg-[#262626] flex items-center justify-center overflow-hidden mb-1">
-                <Avatar uri={(currentAccount as any)?.profilePhoto} size={52} className="w-full h-full" />
-                <span className="absolute bottom-0 right-0 w-5 h-5 rounded-full bg-[#0095f6] flex items-center justify-center text-white text-xs font-bold border-2 border-black">
-                  +
-                </span>
-              </div>
-              <span className="text-[11px] text-[#a8a8a8] truncate max-w-[64px]">Your note</span>
-            </Link>
-            {[1, 2, 3].map((i) => (
-              <button key={i} type="button" className="flex flex-col items-center flex-shrink-0 w-16">
-                <div className="w-14 h-14 rounded-full border-2 border-[#363636] bg-[#262626] overflow-hidden mb-1" />
-                <span className="text-[11px] text-[#a8a8a8] truncate max-w-[64px]">Note</span>
+          <MoxePageHeader
+            title={username || 'Messages'}
+            left={
+              <button
+                type="button"
+                className="w-9 h-9 flex items-center justify-center text-white"
+                aria-label="Switch account"
+                onClick={() => navigate('/settings/accounts')}
+              >
+                <span className="text-xl leading-none text-[#a8a8a8]">⌄</span>
               </button>
-            ))}
-          </div>
+            }
+            right={
+              <div className="flex items-center gap-1">
+                <Link to="/notes" className="w-9 h-9 flex items-center justify-center text-white" aria-label="MOxE Notes">
+                  <StickyNote className="w-5 h-5" />
+                </Link>
+                <Link to="/messages/new" className="w-9 h-9 flex items-center justify-center text-white" aria-label="New message">
+                  <PenSquare className="w-5 h-5" />
+                </Link>
+              </div>
+            }
+          />
 
           {/* Search bar */}
           <div className="px-4 py-2 border-b border-[#262626]">
@@ -897,16 +1014,21 @@ export default function Messages() {
   return (
     <ThemedView className="min-h-screen flex flex-col">
       <ThemedHeader
-        title={groupId ? group?.name || 'Group' : peer?.username || 'Conversation'}
+        title=""
         left={
-          <button
-            type="button"
-            onClick={() => navigate('/messages')}
-            className="text-moxe-text text-2xl leading-none"
-            aria-label="Back"
-          >
-            ←
-          </button>
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              type="button"
+              onClick={() => navigate('/messages')}
+              className="text-moxe-text text-2xl leading-none"
+              aria-label="Back"
+            >
+              ←
+            </button>
+            <span className="text-moxe-title font-semibold text-moxe-text truncate max-w-[170px]">
+              {groupId ? group?.name || 'Group' : peer?.username || 'Conversation'}
+            </span>
+          </div>
         }
         right={
           <div className="flex items-center gap-2">
@@ -1225,7 +1347,7 @@ export default function Messages() {
             type="submit"
             label="Send"
             className="px-3 py-1 text-xs"
-            disabled={!newMessage.trim() && !mediaFile}
+            disabled={blocked || blockedByThem || (!newMessage.trim() && !mediaFile)}
           />
         </div>
         {showGifPicker && (
@@ -1296,6 +1418,14 @@ export default function Messages() {
                   key={g.id}
                   type="button"
                   onClick={async () => {
+                    if (blocked) {
+                      setGifError('Unblock to send messages to this user.');
+                      return;
+                    }
+                    if (blockedByThem) {
+                      setGifError('Use "Send limited message" to contact this user.');
+                      return;
+                    }
                     const token = getToken();
                     if (!token || (!userId && !groupId)) return;
                     try {
@@ -1405,6 +1535,69 @@ export default function Messages() {
             You can&apos;t message this user while blocked.
           </ThemedText>
         )}
+        {blocked &&
+          userId &&
+          premiumBlockedReceivedItems.length > 0 && (
+            <div className="mt-2 space-y-2">
+              <ThemedText secondary className="text-moxe-caption text-[#737373]">
+                Premium message received from this user. View to reply.
+              </ThemedText>
+              {loadingPremiumBlockedReceived && (
+                <ThemedText secondary className="text-moxe-caption">
+                  Loading premium message…
+                </ThemedText>
+              )}
+              {premiumBlockedReceivedError && (
+                <ThemedText className="text-[11px] text-moxe-danger">
+                  {premiumBlockedReceivedError}
+                </ThemedText>
+              )}
+              {premiumBlockedReceivedItems[0] && (
+                <div className="rounded-xl bg-moxe-background border border-moxe-border p-3">
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-moxe-text">
+                        {premiumBlockedReceivedItems[0].sender?.displayName ||
+                          premiumBlockedReceivedItems[0].sender?.username ||
+                          'Premium sender'}
+                      </p>
+                      <p className="text-[10px] text-moxe-textSecondary">
+                        {premiumBlockedReceivedItems[0].sentAt
+                          ? new Date(premiumBlockedReceivedItems[0].sentAt).toLocaleString()
+                          : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-moxe-text whitespace-pre-wrap">
+                    {premiumBlockedReceivedItems[0].content}
+                  </p>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      type="button"
+                      onClick={() => handlePremiumBlockedView(premiumBlockedReceivedItems[0])}
+                      className="px-2 py-1 text-xs bg-moxe-primary text-white rounded-moxe-md"
+                    >
+                      View
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePremiumBlockedReblock(premiumBlockedReceivedItems[0])}
+                      className="px-2 py-1 text-xs text-moxe-textSecondary border border-moxe-border rounded-moxe-md"
+                    >
+                      Re-block
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePremiumBlockedReport(premiumBlockedReceivedItems[0])}
+                      className="px-2 py-1 text-xs text-moxe-danger border border-moxe-danger/40 rounded-moxe-md"
+                    >
+                      Report
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         {blockedByThem && userId && (
           <div className="space-y-1">
             <ThemedText secondary className="text-moxe-caption text-[#737373]">
@@ -1499,6 +1692,38 @@ export default function Messages() {
           </div>
         )}
       </form>
+      {premiumBlockedViewItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-moxe-surface border border-moxe-border p-4 shadow-xl space-y-3">
+            <h3 className="text-sm font-semibold text-moxe-text">Premium blocked message</h3>
+            <div className="text-xs text-moxe-textSecondary">
+              From{' '}
+              {premiumBlockedViewItem.sender?.displayName ||
+                premiumBlockedViewItem.sender?.username ||
+                'Premium sender'}
+            </div>
+            <div className="text-sm text-moxe-text whitespace-pre-wrap">
+              {premiumBlockedViewItem.content}
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setPremiumBlockedViewItem(null)}
+                className="px-2 py-1 text-xs text-moxe-textSecondary border border-moxe-border rounded-moxe-md"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => setPremiumBlockedViewItem(null)}
+                className="px-3 py-1 text-xs bg-moxe-primary text-white rounded-moxe-md"
+              >
+                Reply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </ThemedView>
   );
 }

@@ -1,5 +1,6 @@
 import { prisma } from '../server';
 import { AppError } from '../utils/AppError';
+import { normalizeUsername, validateUsernameFormat } from '../utils/usernameValidation';
 import { AccountType as PrismaAccountType, SubscriptionTier as PrismaTier } from '@prisma/client';
 import { getCapabilities, type AccountType, type SubscriptionTier } from '../constants/capabilities';
 
@@ -179,12 +180,28 @@ export class AccountService {
   async updateAccount(accountId: string, data: Record<string, unknown>) {
     const account = await prisma.account.findUnique({ where: { id: accountId } });
     if (!account) throw new AppError('Account not found', 404);
-    if (data.username && data.username !== account.username) {
-      const taken = await prisma.account.findUnique({ where: { username: data.username as string } });
-      if (taken) throw new AppError('Username already taken', 400);
-      const changedAt = account.usernameChangedAt ?? account.createdAt;
-      const daysSince = (Date.now() - changedAt.getTime()) / (24 * 60 * 60 * 1000);
-      if (daysSince < 14) throw new AppError('Username can only be changed once every 14 days', 400);
+    if (typeof data.username === 'string') {
+      const requested = normalizeUsername(data.username);
+      const validation = validateUsernameFormat(requested);
+      if (!validation.valid) throw new AppError(validation.message, 400);
+
+      const isActualChange = requested.toLowerCase() !== account.username.toLowerCase();
+      if (isActualChange) {
+        const taken = await prisma.account.findFirst({
+          where: {
+            id: { not: accountId },
+            username: { equals: requested, mode: 'insensitive' },
+          },
+        });
+        if (taken) throw new AppError('Username already taken', 400);
+
+        const changedAt = account.usernameChangedAt ?? account.createdAt;
+        const daysSince = (Date.now() - changedAt.getTime()) / (24 * 60 * 60 * 1000);
+        if (daysSince < 14) throw new AppError('Username can only be changed once every 14 days', 400);
+      }
+
+      // Always store normalized username (no leading @, trimmed).
+      (data as any).username = requested;
     }
     // Account type conversion (e.g. Personal → Business)
     if (data.accountType && data.accountType !== account.accountType) {

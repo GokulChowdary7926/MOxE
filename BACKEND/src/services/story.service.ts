@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../server';
-import { getIo } from '../sockets';
+import { getIo, emitStoriesNew } from '../sockets';
 import { AppError } from '../utils/AppError';
 
 const DEFAULT_DURATION_HOURS = 24;
@@ -109,6 +109,7 @@ export class StoryService {
         })),
       });
     }
+    emitStoriesNew();
     return story;
   }
 
@@ -209,6 +210,7 @@ export class StoryService {
     await prisma.share.create({
       data: { accountId, postId, sharedTo: 'STORY', storyId: story.id },
     });
+    emitStoriesNew();
     return story;
   }
 

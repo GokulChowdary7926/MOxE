@@ -66,6 +66,8 @@ import pushRoutes from './routes/push.routes';
 import searchRoutes from './routes/search.routes';
 import rankingRoutes from './routes/ranking.routes';
 import healthRoutes from './routes/health.routes';
+import subscriptionRoutes from './routes/subscription.routes';
+import noteRoutes from './routes/note.routes';
 
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/logging';
@@ -76,6 +78,8 @@ import { FlowService } from './services/job/flow.service';
 import { CompassService } from './services/job/compass.service';
 import { publishDueScheduledContent } from './services/scheduling.service';
 import { MediaExpirationService } from './services/mediaExpiration.service';
+import { NoteService } from './services/note.service';
+import { emitNotesRefresh } from './sockets';
 
 export const prisma = new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
@@ -149,7 +153,9 @@ app.options('/api/*', (_req, res) => {
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  // In dev, React StrictMode can cause effects to run twice, which creates bursts.
+  // Relax the global limiter in dev to avoid noisy 429s during development.
+  max: isDev ? 1000 : 100,
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
@@ -210,6 +216,8 @@ app.use('/api/spotify', spotifyRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/ranking', rankingRoutes);
+app.use('/api/subscription', subscriptionRoutes);
+app.use('/api/notes', noteRoutes);
 app.use('/api/health', healthRoutes);
 
 app.get('/health', async (_req, res) => {
@@ -235,13 +243,14 @@ app.get('/health', async (_req, res) => {
 });
 
 app.use(errorHandler);
-setupSocketHandlers(io);
+setupSocketHandlers(io, prisma);
 
 const archiveService = new ArchiveService();
 const storyService = new StoryService();
 const flowService = new FlowService();
 const compassService = new CompassService();
 const mediaTTLService = new MediaExpirationService();
+const noteService = new NoteService();
 setInterval(() => {
   archiveService.runArchiveJob()
     .then((r) => { if (r.archived > 0) console.log('[Archive]', r.archived, 'stories archived'); })
@@ -279,6 +288,18 @@ setInterval(() => {
       if (n > 0) console.log('[MediaTTL]', n, 'expired DM media items cleaned');
     })
     .catch((e: Error) => console.error('[MediaTTL]', e.message));
+}, 60 * 1000);
+
+setInterval(() => {
+  noteService
+    .processDueStatusTransitions()
+    .then((r) => {
+      if (r.expired > 0 || r.published > 0) {
+        console.log('[Notes]', r.expired, 'expired,', r.published, 'published');
+        emitNotesRefresh();
+      }
+    })
+    .catch((e: Error) => console.error('[Notes]', e.message));
 }, 60 * 1000);
 
 if (require.main === module) {

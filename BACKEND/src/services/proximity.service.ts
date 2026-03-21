@@ -3,6 +3,7 @@
  */
 import { prisma } from '../server';
 import { AppError } from '../utils/AppError';
+import { emitNotification } from '../sockets';
 
 const RADIUS_OPTIONS = [100, 500, 1000, 2000] as const;
 
@@ -128,21 +129,28 @@ export class ProximityService {
       const cooldownMs = alert.cooldownMinutes * 60 * 1000;
       if (alert.lastTriggeredAt && Date.now() - alert.lastTriggeredAt.getTime() < cooldownMs) continue;
 
-      await prisma.$transaction([
-        prisma.proximityAlert.update({
-          where: { id: alert.id },
-          data: { lastTriggeredAt: new Date() },
-        }),
-        prisma.notification.create({
-          data: {
-            recipientId: alert.accountId,
-            senderId: targetAccountId,
-            type: 'PROXIMITY',
-            content: `Someone you're tracking is within ${alert.radiusMeters}m (${Math.round(dist)}m away).`,
-            data: { link: '/messages' },
-          },
-        }),
-      ]);
+      await prisma.proximityAlert.update({
+        where: { id: alert.id },
+        data: { lastTriggeredAt: new Date() },
+      });
+      const notification = await prisma.notification.create({
+        data: {
+          recipientId: alert.accountId,
+          senderId: targetAccountId,
+          type: 'PROXIMITY',
+          content: `Someone you're tracking is within ${alert.radiusMeters}m (${Math.round(dist)}m away).`,
+          data: { link: '/map/proximity-alerts' },
+        },
+        include: { sender: { select: { id: true, username: true, displayName: true, profilePhoto: true } } },
+      });
+      emitNotification(alert.accountId, {
+        id: notification.id,
+        type: notification.type,
+        content: notification.content,
+        createdAt: notification.createdAt?.toISOString?.() ?? new Date().toISOString(),
+        read: notification.read,
+        sender: notification.sender,
+      });
     }
   }
 }

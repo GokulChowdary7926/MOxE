@@ -1,30 +1,76 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Zap, RefreshCw, Type, Infinity, LayoutGrid, Sparkles, Circle, ChevronUp, Image as ImageIcon } from 'lucide-react';
-import { ThemedView } from '../../components/ui/Themed';
-import { MobileShell } from '../../components/layout/MobileShell';
+import { ThemedView, ThemedText } from '../../components/ui/Themed';
+import { useCamera } from '../../hooks/useCamera';
 
 type ContentMode = 'POST' | 'STORY' | 'REEL' | 'LIVE';
 
 /**
- * Creation page of camera – same for all accounts.
+ * Creation page of camera – real camera preview and capture.
  * Top: X, flash, camera switch. Right sidebar: Create, Boomerang, Layout, AI Images, Hands-free, Close.
- * Bottom: gallery thumb, shutter, mode selector (POST/STORY/REEL/LIVE), loop button.
+ * Bottom: gallery thumb, shutter (photo or record), mode selector (POST/STORY/REEL/LIVE).
  */
 export default function CameraPage() {
   const navigate = useNavigate();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [mode, setMode] = React.useState<ContentMode>('STORY');
   const [flashOff, setFlashOff] = React.useState(true);
 
-  const capture = () => {
-    inputRef.current?.click();
+  const {
+    stream,
+    error: cameraError,
+    isActive,
+    isRecording,
+    start,
+    stop,
+    capturePhoto,
+    startRecording,
+    stopRecording,
+    switchCamera,
+  } = useCamera({ video: true, audio: mode === 'REEL' || mode === 'LIVE' });
+
+  useEffect(() => {
+    start({ video: true, audio: mode === 'REEL' || mode === 'LIVE' });
+    return () => stop();
+  }, [mode]);
+
+  useEffect(() => {
+    if (!videoRef.current || !stream) return;
+    videoRef.current.srcObject = stream;
+  }, [stream]);
+
+  const handleSwitchCamera = () => {
+    switchCamera();
   };
 
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) navigate('/stories/create/editor', { state: { file } });
-    e.target.value = '';
+  const blobToFile = (blob: Blob, name: string, mime: string): File => {
+    return new File([blob], name, { type: mime });
+  };
+
+  const handleCapture = async () => {
+    if (mode === 'REEL' || mode === 'LIVE') {
+      if (isRecording) {
+        const blob = await stopRecording();
+        if (blob) {
+          const file = blobToFile(blob, `reel-${Date.now()}.webm`, 'video/webm');
+          navigate('/create/reel', { state: { file } });
+        }
+      } else {
+        startRecording();
+      }
+      return;
+    }
+    // Photo for POST / STORY
+    const blob = await capturePhoto();
+    if (blob) {
+      const file = blobToFile(blob, `capture-${Date.now()}.png`, 'image/png');
+      if (mode === 'STORY') {
+        navigate('/stories/create/editor', { state: { file } });
+      } else {
+        navigate('/stories/create/editor', { state: { file } });
+      }
+    }
   };
 
   const modes: ContentMode[] = ['POST', 'STORY', 'REEL', 'LIVE'];
@@ -32,9 +78,8 @@ export default function CameraPage() {
   return (
     <ThemedView className="fixed inset-0 z-50 flex flex-col bg-black">
       <div className="w-full max-w-[428px] h-full flex flex-col mx-auto">
-        {/* Top bar: X, flash, camera switch */}
         <div className="flex items-center justify-between px-4 py-3 safe-area-pt">
-          <button type="button" onClick={() => navigate(-1)} className="p-2 -m-2 text-white" aria-label="Close">
+          <button type="button" onClick={() => { stop(); navigate(-1); }} className="p-2 -m-2 text-white" aria-label="Close">
             <X className="w-6 h-6" />
           </button>
           <button
@@ -45,18 +90,44 @@ export default function CameraPage() {
           >
             <Zap className={`w-6 h-6 ${flashOff ? 'opacity-50' : ''}`} />
           </button>
-          <button type="button" className="p-2 -m-2 text-white" aria-label="Switch camera">
+          <button type="button" onClick={handleSwitchCamera} className="p-2 -m-2 text-white" aria-label="Switch camera">
             <RefreshCw className="w-6 h-6" />
           </button>
         </div>
 
         <div className="flex-1 flex min-h-0 relative">
-          {/* Camera preview placeholder */}
-          <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0a]">
-            <div className="text-[#737373] text-sm">Camera preview</div>
-          </div>
+          {cameraError && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0a0a0a] p-4 z-10">
+              <ThemedText className="text-red-400 text-center mb-2">{cameraError}</ThemedText>
+              <button type="button" onClick={() => start()} className="text-[#0095f6] text-sm font-semibold">
+                Try again
+              </button>
+            </div>
+          )}
+          {!cameraError && (
+            <>
+              {isActive && stream ? (
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0a]">
+                  <ThemedText secondary className="text-[#737373] text-sm">Starting camera…</ThemedText>
+                </div>
+              )}
+              {isRecording && (
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-2 py-1 rounded bg-red-500/90 z-10">
+                  <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                  <ThemedText className="text-white text-xs font-medium">Recording</ThemedText>
+                </div>
+              )}
+            </>
+          )}
 
-          {/* Right sidebar: Create, Boomerang, Layout, AI, Hands-free, Close */}
           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col items-center gap-4 z-10">
             <button type="button" className="flex flex-col items-center gap-0.5 text-white">
               <Type className="w-6 h-6" />
@@ -83,31 +154,27 @@ export default function CameraPage() {
               <span className="text-[10px]">Close</span>
             </button>
           </div>
-
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/*,video/*"
-            className="hidden"
-            onChange={onFileChange}
-          />
         </div>
 
-        {/* Bottom: gallery, shutter, mode bar, loop */}
         <div className="flex items-center justify-between px-4 py-3 safe-area-pb bg-black/50">
           <button
             type="button"
-            onClick={() => navigate('/stories/create')}
+            onClick={() => { stop(); navigate('/stories/create'); }}
             className="w-12 h-12 rounded-lg bg-[#262626] border border-[#363636] flex items-center justify-center"
           >
             <ImageIcon className="w-6 h-6 text-[#737373]" />
           </button>
           <button
             type="button"
-            onClick={capture}
-            className="w-16 h-16 rounded-full border-4 border-white bg-transparent"
-            aria-label="Capture"
-          />
+            onClick={handleCapture}
+            disabled={!isActive && !isRecording}
+            className={`w-16 h-16 rounded-full border-4 flex items-center justify-center ${
+              isRecording ? 'bg-red-500 border-red-500 scale-110' : 'border-white bg-transparent'
+            }`}
+            aria-label={isRecording ? 'Stop recording' : 'Capture'}
+          >
+            {isRecording && <span className="w-6 h-6 rounded bg-white" />}
+          </button>
           <div className="flex items-center gap-1">
             {modes.map((m) => (
               <button

@@ -68,7 +68,7 @@ export default function ReelMoreOptionsPage() {
           <Toggle checked={uploadHighest} onChange={setUploadHighest} label="Upload at highest quality" description="Always upload the highest-quality photos and videos, even if uploading takes longer. When this is off, we'll automatically adjust upload quality to fit network conditions." learnMore />
 
           <p className="text-[#737373] text-xs font-semibold px-4 pt-4 pb-1">What others can remix and reuse</p>
-          <Toggle checked={noTemplate} onChange={setNoTemplate} label="Don't let others use this reel as a template" description="Templates allow anyone on Instagram to use the same audio and timing as your reel, and replace the photos and videos with their own." learnMore />
+          <Toggle checked={noTemplate} onChange={setNoTemplate} label="Don't let others use this reel as a template" description="Templates allow anyone on MOxE to use the same audio and timing as your reel, and replace the photos and videos with their own." learnMore />
 
           <p className="text-[#737373] text-xs font-semibold px-4 pt-4 pb-1">Accessibility and translation</p>
           <Toggle checked={closedCaptions} onChange={setClosedCaptions} label="Enable closed captions" description="Your videos will show auto-generated captions. You can change this on individual posts by tapping on the ••• menu and going to Edit > Advanced settings > Show captions." learnMore />

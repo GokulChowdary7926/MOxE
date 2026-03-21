@@ -5,6 +5,7 @@ import { ThemedText } from '../../components/ui/Themed';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { mockPosts } from '../../mocks/posts';
 import { mockHashtags } from '../../mocks/hashtags';
+import { getFirstMediaUrl } from '../../utils/mediaUtils';
 
 export default function HashtagPage() {
   const { tag } = useParams<{ tag: string }>();
@@ -43,7 +44,7 @@ export default function HashtagPage() {
         ) : (
           <div className="grid grid-cols-3 gap-[2px]">
             {posts.map((p) => {
-              const thumb = p.media[0]?.url ?? '';
+              const thumb = getFirstMediaUrl(p);
               return (
                 <button
                   key={p.id}

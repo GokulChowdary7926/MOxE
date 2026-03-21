@@ -74,6 +74,30 @@ router.post('/', authenticate, async (req, res, next) => {
   }
 });
 
+/** Start a scheduled live (real-time camera flow). */
+router.patch('/:liveId/start', authenticate, async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const live = await liveService.startLive(accountId, req.params.liveId);
+    res.json(live);
+  } catch (e) {
+    next(e);
+  }
+});
+
+/** End an active live. */
+router.patch('/:liveId/end', authenticate, async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const live = await liveService.endLive(accountId, req.params.liveId);
+    res.json(live);
+  } catch (e) {
+    next(e);
+  }
+});
+
 // Live Shopping: add products to a scheduled/live event
 router.post('/:liveId/products', authenticate, async (req, res, next) => {
   try {

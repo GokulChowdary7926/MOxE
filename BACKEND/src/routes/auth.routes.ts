@@ -3,6 +3,7 @@ import rateLimit from 'express-rate-limit';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import { authenticate } from '../middleware/auth';
 import { sendVerificationCode, verifyCode } from '../services/phoneVerification.service';
 import { EmailService } from '../services/email.service';
 import { AppError } from '../utils/AppError';
@@ -159,7 +160,7 @@ router.post('/send-verification-code', sendCodeLimiter, async (req, res, next) =
 
 router.post('/verify-code', async (req, res, next) => {
   try {
-    const { phoneNumber, code, password, username, displayName, dateOfBirth } = req.body;
+    const { phoneNumber, code, password, username, displayName, dateOfBirth, accountType } = req.body;
     if (!phoneNumber || !code) {
       throw new AppError('phoneNumber and code required', 400);
     }
@@ -169,7 +170,7 @@ router.post('/verify-code', async (req, res, next) => {
     const registration =
       username != null && displayName != null && dateOfBirth != null &&
       String(username).trim() && String(displayName).trim() && String(dateOfBirth).trim()
-        ? { password: String(password), username: String(username).trim(), displayName: String(displayName).trim(), dateOfBirth: String(dateOfBirth) }
+        ? { password: String(password), username: String(username).trim(), displayName: String(displayName).trim(), dateOfBirth: String(dateOfBirth), accountType: accountType != null ? String(accountType) : undefined }
         : { password: String(password) };
     const result = await verifyCode(phoneNumber.trim(), String(code).trim(), registration);
     res.json({
@@ -213,50 +214,78 @@ router.post('/email/request-verification', async (req, res, next) => {
   }
 });
 
-router.post('/register', (_req, res) => res.status(501).json({ error: 'Use send-verification-code and verify-code to register' }));
+/** POST /auth/register — Username-only signup (no phone). Body: { username, displayName, password, accountType? } */
+router.post('/register', rateLimit({ windowMs: 60 * 60 * 1000, max: 20 }), async (req, res, next) => {
+  try {
+    const { username, displayName, password, accountType } = req.body;
+    if (!username || typeof username !== 'string' || !displayName || typeof displayName !== 'string' || !password || typeof password !== 'string') {
+      throw new AppError('username, displayName and password are required', 400);
+    }
+    const u = username.trim();
+    const d = displayName.trim();
+    if (!u || u.length < 3) throw new AppError('Username must be at least 3 characters', 400);
+    if (!/^[a-zA-Z0-9_.]+$/.test(u)) throw new AppError('Username can only contain letters, numbers, underscore and period', 400);
+    if (!d || d.length < 2) throw new AppError('Display name must be at least 2 characters', 400);
+    if (password.length < 6) throw new AppError('Password must be at least 6 characters', 400);
+    const existing = await prisma.account.findUnique({ where: { username: u } });
+    if (existing) throw new AppError('Username is already taken', 400);
+    const allowedTypes = ['PERSONAL', 'BUSINESS', 'CREATOR', 'JOB'];
+    const type = accountType && allowedTypes.includes(String(accountType).toUpperCase()) ? String(accountType).toUpperCase() : 'PERSONAL';
+    const placeholderPhone = `+0user_${u.slice(0, 20).replace(/\W/g, '_')}_${Date.now().toString(36)}`;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = await prisma.user.create({
+      data: {
+        phoneNumber: placeholderPhone,
+        password: hashedPassword,
+        dateOfBirth: new Date('2000-01-01'),
+        accounts: {
+          create: {
+            username: u,
+            displayName: d,
+            accountType: type as 'PERSONAL' | 'BUSINESS' | 'CREATOR' | 'JOB',
+            isActive: true,
+          },
+        },
+      },
+      select: { id: true, accounts: { where: { isActive: true }, take: 1, orderBy: { createdAt: 'asc' }, select: { id: true } } },
+    });
+    const accountId = (newUser.accounts[0] as { id: string }).id;
+    const token = jwt.sign({ userId: newUser.id, accountId }, JWT_SECRET, { expiresIn: '7d' });
+    res.status(201).json({
+      token,
+      userId: newUser.id,
+      accountId,
+      user: { id: newUser.id },
+    });
+  } catch (e) {
+    next(e);
+  }
+});
 
+/** POST /auth/login — Username + password only (no phone/email). */
 router.post('/login', loginLimiter, async (req, res, next) => {
   try {
     const { loginId, password } = req.body;
     if (!loginId || typeof loginId !== 'string' || !password || typeof password !== 'string') {
-      throw new AppError('loginId and password required', 400);
+      throw new AppError('Username and password required', 400);
     }
-    const id = (loginId as string).trim();
-    if (!id || !password) throw new AppError('Invalid credentials', 400);
+    const username = (loginId as string).trim();
+    if (!username || !password) throw new AppError('Invalid credentials', 400);
 
     type UserWithAccount = { id: string; password: string; accounts: { id: string }[] };
-    let user: UserWithAccount | null = null;
-
-    if (id.includes('@')) {
-      const row = await prisma.user.findUnique({
-        where: { email: id },
-        select: { id: true, password: true, accounts: { where: { isActive: true }, take: 1, orderBy: { createdAt: 'asc' }, select: { id: true } } },
-      });
-      user = row as UserWithAccount | null;
-    } else if (/^[\d+\s\-()]+$/.test(id.replace(/\s/g, ''))) {
-      const phone = normalizePhone(id);
-      const row = await prisma.user.findUnique({
-        where: { phoneNumber: phone },
-        select: { id: true, password: true, accounts: { where: { isActive: true }, take: 1, orderBy: { createdAt: 'asc' }, select: { id: true } } },
-      });
-      user = row as UserWithAccount | null;
-    } else {
-      const account = await prisma.account.findUnique({
-        where: { username: id, isActive: true },
-        select: { id: true, userId: true },
-      });
-      if (account) {
-        const row = await prisma.user.findUnique({
-          where: { id: account.userId },
-          select: { id: true, password: true, accounts: { where: { isActive: true }, take: 1, orderBy: { createdAt: 'asc' }, select: { id: true } } },
-        });
-        user = row as UserWithAccount | null;
-      }
-    }
-
-    if (!user) throw new AppError('Invalid login ID or password', 401);
+    const account = await prisma.account.findUnique({
+      where: { username, isActive: true },
+      select: { id: true, userId: true },
+    });
+    if (!account) throw new AppError('Invalid username or password', 401);
+    const row = await prisma.user.findUnique({
+      where: { id: account.userId },
+      select: { id: true, password: true, accounts: { where: { isActive: true }, take: 1, orderBy: { createdAt: 'asc' }, select: { id: true } } },
+    });
+    const user = row as UserWithAccount | null;
+    if (!user) throw new AppError('Invalid username or password', 401);
     const match = await bcrypt.compare(password, user.password);
-    if (!match) throw new AppError('Invalid login ID or password', 401);
+    if (!match) throw new AppError('Invalid username or password', 401);
 
     let accountId: string | null = user.accounts[0]?.id ?? null;
     if (!accountId) {
@@ -341,6 +370,46 @@ router.post('/refresh', async (req, res, next) => {
   } catch (e) {
     next(e);
   }
+});
+
+/** POST /auth/switch-account — switch active account context and mint new access token. */
+router.post('/switch-account', authenticate, async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.userId as string | undefined;
+    const targetAccountId = typeof req.body?.accountId === 'string' ? req.body.accountId.trim() : '';
+    if (!userId) throw new AppError('Unauthorized', 401);
+    if (!targetAccountId) throw new AppError('accountId required', 400);
+
+    const account = await prisma.account.findFirst({
+      where: {
+        id: targetAccountId,
+        userId,
+        isActive: true,
+      },
+      select: { id: true },
+    });
+    if (!account) throw new AppError('Account not found', 404);
+
+    const token = jwt.sign({ userId, accountId: account.id }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({
+      token,
+      userId,
+      accountId: account.id,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/** POST /auth/password/reset-request — request password reset by email or phone. Returns 501 until implemented. */
+router.post('/password/reset-request', async (req, res) => {
+  const { emailOrPhone } = req.body as { emailOrPhone?: string };
+  if (!emailOrPhone || typeof emailOrPhone !== 'string' || !emailOrPhone.trim()) {
+    return res.status(400).json({ error: 'emailOrPhone is required' });
+  }
+  return res.status(501).json({
+    error: 'Password reset is not available yet. Use your existing password or sign up if you don\'t have an account.',
+  });
 });
 
 export default router;

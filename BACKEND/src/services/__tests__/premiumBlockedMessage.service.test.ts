@@ -6,11 +6,16 @@ import { PremiumBlockedMessageService } from '../premiumBlockedMessage.service';
 jest.mock('../../server', () => ({
   prisma: {
     account: { findUnique: jest.fn().mockResolvedValue({ subscriptionTier: 'STAR' }) },
-    block: { findUnique: jest.fn().mockResolvedValue({ id: 'b1' }) },
+    block: {
+      findUnique: jest.fn().mockResolvedValue({ id: 'b1' }),
+      upsert: jest.fn().mockResolvedValue({}),
+      deleteMany: jest.fn().mockResolvedValue({}),
+    },
     premiumMessageRecipientAction: {
       findFirst: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockResolvedValue({}),
     },
+    lifestyleStrike: { count: jest.fn().mockResolvedValue(0), create: jest.fn().mockResolvedValue({}) },
     premiumMessageGrant: {
       findMany: jest.fn().mockResolvedValue([]),
       create: jest.fn().mockResolvedValue({ id: 'g1', expiresAt: new Date() }),
@@ -32,8 +37,10 @@ describe('PremiumBlockedMessageService', () => {
     jest.clearAllMocks();
     mockPrisma.account.findUnique.mockResolvedValue({ subscriptionTier: 'STAR' });
     mockPrisma.block.findUnique.mockResolvedValue({ id: 'b1' });
+    mockPrisma.block.upsert.mockResolvedValue({});
     mockPrisma.premiumMessageGrant.findMany.mockResolvedValue([]);
     mockPrisma.premiumBlockedMessage.findFirst.mockResolvedValue({ id: 'm1', recipientId: 'rec1', senderId: 'send1' });
+    mockPrisma.lifestyleStrike.count.mockResolvedValue(0);
   });
 
   describe('check', () => {

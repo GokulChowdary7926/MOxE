@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Camera } from 'lucide-react';
 import { ThemedView, ThemedHeader, ThemedText, ThemedButton, ThemedInput } from '../../components/ui/Themed';
 import { getApiBase } from '../../services/api';
+import { useCamera } from '../../hooks/useCamera';
 
 const API_BASE = getApiBase();
 
 export default function CreateReel() {
   const navigate = useNavigate();
+  const location = useLocation() as { state?: { file?: File } };
   const [file, setFile] = useState<File | null>(null);
   const [caption, setCaption] = useState('');
   const [altText, setAltText] = useState('');
@@ -19,6 +22,38 @@ export default function CreateReel() {
   const [subscriberTierKeys, setSubscriberTierKeys] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showCamera, setShowCamera] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const { stream, error: cameraError, isActive, isRecording, start, stop, startRecording, stopRecording } = useCamera({
+    video: true,
+    audio: true,
+  });
+
+  useEffect(() => {
+    const stateFile = location.state?.file;
+    if (stateFile) setFile(stateFile);
+  }, [location.state?.file]);
+
+  useEffect(() => {
+    if (showCamera) {
+      start();
+      return () => stop();
+    }
+  }, [showCamera]);
+
+  useEffect(() => {
+    if (videoRef.current && stream) videoRef.current.srcObject = stream;
+  }, [stream]);
+
+  async function handleRecordDone() {
+    const blob = await stopRecording();
+    if (blob) {
+      setFile(new File([blob], `reel-${Date.now()}.webm`, { type: 'video/webm' }));
+      setShowCamera(false);
+    }
+    stop();
+  }
 
   async function handleShare() {
     try {
@@ -110,13 +145,21 @@ export default function CreateReel() {
               controls
             />
           ) : (
-            <div className="text-center text-moxe-textSecondary">
-              <div className="w-16 h-16 rounded-full bg-moxe-background flex items-center justify-center mx-auto mb-2 text-2xl">
+            <div className="text-center text-moxe-textSecondary space-y-3">
+              <div className="w-16 h-16 rounded-full bg-moxe-background flex items-center justify-center mx-auto text-2xl">
                 ＋
               </div>
               <ThemedText secondary className="block text-moxe-body">
                 Tap to add a video
               </ThemedText>
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); setShowCamera(true); }}
+                className="flex items-center justify-center gap-2 mx-auto px-4 py-2 rounded-lg bg-moxe-surface border border-moxe-border text-moxe-body text-sm"
+              >
+                <Camera className="w-5 h-5" />
+                Record with camera
+              </button>
             </div>
           )}
           <input
@@ -222,6 +265,68 @@ export default function CreateReel() {
           </label>
         </div>
       </div>
+
+      {/* Record with camera overlay */}
+      {showCamera && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-black">
+          <div className="flex items-center justify-between px-4 py-3 safe-area-pt">
+            <button type="button" onClick={() => { stop(); setShowCamera(false); }} className="text-white font-medium">
+              Cancel
+            </button>
+            <span className="text-white font-semibold">Record reel</span>
+            {isRecording ? (
+              <button type="button" onClick={handleRecordDone} className="text-red-400 font-semibold">
+                Done
+              </button>
+            ) : (
+              <div className="w-12" />
+            )}
+          </div>
+          <div className="flex-1 relative min-h-0">
+            {cameraError ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
+                <ThemedText className="text-red-400 text-center mb-2">{cameraError}</ThemedText>
+                <button type="button" onClick={() => start()} className="text-[#0095f6] text-sm font-semibold">Try again</button>
+              </div>
+            ) : (
+              <>
+                {stream && (
+                  <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
+                )}
+                {!stream && (
+                  <div className="absolute inset-0 flex items-center justify-center text-moxe-textSecondary text-sm">Starting camera…</div>
+                )}
+                {isRecording && (
+                  <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-2 py-1 rounded bg-red-500/90">
+                    <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                    <span className="text-white text-xs font-medium">Recording</span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+          <div className="p-4 safe-area-pb bg-black/50">
+            {!isRecording ? (
+              <button
+                type="button"
+                onClick={startRecording}
+                disabled={!isActive}
+                className="w-16 h-16 rounded-full border-4 border-white bg-transparent mx-auto block disabled:opacity-50"
+                aria-label="Start recording"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={handleRecordDone}
+                className="w-16 h-16 rounded-full border-4 border-red-500 bg-red-500 mx-auto block flex items-center justify-center"
+                aria-label="Stop recording"
+              >
+                <span className="w-6 h-6 rounded bg-white" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </ThemedView>
   );
 }

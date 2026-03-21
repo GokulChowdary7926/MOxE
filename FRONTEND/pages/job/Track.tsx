@@ -1,10 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { getApiBase, getToken } from '../../services/api';
-import { JobPageContent } from '../../components/job/JobPageContent';
+import { JobPageContent, JobCard } from '../../components/job/JobPageContent';
+import { JOB_MOBILE } from '../../components/job/jobMobileStyles';
 
 const API_BASE = getApiBase();
 
 export default function Track() {
+  // Mobile routing: keep tab state in sync with /job/track/<tab>
+  const location = useLocation();
+  const nav = useNavigate();
   const [applications, setApplications] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
   const [pipelines, setPipelines] = useState<any[]>([]);
@@ -24,6 +29,14 @@ export default function Track() {
   const [saveSearchSubmitting, setSaveSearchSubmitting] = useState(false);
 
   const token = getToken();
+
+  useEffect(() => {
+    const p = location.pathname;
+    if (p.includes('/job/track/jobs')) setTab('jobs');
+    else if (p.includes('/job/track/pipelines')) setTab('pipelines');
+    else setTab('applications');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
 
   const appliedJobIds = useMemo(() => new Set(applications.map((a) => a.jobPostingId || a.jobPosting?.id).filter(Boolean)), [applications]);
   const filteredJobs = useMemo(() => {
@@ -195,22 +208,23 @@ export default function Track() {
     );
   }
 
-  return (
+  const TrackHome = () => (
     <JobPageContent
       title="MOxE Track"
       description="Manage job applications and recruitment pipelines."
       error={error}
     >
-      <div className="flex gap-2 mb-4">
+      <div className={`${JOB_MOBILE.tab} mb-4`}>
         {(['applications', 'jobs', 'pipelines'] as const).map((t) => (
           <button
             key={t}
-            onClick={() => setTab(t)}
-            className={`px-4 py-2 rounded-lg font-medium text-sm ${
-              tab === t
-                ? 'bg-[#0052CC] dark:bg-[#2684FF] text-white'
-                : 'bg-[#F4F5F7] dark:bg-[#2C333A] text-[#5E6C84] dark:text-[#8C9BAB]'
-            }`}
+            type="button"
+            onClick={() => {
+              const next =
+                t === 'jobs' ? 'jobs' : t === 'pipelines' ? 'pipelines' : 'applications';
+              nav(`/job/track/${next}`, { replace: true });
+            }}
+            className={`${JOB_MOBILE.tabButton} ${tab === t ? JOB_MOBILE.tabActive : JOB_MOBILE.tabInactive}`}
           >
             {t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
@@ -219,20 +233,17 @@ export default function Track() {
       {tab === 'applications' && (
         <div className="space-y-3">
           {applications.length === 0 ? (
-            <p className="text-[#5E6C84] dark:text-[#8C9BAB] text-sm">No applications yet.</p>
+            <p className={JOB_MOBILE.meta}>No applications yet.</p>
           ) : (
             applications.map((app) => (
-              <div
-                key={app.id}
-                className="p-4 rounded-lg border border-[#DFE1E6] dark:border-[#2C333A] bg-white dark:bg-[#1D2125] shadow-sm"
-              >
+              <JobCard key={app.id}>
                 <div className="font-medium text-[#172B4D] dark:text-[#E6EDF3]">
                   {app.jobPosting?.title} at {app.jobPosting?.companyName}
                 </div>
-                <div className="text-sm text-[#5E6C84] dark:text-[#8C9BAB] mt-1">
+                <div className={`text-sm ${JOB_MOBILE.meta} mt-1`}>
                   Status: {app.status} · Applied {new Date(app.appliedAt).toLocaleDateString()}
                 </div>
-              </div>
+              </JobCard>
             ))
           )}
         </div>
@@ -245,12 +256,12 @@ export default function Track() {
               value={jobSearch}
               onChange={(e) => setJobSearch(e.target.value)}
               placeholder="Search jobs by title, company, location…"
-              className="flex-1 min-w-[200px] px-3 py-2 rounded-lg border border-[#DFE1E6] dark:border-[#2C333A] bg-white dark:bg-[#1D2125] text-[#172B4D] dark:text-[#E6EDF3] text-sm placeholder:text-[#5E6C84]"
+              className={`flex-1 min-w-0 ${JOB_MOBILE.input}`}
             />
             <button
               type="button"
               onClick={() => setShowSaveSearchModal(true)}
-              className="px-3 py-2 rounded-lg border border-[#0052CC] dark:border-[#2684FF] text-[#0052CC] dark:text-[#2684FF] text-sm font-medium hover:bg-[#DEEBFF] dark:hover:bg-[#2C333A]"
+              className={JOB_MOBILE.btnSecondary}
             >
               Save this search
             </button>
@@ -435,5 +446,15 @@ export default function Track() {
         </div>
       )}
     </JobPageContent>
+  );
+
+  return (
+    <Routes>
+      <Route index element={<Navigate to="applications" replace />} />
+      <Route path="applications" element={<TrackHome />} />
+      <Route path="jobs" element={<TrackHome />} />
+      <Route path="pipelines" element={<TrackHome />} />
+      <Route path="*" element={<Navigate to="applications" replace />} />
+    </Routes>
   );
 }

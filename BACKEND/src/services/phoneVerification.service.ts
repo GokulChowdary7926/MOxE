@@ -55,11 +55,14 @@ export async function sendVerificationCode(phoneNumber: string): Promise<{ ok: b
   return { ok: true, message: 'Code sent' };
 }
 
+const VALID_ACCOUNT_TYPES = ['PERSONAL', 'BUSINESS', 'CREATOR', 'JOB'] as const;
+
 export interface VerifyCodeRegistration {
   password: string;
   username?: string;
   displayName?: string;
   dateOfBirth?: string; // ISO date
+  accountType?: string;
 }
 
 export async function verifyCode(
@@ -136,12 +139,16 @@ export async function verifyCode(
     },
   });
 
+  const accountType = registration.accountType && VALID_ACCOUNT_TYPES.includes(registration.accountType as any)
+    ? (registration.accountType as 'PERSONAL' | 'BUSINESS' | 'CREATOR' | 'JOB')
+    : 'PERSONAL';
+
   const account = await prisma.account.create({
     data: {
       userId: user.id,
       username: registration.username.trim(),
       displayName: registration.displayName.trim(),
-      accountType: 'PERSONAL',
+      accountType,
       subscriptionTier: 'FREE',
       isPrivate: age < 18,
     },

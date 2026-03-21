@@ -30,6 +30,9 @@ Thumbs.db
 # Prisma
 BACKEND/prisma/migrations/**/migration_lock.toml
 
+# Local uploads (do not commit user media)
+BACKEND/uploads/
+
 # Optional: uncomment if you don't want to track these
 # FRONTEND/dist/
 # BACKEND/dist/

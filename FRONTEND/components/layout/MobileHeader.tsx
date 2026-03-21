@@ -1,142 +1,90 @@
-import React, { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useDispatch } from 'react-redux';
-import type { AppDispatch } from '../../store';
-import { Plus, MessageCircle, Heart, LayoutGrid, Settings } from 'lucide-react';
-import { ShopIcon } from '../icons/ShopIcon';
-import { useAccountCapabilities, useCurrentAccount } from '../../hooks/useAccountCapabilities';
-import { ACCOUNT_TYPE_LABELS } from '../../constants/accountTypes';
-import { logoutThunk } from '../../store/authSlice';
+import React, { useEffect, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { Plus, MessageCircle, Heart, Search, Camera, User, Settings, Shield, BarChart3, Film } from 'lucide-react';
+import { useCurrentAccount } from '../../hooks/useAccountCapabilities';
 
 /**
- * App header – same layout for all accounts:
- * Home: Plus (create), Message (DMs), Heart (notifications)
- * Explore: Store  |  Map / Messages: none  |  Profile: Grid, Settings
+ * Instagram-style Mobile Header (used globally on routes without their own header).
+ *
+ * Spec (mobile):
+ * - Left: Logo (Home)
+ * - Right icons: Search, optional account shortcut, Camera, Create, Messages, Notifications, Profile
  */
 export default function MobileHeader() {
-  const dispatch = useDispatch<AppDispatch>();
-  const navigate = useNavigate();
   const { pathname } = useLocation();
-  const cap = useAccountCapabilities();
-  const account = useCurrentAccount();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const accountType = (account as any)?.accountType;
-  const label = accountType ? ACCOUNT_TYPE_LABELS[accountType as keyof typeof ACCOUNT_TYPE_LABELS] : 'Account';
+  const account = useCurrentAccount() as any;
+  const [profilePhotoError, setProfilePhotoError] = useState(false);
 
   const isHome = pathname === '/';
-  const isExplore = pathname.startsWith('/explore');
-  const isMap = pathname.startsWith('/map');
-  const isMessages = pathname.startsWith('/messages');
-  const isProfile = pathname.startsWith('/profile');
-
-  const showPlusMessageHeart = isHome;
-  const showStore = isHome || isExplore;
-  const showNothing = isMap || isMessages;
-  const showGridSettings = isProfile;
-
-  // Home: light header with dark icons (reference design)
   const headerBg = isHome ? 'bg-white border-b border-[#dbdbdb]' : 'bg-black border-b border-[#262626]';
   const iconColor = isHome ? 'text-black' : 'text-white';
   const iconClass = `p-2 -m-2 ${iconColor} active:opacity-70`;
   const logoTextClass = isHome ? 'text-black' : 'text-white';
 
+  const accountType = account?.accountType as string | undefined;
+  const extraIcon = (() => {
+    if (accountType === 'BUSINESS') return { Icon: BarChart3, to: '/insights', label: 'Insights' };
+    if (accountType === 'CREATOR') return { Icon: Film, to: '/creator-studio', label: 'Creator Studio' };
+    if (accountType === 'JOB') return { Icon: Shield, to: '/map/sos', label: 'SOS' };
+    return null;
+  })();
+
+  useEffect(() => {
+    // Reset error fallback whenever account profile photo changes.
+    setProfilePhotoError(false);
+  }, [account?.profilePhoto]);
+
   return (
     <header className={`sticky top-0 z-20 ${headerBg} safe-area-pt`}>
       <div className="flex items-center justify-between h-12 px-3">
-        {/* Left: logo + app name */}
         <Link to="/" className="flex items-center gap-2 shrink-0" aria-label="MOxE Home">
           <img src="/logo.png" alt="MOxE" className="w-9 h-9 rounded-lg shrink-0 object-cover" />
           <span className={`font-bold text-lg tracking-tight hidden sm:inline ${logoTextClass}`}>MOxE</span>
         </Link>
 
-        {/* Right: same icons for Home on all accounts – Create (+), Messages, Heart (notifications) */}
         <div className="flex items-center gap-0">
-          {showPlusMessageHeart && (
-            <>
-              <Link to="/create" className={iconClass} aria-label="Create">
-                <Plus className="w-6 h-6" strokeWidth={2} />
-              </Link>
-              <Link to="/messages" className={iconClass} aria-label="Messages">
-                <MessageCircle className="w-6 h-6" strokeWidth={2} />
-              </Link>
-              <Link to="/commerce" className={iconClass} aria-label="Shop">
-                <ShopIcon className="w-6 h-6" strokeWidth={2} />
-              </Link>
-              <Link to="/notifications" className={iconClass} aria-label="Notifications">
-                <Heart className="w-6 h-6" strokeWidth={2} />
-              </Link>
-            </>
-          )}
-          {showStore && !isHome && (
-            <Link to="/commerce" className={iconClass} aria-label="Shop">
-              <ShopIcon className="w-6 h-6" strokeWidth={2} />
+          <Link to="/explore" className={iconClass} aria-label="Search">
+            <Search className="w-6 h-6" strokeWidth={2} />
+          </Link>
+
+          {extraIcon && (
+            <Link to={extraIcon.to} className={iconClass} aria-label={extraIcon.label}>
+              <extraIcon.Icon className="w-6 h-6" strokeWidth={2} />
             </Link>
           )}
-          {showGridSettings && (
-            <>
-              <div className="relative">
-                <button
-                  type="button"
-                  className={iconClass}
-                  aria-label="Menu"
-                  onClick={() => setMenuOpen(!menuOpen)}
-                >
-                  <LayoutGrid className="w-6 h-6" />
-                </button>
-                {menuOpen && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} aria-hidden />
-                    <div className="absolute right-0 top-full mt-1 w-56 py-2 bg-zinc-900 border border-zinc-700 rounded-xl shadow-xl z-20">
-                      <Link
-                        to="/settings/accounts"
-                        className="block px-4 py-3 text-sm text-white hover:bg-zinc-800"
-                        onClick={() => setMenuOpen(false)}
-                      >
-                        Switch account ({label})
-                      </Link>
-                      <Link
-                        to="/commerce"
-                        className="block px-4 py-3 text-sm text-white hover:bg-zinc-800"
-                        onClick={() => setMenuOpen(false)}
-                      >
-                        Shop
-                      </Link>
-                      {accountType === 'JOB' && (
-                        <Link
-                          to="/job-hub"
-                          className="block px-4 py-3 text-sm text-violet-400 hover:bg-zinc-800"
-                          onClick={() => setMenuOpen(false)}
-                        >
-                          Job hub
-                        </Link>
-                      )}
-                      <Link
-                        to="/profile"
-                        className="block px-4 py-3 text-sm text-white hover:bg-zinc-800 border-t border-zinc-700 mt-1"
-                        onClick={() => setMenuOpen(false)}
-                      >
-                        Profile
-                      </Link>
-                      <button
-                        type="button"
-                        className="block w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-zinc-800 border-t border-zinc-700 mt-1"
-                        onClick={() => {
-                          setMenuOpen(false);
-                          dispatch(logoutThunk());
-                          navigate('/login');
-                        }}
-                      >
-                        Log out
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-              <Link to="/settings" className={iconClass} aria-label="Settings">
-                <Settings className="w-6 h-6" />
-              </Link>
-            </>
-          )}
+
+          <Link to="/stories/create/camera" className={iconClass} aria-label="Camera">
+            <Camera className="w-6 h-6" strokeWidth={2} />
+          </Link>
+
+          <Link to="/create" className={iconClass} aria-label="Create">
+            <Plus className="w-6 h-6" strokeWidth={2} />
+          </Link>
+
+          <Link to="/messages" className={iconClass} aria-label="Messages">
+            <MessageCircle className="w-6 h-6" strokeWidth={2} />
+          </Link>
+
+          <Link to="/notifications" className={iconClass} aria-label="Notifications">
+            <Heart className="w-6 h-6" strokeWidth={2} />
+          </Link>
+
+          <Link to="/profile" className={iconClass} aria-label="Profile">
+            {account?.profilePhoto && !profilePhotoError ? (
+              <img
+                src={account.profilePhoto}
+                alt="Profile"
+                className="w-6 h-6 rounded-full object-cover"
+                onError={() => setProfilePhotoError(true)}
+              />
+            ) : (
+              <User className="w-6 h-6" strokeWidth={2} />
+            )}
+          </Link>
+
+          <Link to="/settings" className={iconClass} aria-label="Settings">
+            <Settings className="w-6 h-6" />
+          </Link>
         </div>
       </div>
     </header>

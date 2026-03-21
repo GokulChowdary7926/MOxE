@@ -18,7 +18,7 @@ Use this as the single source of truth for implementing or auditing the MOxE use
 | ThemedButton | Component | Primary, secondary, danger variants; accepts label, onPress, style. |
 | ThemedInput | Component | Text input with theme placeholder and border. |
 | ThemedHeader | Component | App/screen header with title, optional left (back), right (actions). |
-| ThemedTabBar | Component | Bottom tab bar (Instagram-style) or top tabs; theme-aware. |
+| ThemedTabBar | Component | Bottom tab bar (MOxE-style) or top tabs; theme-aware. |
 | Avatar | Component | Circular image; optional size, story ring, online indicator. |
 | Badge | Component | Status/priority label (neutral, success, danger, warning). |
 | SkeletonLoader | Component | Loading placeholder with theme height/style. |

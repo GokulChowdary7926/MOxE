@@ -5,8 +5,9 @@ import type { AppDispatch } from '../../store';
 import { setCredentials } from '../../store/authSlice';
 import { fetchMe } from '../../store/authSlice';
 import { setCurrentAccount, setCapabilities } from '../../store/accountSlice';
+import { getHomeRouteForAccountType } from '../../constants/accountTypes';
 
-/** Handles OAuth callback: ?token=... from backend. Stores token, fetches me, redirects to /. */
+/** Handles OAuth callback: ?token=... from backend. Stores token, fetches me, redirects by account type (Personal / Business / Creator / Job). */
 export default function AuthCallback() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -27,7 +28,8 @@ export default function AuthCallback() {
       .then((me) => {
         dispatch(setCurrentAccount({ ...me.account, capabilities: me.capabilities }));
         dispatch(setCapabilities(me.capabilities ?? null));
-        navigate('/', { replace: true });
+        const home = getHomeRouteForAccountType(me.account?.accountType);
+        navigate(home, { replace: true });
       })
       .catch(() => {
         navigate('/login', { replace: true });

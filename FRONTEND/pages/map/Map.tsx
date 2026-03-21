@@ -2,8 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ThemedView } from '../../components/ui/Themed';
 import { MobileShell } from '../../components/layout/MobileShell';
+import { MoxePageHeader } from '../../components/layout/MoxePageHeader';
 import { MapPin, MapPinned, Radio, AlertTriangle, Bell, UserPlus, Maximize2 } from 'lucide-react';
 import LeafletMap from '../../components/map/LeafletMap';
+import { getApiBase, getToken } from '../../services/api';
 
 const DEFAULT_CENTER: [number, number] = [37.7749, -122.4194];
 
@@ -14,6 +16,9 @@ const DEFAULT_CENTER: [number, number] = [37.7749, -122.4194];
 export default function Map() {
   const [center, setCenter] = useState<[number, number]>(DEFAULT_CENTER);
   const [mounted, setMounted] = useState(false);
+  const [networkScope, setNetworkScope] = useState<'followers' | 'following' | 'friends' | 'close_friends'>('followers');
+  const [networkMarkers, setNetworkMarkers] = useState<{ position: [number, number]; label: string }[]>([]);
+  const [tagMarkers, setTagMarkers] = useState<{ position: [number, number]; label: string }[]>([]);
 
   useEffect(() => {
     setMounted(true);
@@ -25,13 +30,48 @@ export default function Map() {
     }
   }, []);
 
+  useEffect(() => {
+    const token = getToken();
+    if (!token) return;
+    fetch(`${getApiBase()}/location/network?scope=${encodeURIComponent(networkScope)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => (res.ok ? res.json() : { locations: [] }))
+      .then((data) => {
+        const locations = Array.isArray(data?.locations) ? data.locations : [];
+        setNetworkMarkers(
+          locations.map((l: any) => ({
+            position: [Number(l.latitude), Number(l.longitude)] as [number, number],
+            label: l.displayName || l.username || 'User',
+          })),
+        );
+      })
+      .catch(() => setNetworkMarkers([]));
+  }, [networkScope]);
+
+  useEffect(() => {
+    const token = getToken();
+    if (!token) return;
+    fetch(`${getApiBase()}/location/network-tags?scope=${encodeURIComponent(networkScope)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => (res.ok ? res.json() : { tags: [] }))
+      .then((data) => {
+        const tags = Array.isArray(data?.tags) ? data.tags : [];
+        setTagMarkers(
+          tags.map((t: any) => ({
+            position: [Number(t.latitude), Number(t.longitude)] as [number, number],
+            label: `${t.displayName || t.username} · ${t.source === 'story' ? 'Story' : 'Post'} · ${t.location}`,
+          })),
+        );
+      })
+      .catch(() => setTagMarkers([]));
+  }, [networkScope]);
+
   return (
     <ThemedView className="min-h-screen flex flex-col bg-black pb-24">
       <MobileShell>
-        <header className="sticky top-0 z-10 flex items-center justify-between h-12 px-3 border-b border-[#262626] bg-black safe-area-pt">
-          <span className="text-white font-semibold">Map</span>
-          <div className="w-10" />
-        </header>
+        <MoxePageHeader title="Map" left={<div className="w-10" />} />
 
         <div className="flex-1 overflow-auto px-4 py-4">
           {/* MOxE Map (Leaflet preview) */}
@@ -53,6 +93,7 @@ export default function Map() {
                   zoom={14}
                   showMarker={true}
                   className="w-full h-full"
+                  markers={[...networkMarkers, ...tagMarkers]}
                 />
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center">
@@ -64,6 +105,32 @@ export default function Map() {
                 className="absolute inset-0"
                 aria-label="Open full screen map"
               />
+            </div>
+          </div>
+
+          <div className="rounded-xl bg-[#262626] border border-[#363636] p-4 mb-4">
+            <p className="text-white font-semibold mb-2">Network locations</p>
+            <p className="text-[#a8a8a8] text-sm mb-3">Show live map locations for followers/following/friends/close friends.</p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { id: 'followers', label: 'Followers' },
+                { id: 'following', label: 'Following' },
+                { id: 'friends', label: 'Friends' },
+                { id: 'close_friends', label: 'Close Friends' },
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setNetworkScope(opt.id as 'followers' | 'following' | 'friends' | 'close_friends')}
+                  className={`px-3 py-2 rounded-lg text-sm border ${
+                    networkScope === opt.id
+                      ? 'bg-[#a855f7] text-white border-[#a855f7]'
+                      : 'bg-[#1f1f1f] text-[#a8a8a8] border-[#363636]'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -104,9 +171,6 @@ export default function Map() {
               <AlertTriangle className="w-4 h-4" />
               Open SOS Emergency
             </Link>
-            <Link to="/map/sos" className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#363636] text-white font-medium text-sm">
-              Test SOS System
-            </Link>
           </div>
 
           {/* Proximity Alerts */}
@@ -121,7 +185,7 @@ export default function Map() {
               <span className="text-white text-sm">No trusted contacts yet</span>
             </div>
             <Link to="/map/proximity-alerts" className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#a855f7] text-white font-semibold">
-              + Add Trusted Contact
+              + Add Username
             </Link>
           </div>
         </div>

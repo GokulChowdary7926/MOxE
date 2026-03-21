@@ -1,28 +1,74 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Check } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { ThemedView } from '../../components/ui/Themed';
 import { MobileShell } from '../../components/layout/MobileShell';
 import { useCurrentAccount } from '../../hooks/useAccountCapabilities';
 import { getApiBase, getToken } from '../../services/api';
+import { MoxePageHeader } from '../../components/layout/MoxePageHeader';
 
 export default function EditUsernamePage() {
   const navigate = useNavigate();
   const account = useCurrentAccount() as any;
   const [username, setUsername] = useState(account?.username ?? '');
+  const [validationError, setValidationError] = useState<string | null>(null);
   const [available, setAvailable] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const RESERVED = new Set([
+    'admin',
+    'support',
+    'moxe',
+    'instagram',
+    'facebook',
+    'twitter',
+    'help',
+    'security',
+  ]);
+
+  const validate = (raw: string) => {
+    const normalized = raw.trim().replace(/^@+/, '');
+    if (!normalized) return { ok: false as const, message: 'Username is required' };
+    if (normalized.length < 3 || normalized.length > 30) {
+      return { ok: false as const, message: 'Username must be 3-30 characters' };
+    }
+    if (!/^[a-zA-Z0-9._]+$/.test(normalized)) {
+      return {
+        ok: false as const,
+        message: 'Username can only contain letters, numbers, periods (.) and underscores (_)',
+      };
+    }
+    if (RESERVED.has(normalized.toLowerCase())) {
+      return { ok: false as const, message: 'This username is reserved' };
+    }
+    return { ok: true as const, normalized };
+  };
+
   async function checkAvailability() {
-    if (!username.trim()) return;
+    const v = validate(username);
+    if (!v.ok) {
+      setValidationError(v.message);
+      setAvailable(false);
+      return;
+    }
+    const normalized = v.normalized;
+
+    // If user didn't actually change (case-insensitive), treat as available.
+    if ((account?.username ?? '').toLowerCase() === normalized.toLowerCase()) {
+      setValidationError(null);
+      setAvailable(true);
+      return;
+    }
+
     const token = getToken();
     if (!token) return;
     try {
-      const res = await fetch(`${getApiBase()}/accounts/check-username?username=${encodeURIComponent(username.trim())}`, {
+      const res = await fetch(`${getApiBase()}/accounts/check-username?username=${encodeURIComponent(normalized)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json().catch(() => ({}));
       setAvailable(data?.available !== false);
+      setValidationError(null);
     } catch {
       setAvailable(null);
     }
@@ -31,12 +77,17 @@ export default function EditUsernamePage() {
   async function handleDone() {
     const token = getToken();
     if (!token) return;
+    const v = validate(username);
+    if (!v.ok) {
+      setValidationError(v.message);
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch(`${getApiBase()}/accounts/me`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: username.trim() }),
+        body: JSON.stringify({ username: v.normalized.trim() }),
       });
       if (res.ok) navigate(-1);
     } finally {
@@ -47,13 +98,7 @@ export default function EditUsernamePage() {
   return (
     <ThemedView className="min-h-screen flex flex-col bg-black">
       <MobileShell>
-        <header className="flex items-center h-12 px-3 border-b border-[#262626] bg-black safe-area-pt">
-          <button type="button" onClick={() => navigate(-1)} className="p-2 -m-2 text-white">
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <span className="flex-1 text-white font-semibold text-base text-center">Edit username</span>
-          <div className="w-10" />
-        </header>
+        <MoxePageHeader title="Edit username" onBack={() => navigate(-1)} />
 
         <div className="flex-1 overflow-auto p-4">
           <p className="text-[#a8a8a8] text-sm mb-4">Changing your username will also change your MOxE account address.</p>
@@ -62,7 +107,7 @@ export default function EditUsernamePage() {
             <input
               type="text"
               value={username}
-              onChange={(e) => { setUsername(e.target.value); setAvailable(null); }}
+              onChange={(e) => { setUsername(e.target.value); setAvailable(null); setValidationError(null); }}
               onBlur={checkAvailability}
               className="w-full px-4 py-3 pr-10 rounded-lg bg-[#262626] border border-[#363636] text-white text-sm"
               placeholder="Username"
@@ -73,6 +118,9 @@ export default function EditUsernamePage() {
               </span>
             )}
           </div>
+          {validationError && (
+            <p className="text-red-400 text-xs mt-2">{validationError}</p>
+          )}
           <p className="text-[#737373] text-xs mt-2">
             Your current MOxE username {username || '...'} is available.
           </p>
@@ -82,7 +130,7 @@ export default function EditUsernamePage() {
           <button
             type="button"
             onClick={handleDone}
-            disabled={saving || !username.trim()}
+            disabled={saving || !username.trim() || !validate(username).ok}
             className="w-full py-3 rounded-lg bg-[#0095f6] text-white font-semibold text-sm disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Done'}

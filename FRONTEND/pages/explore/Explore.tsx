@@ -2,8 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { ThemedView, ThemedText } from '../../components/ui/Themed';
+import { MobileShell } from '../../components/layout/MobileShell';
 import { getApiBase, getToken } from '../../services/api';
-import { mockPosts } from '../../mocks/posts';
+import { normalizeToArray } from '../../utils/safeAccess';
+import { getFirstMediaUrl } from '../../utils/mediaUtils';
 
 type ExploreItem = {
   id: string;
@@ -23,63 +25,62 @@ export default function Explore() {
     async function load() {
       setLoading(true);
       setError(null);
+      const token = getToken();
+      const API_BASE = getApiBase();
+
+      const mapToItems = (list: any[]): ExploreItem[] =>
+        list.map((p: any) => ({
+          id: p.id,
+          thumbUrl: getFirstMediaUrl(p) || (p.mediaUrl ?? p.thumbUrl ?? ''),
+          screenshotProtection: !!p.screenshotProtection,
+          viewCount: p.viewCount ?? p.likeCount ?? 0,
+        })).filter((i) => i.thumbUrl);
+
       try {
-        const token = getToken();
-        const API_BASE = getApiBase();
         if (token) {
-          const res = await fetch(`${API_BASE}/posts/feed`, {
+          let list: any[] = [];
+          const rankingRes = await fetch(`${API_BASE}/ranking/explore`, {
             headers: { Authorization: `Bearer ${token}` },
           });
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok) {
-            throw new Error(data.error || 'Unable to load explore.');
+          if (rankingRes.ok) {
+            const rankingData = await rankingRes.json().catch(() => ({}));
+            list = normalizeToArray(rankingData.items ?? rankingData);
           }
           if (cancelled) return;
-          const mapped: ExploreItem[] = (data.items ?? data.feed ?? data).map((p: any) => {
-            const first =
-              (Array.isArray(p.media) && p.media.length
-                ? p.media.find((m: any) => m.url || m.uri || m.mediaUrl)
-                : null) || null;
-            const url = first?.url || first?.uri || first?.mediaUrl || p.mediaUrl || p.media_uri || '';
-            return {
-              id: p.id,
-              thumbUrl: url,
-              screenshotProtection: !!p.screenshotProtection,
-              viewCount: p.viewCount ?? p.likeCount ?? 0,
-            };
+          if (list.length > 0) {
+            setItems(mapToItems(list));
+            return;
+          }
+          const feedRes = await fetch(`${API_BASE}/posts/feed`, {
+            headers: { Authorization: `Bearer ${token}` },
           });
-          setItems(mapped.filter((i) => i.thumbUrl));
+          const feedData = await feedRes.json().catch(() => ({}));
+          if (cancelled) return;
+          if (feedRes.ok) {
+            const feedList = normalizeToArray(feedData.items ?? feedData.feed ?? feedData);
+            setItems(mapToItems(feedList));
+          } else {
+            setItems([]);
+          }
         } else {
-          const mappedMocks: ExploreItem[] = mockPosts.map((p) => ({
-            id: p.id,
-            thumbUrl: p.media[0]?.url ?? '',
-            viewCount: (p as any).viewCount ?? p.likeCount ?? 0,
-          }));
-          setItems(mappedMocks.filter((i) => i.thumbUrl));
+          setItems([]);
         }
       } catch (e: any) {
         if (!cancelled) {
-          // On failure, fall back to mocks and record error.
-          const mappedMocks: ExploreItem[] = mockPosts.map((p) => ({
-            id: p.id,
-            thumbUrl: p.media[0]?.url ?? '',
-            viewCount: (p as any).viewCount ?? p.likeCount ?? 0,
-          }));
-          setItems(mappedMocks.filter((i) => i.thumbUrl));
           setError(e.message || 'Failed to load explore.');
+          setItems([]);
         }
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
     load();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   return (
     <ThemedView className="min-h-screen flex flex-col bg-black">
+      <MobileShell>
       <div className="pt-2 pb-1 px-3">
         {/* Search with Meta AI bar */}
         <div className="relative">
@@ -141,6 +142,7 @@ export default function Explore() {
           </div>
         )}
       </div>
+      </MobileShell>
     </ThemedView>
   );
 }

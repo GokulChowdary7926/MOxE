@@ -1,12 +1,12 @@
 # MOxE: Complete End-to-End Implementation Blueprint
 
-## An Instagram-Aligned Social Platform with Location Intelligence
+## An MOxE-Aligned Social Platform with Location Intelligence
 
 ---
 
 **Relationship to other docs**
 
-- **Instagram Architectural Deep Dive** – Reference spec for features, personas, tabs, page layouts, Map (Nearby/People/Alerts, SOS), and workflows.
+- **MOxE Architectural Deep Dive** – Reference spec for features, personas, tabs, page layouts, Map (Nearby/People/Alerts, SOS), and workflows.
 - **MOxE UI Design Blueprint** – Single source of truth for UI tokens, shell, and components (see `MOxE_UI_DESIGN_BLUEPRINT.md`).
 - **Current codebase** – React (web) + Node/Express + Prisma + REST. This blueprint describes the target architecture; the repo implements the same patterns and can evolve toward the full stack below (e.g. React Native, microservices, polyglot persistence) per the roadmap.
 
@@ -30,7 +30,7 @@
 
 # Introduction
 
-MOxE is a next-generation social platform built using Instagram’s architectural patterns, with a **unifying focus on location-based experiences**. It serves five personas (Emma, Marcus, Lena, David, Chief) through a single, adaptive codebase.
+MOxE is a next-generation social platform built using MOxE’s architectural patterns, with a **unifying focus on location-based experiences**. It serves five personas (Emma, Marcus, Lena, David, Chief) through a single, adaptive codebase.
 
 This blueprint covers:
 
@@ -331,9 +331,9 @@ Use the tokens from **MOxE_UI_DESIGN_BLUEPRINT.md**: colors (background, surface
 
 # Conclusion
 
-MOxE applies Instagram’s architecture and adds location intelligence across the stack. Use this blueprint together with:
+MOxE applies MOxE’s architecture and adds location intelligence across the stack. Use this blueprint together with:
 
-- **Instagram Architectural Deep Dive** – for product/UX and feature list.
+- **MOxE Architectural Deep Dive** – for product/UX and feature list.
 - **MOxE_UI_DESIGN_BLUEPRINT.md** – for UI shell, tokens, and components.
 
 The current codebase (React web + Node + Prisma) implements the same UX and patterns; evolution toward the full target stack (e.g. React Native, microservices, polyglot persistence) can follow this roadmap.

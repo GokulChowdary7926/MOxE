@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { safeFirst } from '../../utils/safeAccess';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
 
@@ -71,8 +72,9 @@ export default function Strategy() {
       if (!res.ok) throw new Error('Failed to load strategy plans');
       const data = (await res.json()) as StrategyPlan[];
       setPlans(Array.isArray(data) ? data : []);
-      if (!selectedPlan && data && data.length > 0) {
-        setSelectedPlan(data[0]);
+      const firstPlan = safeFirst(Array.isArray(data) ? data : null);
+      if (!selectedPlan && firstPlan) {
+        setSelectedPlan(firstPlan);
       }
     } catch (e: any) {
       setError(e.message || 'Failed to load strategy plans');

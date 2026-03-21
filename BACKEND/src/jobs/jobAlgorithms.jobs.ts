@@ -29,8 +29,7 @@ export async function recomputeJobHiringStats(): Promise<void> {
 // Scan for at-risk issues across all active projects.
 export async function scanAtRiskIssues(): Promise<void> {
   const projects = await prisma.trackProject.findMany({
-    where: { archivedAt: null },
-    select: { id: true, ownerAccountId: true },
+    select: { id: true, accountId: true },
     take: 500,
   });
 
@@ -42,7 +41,6 @@ export async function scanAtRiskIssues(): Promise<void> {
 // Pre-warm retro drafts for recently active projects.
 export async function precomputeRetroDrafts(): Promise<void> {
   const projects = await prisma.trackProject.findMany({
-    where: { archivedAt: null },
     orderBy: { updatedAt: 'desc' },
     take: 100,
     select: { id: true },

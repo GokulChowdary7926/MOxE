@@ -33,7 +33,11 @@ export default function PostEditPage() {
     return null;
   }
 
-  const current = files[activeIndex] || files[0];
+  const current = files[activeIndex] ?? files[0] ?? null;
+  if (!current) {
+    navigate('/create/post');
+    return null;
+  }
   const isVideo = current.type.startsWith('video/');
   const previewUrl = URL.createObjectURL(current);
 

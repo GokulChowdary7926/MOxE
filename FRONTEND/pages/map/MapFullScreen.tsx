@@ -48,7 +48,7 @@ export default function MapFullScreen() {
               key={center.join(',')}
               center={center}
               zoom={14}
-              showMarker={true}
+              showUserLocation={true}
               className="w-full h-full min-h-[calc(100vh-3rem)] rounded-none"
             />
           ) : (

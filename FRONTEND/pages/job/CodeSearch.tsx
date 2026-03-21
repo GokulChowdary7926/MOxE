@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { safeFirst } from '../../utils/safeAccess';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
 
@@ -82,8 +83,9 @@ export default function CodeSearch() {
       }
       const data = (await res.json()) as SearchResult[];
       setResults(data || []);
-      if (data && data.length > 0) {
-        setSelectedResult(data[0]);
+      const firstResult = safeFirst(data);
+      if (firstResult) {
+        setSelectedResult(firstResult);
       }
     } catch (e: any) {
       setError(e.message || 'Search failed');

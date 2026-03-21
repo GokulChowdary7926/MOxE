@@ -10,11 +10,11 @@ The MOxE platform has been successfully implemented with:
 
 | Area | Status | Key Accomplishments |
 |------|--------|---------------------|
-| **Instagram-Style Features** (Personal, Creator) | ✅ Complete | Feed, Stories, Posts, Reels, Live, DMs, Notifications, Profile, Explore, Map, Settings |
-| **Atlassian-Style Features** (Business, Job) | ✅ Complete | Job tools (Track, Flow, Recruiter, Agile), Commerce (buyer/seller), Analytics, JobPageContent |
+| **MOxE-Style Features** (Personal, Creator) | ✅ Complete | Feed, Stories, Posts, Reels, Live, DMs, Notifications, Profile, Explore, Map, Settings |
+| **MOxE-Style Features** (Business, Job) | ✅ Complete | Job tools (Track, Flow, Recruiter, Agile), Commerce (buyer/seller), Analytics, JobPageContent |
 | **Location Features** | ✅ Complete | Map tab, Nearby Places/Users, SOS, Proximity Alerts, Ghost Mode |
 | **API Layer** | ✅ Standardized | `getApiBase()` and `getToken()` used everywhere; auth headers consistent |
-| **UI Consistency** | ✅ Verified | Instagram tokens for Personal/Creator; Atlassian tokens for Business/Job |
+| **UI Consistency** | ✅ Verified | MOxE tokens for Personal/Creator; MOxE tokens for Business/Job |
 | **Commerce** | ✅ Complete | Buyer experience for all accounts; seller dashboard for Business |
 
 ---
@@ -24,7 +24,7 @@ The MOxE platform has been successfully implemented with:
 ### 2.1 Frontend Stack
 - **Framework:** React (web) with React Router
 - **State:** Redux (auth, account, feed, messages, location)
-- **Styling:** Tailwind CSS with semantic tokens (`moxe-*`, Atlassian colors)
+- **Styling:** Tailwind CSS with semantic tokens (`moxe-*`, MOxE colors)
 - **API Client:** Centralized `services/api.ts` with `getApiBase()` and `getToken()`
 
 ### 2.2 Backend Stack
@@ -65,7 +65,7 @@ FRONTEND/
 
 ## 3. Key Implementation Achievements
 
-### 3.1 Instagram-Style Features (Personal, Creator)
+### 3.1 MOxE-Style Features (Personal, Creator)
 
 | Feature | Implementation | Status |
 |---------|----------------|--------|
@@ -82,12 +82,12 @@ FRONTEND/
 | **Map** | Location sharing, nearby places/users, SOS, proximity alerts | ✅ |
 | **Settings** | Privacy toggles, block/mute lists, account management | ✅ |
 
-### 3.2 Atlassian-Style Features (Business, Job)
+### 3.2 MOxE-Style Features (Business, Job)
 
 | Feature | Implementation | Status |
 |---------|----------------|--------|
 | **Job Layout** | `JobPageContent` wrapper, consistent viewport/scrolling | ✅ |
-| **Job Tools** | Track, Flow, Recruiter, Agile, etc. with Atlassian styling | ✅ |
+| **Job Tools** | Track, Flow, Recruiter, Agile, etc. with MOxE styling | ✅ |
 | **Commerce (Buyer)** | Browse products, cart, checkout, order history (all accounts) | ✅ |
 | **Commerce (Seller)** | Product management, order fulfillment, analytics (Business only) | ✅ |
 | **Analytics** | Insights dashboard, performance metrics, benchmarks | ✅ |
@@ -148,9 +148,9 @@ const response = await fetch(`${API_BASE}/endpoint`, { headers });
 
 ---
 
-## 5. UI Consistency: Instagram vs Atlassian
+## 5. UI Consistency: MOxE vs MOxE
 
-### 5.1 Instagram Style (Personal, Creator)
+### 5.1 MOxE Style (Personal, Creator)
 
 | Token | Value | Usage |
 |-------|-------|-------|
@@ -163,7 +163,7 @@ const response = await fetch(`${API_BASE}/endpoint`, { headers });
 | `moxe-accent` | `#e1306c` | Likes, highlights |
 | `moxe-danger` | `#ff5252` | Errors, destructive actions |
 
-### 5.2 Atlassian Style (Business, Job)
+### 5.2 MOxE Style (Business, Job)
 
 | Token | Value | Usage |
 |-------|-------|-------|
@@ -178,7 +178,7 @@ const response = await fetch(`${API_BASE}/endpoint`, { headers });
 
 ### 5.3 Key Components
 
-| Component | Instagram Style | Atlassian Style |
+| Component | MOxE Style | MOxE Style |
 |-----------|-----------------|-----------------|
 | **Cards** | No border, rounded-lg, shadow-sm | Border `#DFE1E6`, rounded, hover shadow |
 | **Buttons** | `bg-moxe-primary` | `bg-[#0052CC] hover:bg-[#2684FF]` |
@@ -300,7 +300,7 @@ if (error) {
 
 ## 10. Quick Reference for Developers
 
-### 10.1 New Instagram-Style Feature
+### 10.1 New MOxE-Style Feature
 
 ```tsx
 import { getApiBase, authHeaders } from '../../services/api';
@@ -316,7 +316,7 @@ const headers = authHeaders();
 </div>
 ```
 
-### 10.2 New Atlassian-Style Feature (Job Tool)
+### 10.2 New MOxE-Style Feature (Job Tool)
 
 ```tsx
 import JobPageContent from '../../components/job/JobPageContent';
@@ -347,7 +347,7 @@ export default function NewJobTool() {
 
   return (
     <JobPageContent title="MOxE Tool" description="Your description">
-      {/* Content with Atlassian styling */}
+      {/* Content with MOxE styling */}
       <div className="border border-[#DFE1E6] rounded p-4">
         <h3 className="text-[#172B4D]">Item</h3>
         <p className="text-[#5E6C84]">Details</p>
@@ -384,12 +384,12 @@ export default function NewJobTool() {
 
 The MOxE platform now has:
 
-✅ **Complete Instagram-style social features** (Personal, Creator)  
-✅ **Complete Atlassian-style professional tools** (Business, Job)  
+✅ **Complete MOxE-style social features** (Personal, Creator)  
+✅ **Complete MOxE-style professional tools** (Business, Job)  
 ✅ **Complete location features** (Map, Nearby, SOS, Proximity)  
 ✅ **Complete commerce system** (Buyer for all, Seller for Business)  
 ✅ **Standardized API layer** with `getApiBase()` everywhere  
-✅ **Consistent UI** with Instagram tokens for social, Atlassian tokens for professional  
+✅ **Consistent UI** with MOxE tokens for social, MOxE tokens for professional  
 ✅ **Fixed critical bugs** (Reels double load, Live auth, Story retry, Job layout)  
 
 All features are production-ready, with comprehensive testing checklists for each area. The platform is now ready for deployment and scaling.

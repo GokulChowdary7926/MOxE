@@ -60,7 +60,11 @@ export default function PostSharePage() {
     return null;
   }
 
-  const first = files[0];
+  const first = files[0] ?? null;
+  if (!first) {
+    navigate('/create/post');
+    return null;
+  }
   const previewUrl = URL.createObjectURL(first);
   const isVideo = first.type.startsWith('video/');
 

@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { ThemedView, ThemedText } from '../../components/ui/Themed';
 import { connectTranslateSocket, getTranslateSocket } from '../../services/translateSocket';
 import { getApiBase, getToken } from '../../services/api';
+import { connectLiveSocket, getLiveSocket, disconnectLiveSocket } from '../../services/socket';
+import { useCurrentAccount } from '../../hooks/useAccountCapabilities';
 
 const API_BASE = getApiBase();
 
@@ -18,9 +20,18 @@ type Language = { code: string; name: string };
 
 export default function LiveWatch() {
   const { liveId } = useParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const currentAccount = useCurrentAccount() as { id?: string } | null;
+  const isBroadcaster = (location.state as { broadcaster?: boolean })?.broadcaster === true;
+
   const [live, setLive] = useState<LiveDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewerCount, setViewerCount] = useState(0);
+  const [broadcasterStream, setBroadcasterStream] = useState<MediaStream | null>(null);
+  const [ending, setEnding] = useState(false);
+  const broadcasterVideoRef = useRef<HTMLVideoElement>(null);
 
   const [languages, setLanguages] = useState<Language[]>([]);
   const [sourceLang, setSourceLang] = useState('en');
@@ -58,6 +69,56 @@ export default function LiveWatch() {
       .catch((e: any) => setError(e.message || 'Failed to load live'))
       .finally(() => setLoading(false));
   }, [liveId]);
+
+  // Real-time live room: connect to /live namespace, start or join room, listener for viewer count and ended
+  useEffect(() => {
+    if (!liveId || !live) return;
+    const accountId = currentAccount?.id;
+    const ls = connectLiveSocket(accountId, (currentAccount as any)?.userId);
+    const onViewerCount = (payload: { count?: number }) => setViewerCount(payload?.count ?? 0);
+    const onEnded = () => {
+      disconnectLiveSocket();
+      navigate('/live', { replace: true });
+    };
+    ls.on('live:viewer-count', onViewerCount);
+    ls.on('live:ended', onEnded);
+    if (isBroadcaster) {
+      ls.emit('live:start', { liveId });
+    } else {
+      ls.emit('live:join', { liveId });
+    }
+    return () => {
+      ls.off('live:viewer-count', onViewerCount);
+      ls.off('live:ended', onEnded);
+      if (!isBroadcaster) {
+        ls.emit('live:leave', { liveId });
+      }
+    };
+  }, [liveId, live?.id, isBroadcaster, currentAccount?.id, navigate]);
+
+  // Broadcaster: get camera stream and show preview
+  useEffect(() => {
+    if (!isBroadcaster || !liveId) return;
+    let s: MediaStream | null = null;
+    if (navigator.mediaDevices?.getUserMedia) {
+      navigator.mediaDevices
+        .getUserMedia({ video: true, audio: true })
+        .then((stream) => {
+          s = stream;
+          setBroadcasterStream(stream);
+          if (broadcasterVideoRef.current) broadcasterVideoRef.current.srcObject = stream;
+        })
+        .catch(() => setError('Could not access camera'));
+    }
+    return () => {
+      s?.getTracks().forEach((t) => t.stop());
+      setBroadcasterStream(null);
+    };
+  }, [isBroadcaster, liveId]);
+
+  useEffect(() => {
+    if (broadcasterStream && broadcasterVideoRef.current) broadcasterVideoRef.current.srcObject = broadcasterStream;
+  }, [broadcasterStream]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -217,9 +278,23 @@ export default function LiveWatch() {
         {!loading && !error && live && (
           <>
             <div className="aspect-video bg-black rounded-moxe-lg overflow-hidden flex items-center justify-center relative">
-              <ThemedText secondary className="text-moxe-caption">
-                Live video placeholder
-              </ThemedText>
+              {isBroadcaster && broadcasterStream ? (
+                <video
+                  ref={broadcasterVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <ThemedText secondary className="text-moxe-caption">
+                  Live video placeholder
+                </ThemedText>
+              )}
+              <div className="absolute top-2 left-2 flex items-center gap-2 px-2 py-1 rounded-full bg-black/60 text-white text-sm">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                {viewerCount} watching
+              </div>
               {subtitle && translationEnabled && (
                 <div className="absolute inset-x-0 bottom-2 flex justify-center px-4">
                   <div className="bg-black/70 text-white text-sm px-3 py-1.5 rounded-full max-w-full truncate">
@@ -228,6 +303,34 @@ export default function LiveWatch() {
                 </div>
               )}
             </div>
+
+            {isBroadcaster && live.status === 'LIVE' && (
+              <button
+                type="button"
+                disabled={ending}
+                onClick={async () => {
+                  if (!liveId || ending) return;
+                  const token = getToken();
+                  if (!token) return;
+                  setEnding(true);
+                  try {
+                    await fetch(`${API_BASE}/live/${liveId}/end`, {
+                      method: 'PATCH',
+                      headers: { Authorization: `Bearer ${token}` },
+                    });
+                    const ls = getLiveSocket();
+                    if (ls) ls.emit('live:end', { liveId });
+                    disconnectLiveSocket();
+                    navigate('/live', { replace: true });
+                  } catch {
+                    setEnding(false);
+                  }
+                }}
+                className="w-full py-3 rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white font-semibold"
+              >
+                {ending ? 'Ending…' : 'End live'}
+              </button>
+            )}
 
             <div className="space-y-2">
               <ThemedText className="text-lg font-semibold text-moxe-body">{live.title}</ThemedText>

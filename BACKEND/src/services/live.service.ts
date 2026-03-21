@@ -108,6 +108,34 @@ export class LiveService {
     return live;
   }
 
+  /** Start a scheduled live (set status LIVE, startedAt). */
+  async startLive(accountId: string, liveId: string) {
+    const live = await this.assertOwnLive(accountId, liveId);
+    if (live.status !== 'SCHEDULED') throw new AppError('Live can only be started when scheduled', 400);
+    return prisma.live.update({
+      where: { id: liveId },
+      data: { status: 'LIVE', startedAt: new Date() },
+      include: {
+        account: { select: { id: true, username: true, displayName: true, profilePhoto: true } },
+        liveProducts: { include: { product: { select: { id: true, name: true, price: true, images: true } } }, orderBy: { sortOrder: 'asc' } },
+      },
+    });
+  }
+
+  /** End an active live (set status ENDED, endedAt). */
+  async endLive(accountId: string, liveId: string) {
+    const live = await this.assertOwnLive(accountId, liveId);
+    if (live.status !== 'LIVE') throw new AppError('Only an active live can be ended', 400);
+    return prisma.live.update({
+      where: { id: liveId },
+      data: { status: 'ENDED', endedAt: new Date() },
+      include: {
+        account: { select: { id: true, username: true, displayName: true, profilePhoto: true } },
+        liveProducts: { include: { product: { select: { id: true, name: true, price: true, images: true } } }, orderBy: { sortOrder: 'asc' } },
+      },
+    });
+  }
+
   /** Add products to a live (Live Shopping). Products must belong to the same account as the live. */
   async addProductsToLive(accountId: string, liveId: string, body: { productIds: string[]; liveDiscountPercent?: number }) {
     await this.assertOwnLive(accountId, liveId);

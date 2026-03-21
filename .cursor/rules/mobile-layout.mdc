@@ -1,0 +1,14 @@
+---
+description: MOxE mobile-first layout and template for all pages.
+globs: ["**/*.tsx"]
+alwaysApply: false
+---
+
+# MOxE mobile layout
+
+- **All user-facing pages** must use a mobile-first layout: single column, max-width 428px on desktop (centered), full width on small screens.
+- **Use `MobileShell`** from `components/layout/MobileShell` for map, nearby messaging, settings sub-pages, and any full-screen flow. It provides `max-w-[428px] mx-auto min-h-screen`.
+- **Structure**: Sticky header (back + title + optional right action), scrollable content area with `pb-24` or similar to clear bottom nav, then fixed bottom bar or FAB when needed.
+- **Safe areas**: Use `safe-area-pt` and `safe-area-pb` on fixed header/footer so content is not hidden by notches or home indicators.
+- **Touch targets**: Buttons and icon rows must be at least 44px tap area; use `p-2` or `py-3` on interactive elements.
+- **Nearby Messaging**: Follow this template—avatar + display name + handle (or Anonymous/@anonymous), single message per post, 24h retention, action bar (Comment, Repost, Like, Analytics, Bookmark, Share) and three-dot menu (Copy, Report) must be wired and functional.

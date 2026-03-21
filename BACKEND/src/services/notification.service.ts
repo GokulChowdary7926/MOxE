@@ -1,8 +1,10 @@
 /**
  * Notification workflow: list (all/mentions), create, mark read.
  * Quiet mode (1.2): skip creating notification when recipient is in quiet window.
+ * Real-time: emit to recipient socket room on create.
  */
 import { prisma } from '../server';
+import { emitNotification } from '../sockets';
 
 const DEFAULT_LIMIT = 30;
 
@@ -57,8 +59,18 @@ export class NotificationService {
       select: { quietModeEnabled: true, quietModeStart: true, quietModeEnd: true, quietModeDays: true },
     });
     if (isInQuietWindow(recipient)) return null;
-    return prisma.notification.create({
+    const notification = await prisma.notification.create({
       data: { recipientId, senderId: senderId || null, type, content: content || null, data: data || undefined },
+      include: { sender: { select: { id: true, username: true, displayName: true, profilePhoto: true } } },
     });
+    emitNotification(recipientId, {
+      id: notification.id,
+      type: notification.type,
+      content: notification.content,
+      createdAt: notification.createdAt?.toISOString?.() ?? new Date().toISOString(),
+      read: notification.read,
+      sender: notification.sender,
+    });
+    return notification;
   }
 }

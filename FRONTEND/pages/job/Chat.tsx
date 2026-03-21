@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { getApiBase } from '../../services/api';
+import { safeFirst } from '../../utils/safeAccess';
 
 const API_BASE = getApiBase();
 
@@ -97,8 +98,9 @@ export default function Chat() {
       setThreads(data.threads || []);
       setRequests(data.requests || []);
       setPinnedIds(data.pinnedIds || []);
-      if (!selectedPeerId && data.threads && data.threads.length > 0) {
-        setSelectedPeerId(data.threads[0].otherId);
+      const firstThread = safeFirst(data.threads);
+      if (!selectedPeerId && firstThread?.otherId) {
+        setSelectedPeerId(firstThread.otherId);
       }
     } catch (e: any) {
       setError(e.message || 'Failed to load conversations');

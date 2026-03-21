@@ -71,3 +71,45 @@ export async function fetchApiJson<T = unknown>(path: string, options: FetchApiO
   if (!res.ok) throw new Error((data as { error?: string }).error || res.statusText || 'Request failed');
   return data as T;
 }
+
+export type ApiFetchOptions = RequestInit & {
+  /** If true, do not parse response as JSON (e.g. for blob). */
+  raw?: boolean;
+  /** If true, 401 does not trigger handle401 redirect. */
+  skip401Redirect?: boolean;
+};
+
+/**
+ * Job tools API helper: path is relative to API_BASE (no leading /api).
+ * - GET: returns parsed JSON.
+ * - POST/PUT/PATCH with JSON body: sends JSON, returns parsed JSON.
+ * - body as FormData: sends multipart, returns parsed JSON (no Content-Type header).
+ */
+export async function apiFetch<T = unknown>(
+  path: string,
+  options: ApiFetchOptions = {}
+): Promise<T> {
+  const { raw, skip401Redirect, body: bodyOpt, ...init } = options;
+  const normalizedPath = path.replace(/^\/api\/?/, '').replace(/^\//, '');
+  const url = `${API_BASE.replace(/\/$/, '')}/${normalizedPath}`;
+  const headers = new Headers(init.headers as HeadersInit);
+  if (getToken()) headers.set('Authorization', `Bearer ${getToken()}`);
+  const isFormData = bodyOpt instanceof FormData;
+  if (!isFormData && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+  const body: BodyInit | null | undefined = isFormData
+    ? bodyOpt
+    : typeof bodyOpt === 'object' && bodyOpt !== null
+      ? JSON.stringify(bodyOpt)
+      : bodyOpt;
+  const res = await fetch(url, { ...init, headers, body });
+  if (res.status === 401 && !options.skip401Redirect) {
+    handle401();
+  }
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error((data as { error?: string }).error || res.statusText || 'Request failed');
+  }
+  if (raw) return res as unknown as T;
+  const data = await res.json().catch(() => ({}));
+  return data as T;
+}

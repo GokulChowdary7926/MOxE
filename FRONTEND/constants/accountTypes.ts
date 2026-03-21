@@ -26,7 +26,6 @@ export interface AccountCapabilities {
   canBusinessHours: boolean;
   canActionButtons: boolean;
   canAnalytics: boolean;
-  /** Full ads / campaigns manager access (Promote, Ads page) */
   canAds: boolean;
   canTrack: boolean;
   canKnow: boolean;
@@ -36,6 +35,35 @@ export interface AccountCapabilities {
   canNetworking: boolean;
   label: string;
   description: string;
+  /** Extended (from /accounts/me capabilities) */
+  cloudStorageGB?: number;
+  hasBlueBadge?: boolean;
+  hasPurpleBadge?: boolean;
+  hasAds?: boolean;
+  canViewProfileVisitors?: boolean;
+  anonymousStoryViewsPerDay?: number;
+  canSendToBlockedUsers?: number;
+  hasDownloadProtection?: boolean;
+  hasVoiceCommands?: 'none' | 'basic' | 'advanced';
+  hasTrendingAudio?: boolean;
+  hasContentIdeas?: boolean;
+  hasContentCalendar?: boolean;
+  canRunAds?: boolean;
+  maxProducts?: number;
+  hasLiveShopping?: boolean;
+  hasTeamManagement?: boolean;
+  canUseSubscriptions?: boolean;
+  canUseBadges?: boolean;
+  canUseGifts?: boolean;
+  canUseBrandedContent?: boolean;
+  hasBrandMarketplace?: boolean;
+  hasJobTools?: boolean;
+  professionalTools?: string[];
+  supportPriority?: 'standard' | 'priority' | 'emergency';
+  supportResponseTime?: string;
+  nearbyMessagingFreePosts?: number;
+  nearbyMessagingFreeMessages?: number;
+  nearbyMessagingExtraCost?: number;
 }
 
 export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
@@ -44,6 +72,15 @@ export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   CREATOR: 'Creator',
   JOB: 'Job',
 };
+
+/** Home route after login/signup by account type. Personal = feed, Business = dashboard, Creator = studio, Job = job hub. */
+export function getHomeRouteForAccountType(accountType: string | null | undefined): string {
+  const t = (accountType || '').toUpperCase();
+  if (t === 'JOB') return '/job';
+  if (t === 'BUSINESS') return '/business-dashboard';
+  if (t === 'CREATOR') return '/creator-studio';
+  return '/'; // PERSONAL or unknown
+}
 
 export const SUBSCRIPTION_TIER_LABELS: Record<SubscriptionTier, string> = {
   FREE: 'Free',

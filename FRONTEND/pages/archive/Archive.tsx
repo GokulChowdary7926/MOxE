@@ -6,19 +6,13 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { UI } from '../../constants/uiTheme';
 import { getApiBase, getToken } from '../../services/api';
+import { getFirstMediaUrl } from '../../utils/mediaUtils';
 
 type ArchiveItem = {
   id: string;
   thumbUrl: string;
   isVideo: boolean;
 };
-
-function parseMediaFirstUrl(media: unknown): string {
-  if (Array.isArray(media) && media[0] && typeof media[0] === 'object' && media[0] !== null && 'url' in media[0]) {
-    return String((media[0] as { url: string }).url);
-  }
-  return '';
-}
 
 export default function Archive() {
   const navigate = useNavigate();
@@ -57,7 +51,7 @@ export default function Archive() {
         const list = (data.items ?? data) as any[];
         const mapped: ArchiveItem[] = (Array.isArray(list) ? list : []).map((p: any) => ({
           id: p.id,
-          thumbUrl: parseMediaFirstUrl(p.media) || (p.mediaUrl ?? ''),
+          thumbUrl: getFirstMediaUrl(p) || (p.mediaUrl ?? ''),
           isVideo: p.mediaType === 'VIDEO' || (Array.isArray(p.media) ? (p.media as any[])[0] : null)?.type === 'video',
         })).filter((i) => i.thumbUrl);
         setItems(mapped);
@@ -96,7 +90,7 @@ export default function Archive() {
         const list = (data.items ?? data) as any[];
         const mapped: ArchiveItem[] = (Array.isArray(list) ? list : []).map((s: any) => {
           const media = s.media as any;
-          const url = Array.isArray(media) && media[0]?.url ? media[0].url : typeof media?.url === 'string' ? media.url : '';
+          const url = getFirstMediaUrl(s) || (typeof media === 'object' && media != null && 'url' in media ? String((media as { url: string }).url) : '');
           return {
             id: s.id || s.storyId,
             thumbUrl: url || '',

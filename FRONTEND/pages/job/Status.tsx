@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getApiBase } from '../../services/api';
 import { JobPageContent } from '../../components/job/JobPageContent';
+import { safeFirstId } from '../../utils/safeAccess';
 
 const API_BASE = getApiBase();
 
@@ -79,8 +80,9 @@ export default function Status() {
       if (!res.ok) throw new Error('Failed to load status pages');
       const data = await res.json();
       setPages(data || []);
-      if (!selectedPage && data?.length) {
-        await loadPageDetail(data[0].id);
+      const firstPageId = safeFirstId(data);
+      if (!selectedPage && firstPageId) {
+        await loadPageDetail(firstPageId);
       }
     } catch (e: any) {
       setError(e.message || 'Failed to load status pages');

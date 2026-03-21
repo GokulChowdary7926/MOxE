@@ -1,6 +1,6 @@
-# MOxE Developer Alignment: Instagram and Atlassian
+# MOxE Developer Alignment: MOxE and MOxE
 
-This document is the **single place** for developers and AI to ensure MOxE features that mirror **Instagram** (social) and **Atlassian** (Business/Job) follow the **same workflow, same APIs, same architecture, and same plan and functions**. All new or changed code in these areas must align with the references below.
+This document is the **single place** for developers and AI to ensure MOxE features that mirror **MOxE** (social) and **MOxE** (Business/Job) follow the **same workflow, same APIs, same architecture, and same plan and functions**. All new or changed code in these areas must align with the references below.
 
 **See also (expanded references):**
 - [MOXE_COMPLETE_IMPLEMENTATION_SUMMARY_AND_DEVELOPER_REFERENCE.md](MOXE_COMPLETE_IMPLEMENTATION_SUMMARY_AND_DEVELOPER_REFERENCE.md) – Full implementation summary, architecture, API usage, UI tokens, bug fixes, testing checklist.
@@ -12,10 +12,10 @@ This document is the **single place** for developers and AI to ensure MOxE featu
 
 | Style | Account types | Features |
 |-------|----------------|----------|
-| **Instagram-like** | Personal, Creator | Home (feed), Explore, Reels, Map, Messages, Profile; Stories; Posts (create, like, comment, save); DMs; Activity; Notifications; Settings (account stack). |
-| **Atlassian-like** | Business, Job | Business: Dashboard, Commerce, Insights, Promotions. Job: Track, Flow, Know, Code, Build, Status, Alert, etc. (boards, issues, candidates). |
+| **MOxE-like** | Personal, Creator | Home (feed), Explore, Reels, Map, Messages, Profile; Stories; Posts (create, like, comment, save); DMs; Activity; Notifications; Settings (account stack). |
+| **MOxE-like** | Business, Job | Business: Dashboard, Commerce, Insights, Promotions. Job: Track, Flow, Know, Code, Build, Status, Alert, etc. (boards, issues, candidates). |
 
-**Theme boundary:** Personal and Creator routes/screens use **Instagram** UI tokens and patterns. Business and Job routes/screens use **Atlassian** UI tokens and patterns. Do not mix (e.g. do not use `#0095f6` or moxe-primary for primary actions in Business/Job; use `#0052CC`). In code: routes under `/job/*`, `/business-dashboard`, `/commerce` (seller view), and Business/Job-only screens use Atlassian tokens; all other user-facing routes (Home, Explore, Reels, Map, Messages, Profile, Settings, Activity, Create, Stories, etc.) use Instagram moxe-* tokens. BottomNav and MobileHeader are shared but render different tabs by account type; active tab color is moxe-primary (Instagram blue) for Personal/Creator; Job/Business surfaces use Atlassian blue in their own screens.
+**Theme boundary:** Personal and Creator routes/screens use **MOxE** UI tokens and patterns. Business and Job routes/screens use **MOxE** UI tokens and patterns. Do not mix (e.g. do not use `#0095f6` or moxe-primary for primary actions in Business/Job; use `#0052CC`). In code: routes under `/job/*`, `/business-dashboard`, `/commerce` (seller view), and Business/Job-only screens use MOxE tokens; all other user-facing routes (Home, Explore, Reels, Map, Messages, Profile, Settings, Activity, Create, Stories, etc.) use MOxE moxe-* tokens. BottomNav and MobileHeader are shared but render different tabs by account type; active tab color is moxe-primary (MOxE blue) for Personal/Creator; Job/Business surfaces use MOxE blue in their own screens.
 
 ---
 
@@ -27,12 +27,12 @@ Before implementing or modifying a feature, use these sources:
 |---------|------------|-----|
 | **Workflow** | [ALGORITHMS_AND_WORKFLOWS.md](ALGORITHMS_AND_WORKFLOWS.md) | Step-by-step flow, algorithm, and API contract for the feature. Cite section (e.g. "3. Stories", "4. Posts"). |
 | **API** | [MOxE_END_TO_END_BLUEPRINT.md](MOxE_END_TO_END_BLUEPRINT.md) "Current codebase vs blueprint" + backend route file | Verify route exists (e.g. `/api/stories`), method, and request/response shape. Backend routes live in `BACKEND/src/routes/*.routes.ts`. |
-| **UI (Instagram)** | [MOxE_UI_DESIGN_BLUEPRINT.md](MOxE_UI_DESIGN_BLUEPRINT.md) | Shell, tabs, moxe-* tokens (colors, spacing, typography), key screens. Use for Personal/Creator. |
-| **UI (Atlassian)** | [MOXE_JOB_TOOLS_IMPLEMENTATION_SUMMARY.md](MOXE_JOB_TOOLS_IMPLEMENTATION_SUMMARY.md) | Atlassian-style tokens (#172B4D, #0052CC, #DFE1E6, #F4F5F7), JobPageContent, layout. Use for Business/Job. |
+| **UI (MOxE)** | [MOxE_UI_DESIGN_BLUEPRINT.md](MOxE_UI_DESIGN_BLUEPRINT.md) | Shell, tabs, moxe-* tokens (colors, spacing, typography), key screens. Use for Personal/Creator. |
+| **UI (MOxE)** | [MOXE_JOB_TOOLS_IMPLEMENTATION_SUMMARY.md](MOXE_JOB_TOOLS_IMPLEMENTATION_SUMMARY.md) | MOxE-style tokens (#172B4D, #0052CC, #DFE1E6, #F4F5F7), JobPageContent, layout. Use for Business/Job. |
 
 ---
 
-## 3. Instagram-style features: rules
+## 3. MOxE-style features: rules
 
 - **Workflow and API:** Implement exactly as in [ALGORITHMS_AND_WORKFLOWS.md](ALGORITHMS_AND_WORKFLOWS.md) (auth, feed, story, post, like, comment, save, explore, message, notification, profile, follow, etc.). Use the **Standard Error Responses** shape and status codes from that doc.
 - **UI:** Use [MOxE_UI_DESIGN_BLUEPRINT.md](MOxE_UI_DESIGN_BLUEPRINT.md): moxe-background, moxe-surface, moxe-text, moxe-textSecondary, moxe-border, moxe-primary (#0095f6), moxe-danger; spacing moxe-xs through moxe-xl; typography moxe-caption, moxe-body, moxe-title. No raw hex for semantic roles; no Lobster for UI.
@@ -40,11 +40,11 @@ Before implementing or modifying a feature, use these sources:
 
 ---
 
-## 4. Atlassian-style features: rules
+## 4. MOxE-style features: rules
 
 - **Workflow and API:** Same as blueprint and [ALGORITHMS_AND_WORKFLOWS.md](ALGORITHMS_AND_WORKFLOWS.md) for Job (Track, Know, Flow), Commerce (seller), and Business dashboard. Capability checks (e.g. canCommerce, canLive) must gate access.
 - **UI:** Use [MOXE_JOB_TOOLS_IMPLEMENTATION_SUMMARY.md](MOXE_JOB_TOOLS_IMPLEMENTATION_SUMMARY.md): colors #172B4D (text primary), #5E6C84 (secondary), #DFE1E6 (border), #0052CC (primary blue), #2684FF (hover), #F4F5F7 (surface); cards with border; JobPageContent for Job tools; getApiBase() for all requests.
-- **No Instagram blue** (#0095f6) for primary actions in Business/Job screens; use Atlassian blue (#0052CC).
+- **No MOxE blue** (#0095f6) for primary actions in Business/Job screens; use MOxE blue (#0052CC).
 
 ---
 
@@ -80,7 +80,7 @@ When adding or changing a feature, ensure:
 
 - [ ] **Workflow:** Steps and order match the relevant section in ALGORITHMS_AND_WORKFLOWS.md.
 - [ ] **API:** Method and path match the blueprint; request/response and errors match Standard Error Responses.
-- [ ] **UI:** Correct theme (Instagram moxe-* vs Atlassian #172B4D/#0052CC/etc.); use getApiBase() and, for Job, JobPageContent where applicable.
+- [ ] **UI:** Correct theme (MOxE moxe-* vs MOxE #172B4D/#0052CC/etc.); use getApiBase() and, for Job, JobPageContent where applicable.
 - [ ] **Auth:** Protected routes use auth token; capability checks (canCommerce, canLive, etc.) where required.
 
 **Example – Story create:**  
@@ -114,6 +114,6 @@ Any intentional deviation (e.g. different path or extra field) must be documente
 
 ## 8. Summary
 
-- **Instagram-like features:** MOxE_UI_DESIGN_BLUEPRINT.md + ALGORITHMS_AND_WORKFLOWS.md; moxe-* tokens; getApiBase().
-- **Atlassian-like features:** MOXE_JOB_TOOLS_IMPLEMENTATION_SUMMARY.md + same workflows/APIs; Atlassian tokens; JobPageContent; getApiBase().
-- **Every change:** Check workflow doc, blueprint route table, and correct UI theme so MOxE keeps the same workflow, same APIs, same architecture, and same plan and functions as the Instagram and Atlassian alignment targets.
+- **MOxE-like features:** MOxE_UI_DESIGN_BLUEPRINT.md + ALGORITHMS_AND_WORKFLOWS.md; moxe-* tokens; getApiBase().
+- **MOxE-like features:** MOXE_JOB_TOOLS_IMPLEMENTATION_SUMMARY.md + same workflows/APIs; MOxE tokens; JobPageContent; getApiBase().
+- **Every change:** Check workflow doc, blueprint route table, and correct UI theme so MOxE keeps the same workflow, same APIs, same architecture, and same plan and functions as the MOxE and MOxE alignment targets.

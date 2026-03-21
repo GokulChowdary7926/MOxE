@@ -58,8 +58,9 @@ export default function Source() {
       if (!res.ok) throw new Error('Failed to load repositories');
       const data = (await res.json()) as CodeRepo[];
       setRepos(data || []);
-      if (!selectedRepo && data && data.length > 0) {
-        setSelectedRepo(data[0]);
+      const firstRepo = Array.isArray(data) && data.length > 0 ? data[0] : null;
+      if (!selectedRepo && firstRepo) {
+        setSelectedRepo(firstRepo);
       }
     } catch (e: any) {
       setError(e.message || 'Failed to load repositories');
@@ -75,8 +76,9 @@ export default function Source() {
       if (!res.ok) throw new Error('Failed to load branches');
       const data = (await res.json()) as CodeBranch[];
       setBranches(data || []);
-      if (!selectedBranch && data && data.length > 0) {
-        setSelectedBranch(data[0].name);
+      const firstBranch = Array.isArray(data) && data.length > 0 ? data[0] : null;
+      if (!selectedBranch && firstBranch?.name) {
+        setSelectedBranch(firstBranch.name);
       }
     } catch (e: any) {
       setError(e.message || 'Failed to load branches');
@@ -96,8 +98,9 @@ export default function Source() {
       if (!res.ok) throw new Error('Failed to load commits');
       const data = (await res.json()) as Commit[];
       setCommits(data || []);
-      if (data && data.length > 0) {
-        await loadCommitDetail(repo, data[0].id);
+      const firstCommit = Array.isArray(data) && data.length > 0 ? data[0] : null;
+      if (firstCommit?.id) {
+        await loadCommitDetail(repo, firstCommit.id);
       } else {
         setSelectedCommit(null);
       }

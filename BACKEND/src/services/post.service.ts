@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../server';
 import { AppError } from '../utils/AppError';
+import { emitFeedNewPost, emitPostUpdated } from '../sockets';
 
 function contentMatchesHiddenWords(content: string, words: string[]): boolean {
   const lower = content.toLowerCase();
@@ -127,12 +128,14 @@ export class PostService {
       update: {},
     });
     const count = await prisma.like.count({ where: { postId } });
+    emitPostUpdated(postId, { likeCount: count });
     return { liked: true, likeCount: count };
   }
 
   async unlike(accountId: string, postId: string) {
     await prisma.like.deleteMany({ where: { accountId, postId } });
     const count = await prisma.like.count({ where: { postId } });
+    emitPostUpdated(postId, { likeCount: count });
     return { liked: false, likeCount: count };
   }
 
@@ -155,6 +158,7 @@ export class PostService {
       include: { account: { select: { id: true, username: true, displayName: true, profilePhoto: true } } },
     });
     // Hidden words (1.6.5): if post owner has comment filter and content matches, hide comment from owner
+    let finalComment = comment;
     if (!comment.isHidden && post.accountId !== accountId) {
       const owner = await prisma.account.findUnique({
         where: { id: post.accountId },
@@ -162,15 +166,22 @@ export class PostService {
       });
       const words = Array.isArray(owner?.hiddenWords) ? (owner!.hiddenWords as string[]) : [];
       if (owner?.hiddenWordsCommentFilter && words.length > 0 && contentMatchesHiddenWords(content, words)) {
-        const updated = await prisma.comment.update({
+        finalComment = await prisma.comment.update({
           where: { id: comment.id },
           data: { isHidden: true },
           include: { account: { select: { id: true, username: true, displayName: true, profilePhoto: true } } },
         });
-        return updated;
       }
     }
-    return comment;
+    const commentCount = await prisma.comment.count({ where: { postId, isHidden: false } });
+    const commentPayload = {
+      id: finalComment.id,
+      content: finalComment.content,
+      createdAt: finalComment.createdAt?.toISOString?.() ?? new Date().toISOString(),
+      account: finalComment.account,
+    };
+    emitPostUpdated(postId, { commentCount, comment: commentPayload });
+    return finalComment;
   }
 
   async updateComment(accountId: string, commentId: string, content: string) {

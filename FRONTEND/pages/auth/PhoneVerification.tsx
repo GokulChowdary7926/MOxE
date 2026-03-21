@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useDispatch } from 'react-redux';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { setCredentials, fetchMe } from '../../store/authSlice';
 import { setCurrentAccount, setCapabilities } from '../../store/accountSlice';
 import type { AppDispatch } from '../../store';
 import { getApiBase } from '../../services/api';
+import { getHomeRouteForAccountType } from '../../constants/accountTypes';
 import { AUTH } from './authStyles';
 
 type Step = 'phone' | 'code';
@@ -12,6 +13,8 @@ type Step = 'phone' | 'code';
 export default function PhoneVerification() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
+  const accountType = (location.state as { accountType?: string } | null)?.accountType || 'PERSONAL';
 
   const [step, setStep] = useState<Step>('phone');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -83,6 +86,7 @@ export default function PhoneVerification() {
         username: username.trim(),
         displayName: displayName.trim(),
         dateOfBirth: dateOfBirth.trim(),
+        accountType,
       };
       const res = await fetch(`${getApiBase()}/auth/verify-code`, {
         method: 'POST',
@@ -109,7 +113,7 @@ export default function PhoneVerification() {
           // token valid but fetchMe failed; still send user home
         }
       }
-      navigate('/');
+      navigate(getHomeRouteForAccountType(accountType));
     } catch (err: any) {
       setError(err.message || 'Could not verify code.');
     } finally {

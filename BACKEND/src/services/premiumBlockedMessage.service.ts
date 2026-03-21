@@ -5,6 +5,7 @@
  */
 import { prisma } from '../server';
 import { AppError } from '../utils/AppError';
+import { NotificationService } from './notification.service';
 
 const PERIOD_DAYS = 28;
 const MESSAGING_WINDOW_DAYS = 14;
@@ -13,6 +14,10 @@ const BASE_CHAR_LIMIT = 150;
 const EXTENSION_CHAR_LIMIT = 150;
 const REBLOCK_COOLDOWN_DAYS = 30;
 const PREMIUM_TIERS = ['STAR', 'THICK'];
+const PREMIUM_MESSAGE_STRIKE_TYPE = 'PREMIUM_MESSAGE_ABUSE';
+const REPORTED_SUSPEND_DAYS = 30;
+
+const notificationService = new NotificationService();
 
 function getPeriodStart(date: Date): Date {
   const epoch = new Date('2020-01-01T00:00:00Z').getTime();
@@ -36,12 +41,35 @@ export class PremiumBlockedMessageService {
       where: { id: accountId },
       select: { subscriptionTier: true },
     });
-    return account ? PREMIUM_TIERS.includes(account.subscriptionTier) : false;
+    if (!account) return false;
+    if (!PREMIUM_TIERS.includes(account.subscriptionTier)) return false;
+
+    // Safety: after enough abuse reports, suspend premium blocked-messaging.
+    const activeStrikes = await prisma.lifestyleStrike.count({
+      where: {
+        accountId,
+        strikeType: PREMIUM_MESSAGE_STRIKE_TYPE,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+    });
+
+    // 1 strike -> allowed; 2+ strikes -> suspended for the strike expiry window.
+    return activeStrikes < 2;
   }
 
   private async isBlocked(senderId: string, recipientId: string): Promise<boolean> {
     const block = await prisma.block.findUnique({
       where: { blockerId_blockedId: { blockerId: recipientId, blockedId: senderId } },
+      select: { expiresAt: true },
+    });
+    if (!block) return false;
+    if (block.expiresAt != null && block.expiresAt <= new Date()) return false;
+    return true;
+  }
+
+  private async isBlockedByYou(senderId: string, recipientId: string): Promise<boolean> {
+    const block = await prisma.block.findUnique({
+      where: { blockerId_blockedId: { blockerId: senderId, blockedId: recipientId } },
       select: { expiresAt: true },
     });
     if (!block) return false;
@@ -81,6 +109,9 @@ export class PremiumBlockedMessageService {
   }> {
     if (!(await this.isPremium(senderId))) {
       return { canSend: false, reason: 'Premium required', remainingGrants: 0, remainingDays: 0, characterLimit: BASE_CHAR_LIMIT };
+    }
+    if (await this.isBlockedByYou(senderId, recipientId)) {
+      return { canSend: false, reason: 'You have blocked this user', remainingGrants: 0, remainingDays: 0, characterLimit: BASE_CHAR_LIMIT };
     }
     if (!(await this.isBlocked(senderId, recipientId))) {
       return { canSend: false, reason: 'User has not blocked you', remainingGrants: 0, remainingDays: 0, characterLimit: BASE_CHAR_LIMIT };
@@ -161,6 +192,18 @@ export class PremiumBlockedMessageService {
       },
     });
 
+    // Notify recipient in-app (and via socket) that a premium blocked message arrived.
+    await notificationService.create(
+      recipientId,
+      'PREMIUM_BLOCKED_MESSAGE',
+      senderId,
+      contentTrimmed,
+      {
+        senderId,
+        messageId: message.id,
+      },
+    );
+
     return { messageId: message.id, status: 'sent', expiresAt: grantExpiresAt };
   }
 
@@ -177,6 +220,52 @@ export class PremiumBlockedMessageService {
     let cooldownUntil: Date | undefined;
     if (action === 'reblocked') {
       cooldownUntil = new Date(Date.now() + REBLOCK_COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
+
+      // Make re-block effective for normal DMs as well.
+      await prisma.block.upsert({
+        where: { blockerId_blockedId: { blockerId: recipientId, blockedId: message.senderId } },
+        update: { expiresAt: cooldownUntil, blockFutureAccounts: false },
+        create: {
+          blockerId: recipientId,
+          blockedId: message.senderId,
+          expiresAt: cooldownUntil,
+          blockFutureAccounts: false,
+        },
+      });
+    } else if (action === 'unblocked') {
+      // Allow normal messaging again between recipient and sender.
+      await prisma.block.deleteMany({
+        where: { blockerId: recipientId, blockedId: message.senderId },
+      });
+    } else if (action === 'reported') {
+      const activeStrikeCount = await prisma.lifestyleStrike.count({
+        where: {
+          accountId: message.senderId,
+          strikeType: PREMIUM_MESSAGE_STRIKE_TYPE,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        },
+      });
+
+      const nextStrikeNumber = activeStrikeCount + 1;
+      const expiresAt = nextStrikeNumber === 2 ? new Date(Date.now() + REPORTED_SUSPEND_DAYS * 24 * 60 * 60 * 1000) : null;
+
+      await prisma.lifestyleStrike.create({
+        data: {
+          accountId: message.senderId,
+          strikeType: PREMIUM_MESSAGE_STRIKE_TYPE,
+          reason: reportReason ?? 'Blocked message reported',
+          associatedMessageId: message.id,
+          expiresAt,
+        },
+      });
+
+      // 3rd+ strikes: revoke premium messaging ability immediately by downgrading tier.
+      if (nextStrikeNumber >= 3) {
+        await prisma.account.update({
+          where: { id: message.senderId },
+          data: { subscriptionTier: 'FREE' },
+        });
+      }
     }
 
     return { success: true, cooldownUntil };

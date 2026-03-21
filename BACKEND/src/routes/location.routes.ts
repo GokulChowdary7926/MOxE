@@ -72,12 +72,47 @@ router.get('/nearby', authenticate, async (req, res, next) => {
   }
 });
 
-/** 4.1.1 Nearby messaging: record a post to nearby (1 free/day for paid, then $0.50 each). */
+router.get('/network', authenticate, async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const scopeRaw = String(req.query.scope || 'followers');
+    const scope =
+      scopeRaw === 'followers' || scopeRaw === 'following' || scopeRaw === 'friends' || scopeRaw === 'close_friends'
+        ? scopeRaw
+        : null;
+    if (!scope) return res.status(400).json({ error: 'scope must be followers|following|friends|close_friends' });
+    const result = await service.getNetworkLocations(accountId, scope);
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get('/network-tags', authenticate, async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const scopeRaw = String(req.query.scope || 'followers');
+    const scope =
+      scopeRaw === 'followers' || scopeRaw === 'following' || scopeRaw === 'friends' || scopeRaw === 'close_friends'
+        ? scopeRaw
+        : null;
+    if (!scope) return res.status(400).json({ error: 'scope must be followers|following|friends|close_friends' });
+    const result = await service.getNetworkTaggedLocations(accountId, scope);
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+/** Nearby messaging: record usage (text or media). Text: 10/day, photo: 1/day. */
 router.post('/nearby-post', authenticate, async (req, res, next) => {
   try {
     const accountId = (req as any).user?.accountId;
     if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
-    const result = await service.recordNearbyPost(accountId);
+    const kind = req.body?.kind === 'media' ? 'media' : 'text';
+    const result = await service.recordNearbyMessaging(accountId, kind);
     res.status(201).json(result);
   } catch (e) {
     next(e);

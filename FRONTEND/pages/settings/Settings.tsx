@@ -34,6 +34,7 @@ export default function Settings() {
   const isPersonalAccount = currentAccount?.accountType === 'PERSONAL';
   const [isPrivate, setIsPrivate] = useState(false);
   const [closeFriendsCount, setCloseFriendsCount] = useState(0);
+  const [blockedCount, setBlockedCount] = useState<number | null>(null);
 
   useEffect(() => {
     const token = getToken();
@@ -49,6 +50,13 @@ export default function Settings() {
       .then((data) => {
         const list = data?.list ?? data?.closeFriends ?? [];
         setCloseFriendsCount(Array.isArray(list) ? list.length : 0);
+      })
+      .catch(() => {});
+    fetch(`${getApiBase()}/privacy/blocked`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const list = Array.isArray(data) ? data : data?.blocked ?? [];
+        setBlockedCount(Array.isArray(list) ? list.length : 0);
       })
       .catch(() => {});
   }, []);
@@ -108,7 +116,8 @@ export default function Settings() {
 
           <SectionTitle>How others can interact with you</SectionTitle>
           <div className="border-t border-[#262626]">
-            <Row to="/blocked" icon={Ban} label="Blocked" value="0" />
+            <Row to="/blocked" icon={Ban} label="Blocked" value={blockedCount != null ? String(blockedCount) : undefined} />
+            <Row to="/settings/blocked-messaging" icon={MessageSquare} label="Blocked messaging" subtitle="Messages from blocked accounts" />
             <Row to="/settings/story-live-location" icon={MessageCircle} label="Story, live and location" />
             <Row to="/settings/activity-friends-tab" icon={Users} label="Activity in Friends tab" />
             <Row to="/settings/messages" icon={MessageSquare} label="Messages and story replies" />

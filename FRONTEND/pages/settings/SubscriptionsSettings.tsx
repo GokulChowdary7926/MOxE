@@ -4,10 +4,16 @@ import { useSelector } from 'react-redux';
 import type { RootState } from '../../store';
 import { ChevronRight, Shield, Check } from 'lucide-react';
 import { SettingsPageShell } from '../../components/layout/SettingsPageShell';
+import StorageIndicator from '../../components/common/StorageIndicator';
 
 export default function SubscriptionsSettings() {
-  const currentAccount = useSelector((s: RootState) => s.account.currentAccount) as { accountType?: string } | null;
+  const currentAccount = useSelector((s: RootState) => s.account.currentAccount) as {
+    accountType?: string;
+    subscriptionTier?: string;
+  } | null;
   const accountType = currentAccount?.accountType ?? 'PERSONAL';
+  const tier = currentAccount?.subscriptionTier ?? 'FREE';
+  const isSubscribed = tier === 'STAR' || tier === 'THICK';
 
   const isProfessional = accountType === 'CREATOR' || accountType === 'BUSINESS' || accountType === 'JOB';
   const benefits = isProfessional
@@ -21,7 +27,7 @@ export default function SubscriptionsSettings() {
           <Shield className="w-10 h-10 text-[#0095f6] flex-shrink-0" />
           <div>
             <p className="text-white font-semibold">MOxE Verified</p>
-            <p className="text-[#a8a8a8] text-sm">Not subscribed</p>
+            <p className="text-[#a8a8a8] text-sm">{isSubscribed ? 'Subscribed' : 'Not subscribed'}</p>
           </div>
           <ChevronRight className="w-5 h-5 text-[#737373] ml-auto" />
         </div>
@@ -39,6 +45,9 @@ export default function SubscriptionsSettings() {
             </li>
           ))}
         </ul>
+        <div className="mb-6">
+          <StorageIndicator />
+        </div>
         <Link to="/settings/subscriptions/plans" className="block w-full py-3 rounded-lg bg-[#0095f6] text-white font-semibold text-center">
           View plans
         </Link>

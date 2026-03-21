@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getApiBase } from '../../services/api';
 import { JobPageContent } from '../../components/job/JobPageContent';
+import { safeFirstId } from '../../utils/safeAccess';
 
 const API_BASE = getApiBase();
 
@@ -60,8 +61,9 @@ export default function Agile() {
       if (!res.ok) throw new Error('Failed to load projects');
       const data = await res.json();
       setProjects(data || []);
-      if (!selectedProjectId && data?.length) {
-        setSelectedProjectId(data[0].id);
+      const firstId = safeFirstId(data);
+      if (!selectedProjectId && firstId) {
+        setSelectedProjectId(firstId);
       }
     } catch (e: any) {
       setError(e.message || 'Failed to load projects');

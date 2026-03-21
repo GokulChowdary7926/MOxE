@@ -5,6 +5,7 @@ import { Avatar } from '../../components/ui/Avatar';
 import { FollowButton } from '../../components/atoms/FollowButton';
 import { VerifiedBadge } from '../../components/atoms/VerifiedBadge';
 import { getApiBase, getToken } from '../../services/api';
+import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
 import { mockReels } from '../../mocks/reels';
 import { mockUsers } from '../../mocks/users';
 import { MobileShell } from '../../components/layout/MobileShell';
@@ -199,7 +200,7 @@ export default function Reels() {
               <div className="absolute inset-0 bg-[#050505] flex items-center justify-center">
                 <video
                   key={active.id}
-                  src={active.video}
+                  src={ensureAbsoluteMediaUrl(active.video)}
                   className="w-full h-full object-cover"
                   autoPlay
                   loop

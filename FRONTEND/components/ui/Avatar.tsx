@@ -21,7 +21,15 @@ export function Avatar({
       style={{ width: size, height: size }}
     >
       {uri ? (
-        <img src={uri} alt="" className="w-full h-full object-cover" />
+        <img
+          src={uri}
+          alt=""
+          className="w-full h-full object-cover"
+          onError={(e) => {
+            // If a remote image fails (404/blocked), fall back to the avatar surface.
+            (e.currentTarget as HTMLImageElement).style.display = 'none';
+          }}
+        />
       ) : (
         <div className="w-full h-full bg-moxe-border" />
       )}
@@ -41,7 +49,14 @@ export function Avatar({
       >
         <div className="rounded-full overflow-hidden bg-moxe-background" style={{ width: size, height: size }}>
           {uri ? (
-            <img src={uri} alt="" className="w-full h-full object-cover" />
+            <img
+              src={uri}
+              alt=""
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = 'none';
+              }}
+            />
           ) : (
             <div className="w-full h-full bg-moxe-border" />
           )}

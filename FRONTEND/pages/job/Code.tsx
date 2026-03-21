@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getApiBase } from '../../services/api';
 import { JobPageContent } from '../../components/job/JobPageContent';
+import { safeFirst, safeFirstProperty } from '../../utils/safeAccess';
 
 const API_BASE = getApiBase();
 
@@ -79,8 +80,9 @@ export default function Code() {
       if (!res.ok) throw new Error('Failed to load repositories');
       const data = await res.json();
       setRepos(data || []);
-      if (!selectedRepo && data?.length) {
-        setSelectedRepo(data[0]);
+      const firstRepo = safeFirst(data);
+      if (!selectedRepo && firstRepo) {
+        setSelectedRepo(firstRepo);
       }
     } catch (e: any) {
       setError(e.message || 'Failed to load repositories');
@@ -103,20 +105,16 @@ export default function Code() {
       const pullsData = await pullsRes.json();
       setBranches(branchesData || []);
       setPulls(pullsData || []);
+      const defaultBranchName = safeFirstProperty(branchesData, 'name') ?? '';
+      const defaultBranchId = safeFirstProperty(branchesData, 'id') ?? '';
       setNewBranch((b) => ({
         ...b,
-        fromBranch:
-          b.fromBranch ||
-          (branchesData && branchesData[0] ? branchesData[0].name : ''),
+        fromBranch: b.fromBranch || defaultBranchName,
       }));
       setNewPr((p) => ({
         ...p,
-        sourceBranchId:
-          p.sourceBranchId ||
-          (branchesData && branchesData[0] ? branchesData[0].id : ''),
-        targetBranchId:
-          p.targetBranchId ||
-          (branchesData && branchesData[0] ? branchesData[0].id : ''),
+        sourceBranchId: p.sourceBranchId || defaultBranchId,
+        targetBranchId: p.targetBranchId || defaultBranchId,
       }));
     } catch (e: any) {
       setError(e.message || 'Failed to load repository details');

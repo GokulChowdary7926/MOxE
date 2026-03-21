@@ -8,6 +8,7 @@ import { CreatorSubscriptionService } from '../services/creatorSubscription.serv
 import { MessageService } from '../services/message.service';
 import { DataExportService } from '../services/dataExport.service';
 import { prisma } from '../server';
+import { normalizeUsername, validateUsernameFormat } from '../utils/usernameValidation';
 
 const router = Router();
 const dataExportService = new DataExportService();
@@ -17,6 +18,88 @@ const highlightService = new HighlightService();
 const reviewService = new ReviewService();
 const creatorSubscriptionService = new CreatorSubscriptionService();
 const messageService = new MessageService();
+
+// Instagram-style username availability check (used by frontend EditUsernamePage).
+// GET /accounts/check-username?username=...
+router.get('/check-username', optionalAuthenticate, async (req, res, next) => {
+  try {
+    const q = req.query.username;
+    if (typeof q !== 'string' || !q.trim()) {
+      return res.json({ available: false, error: 'Username is required' });
+    }
+    const username = normalizeUsername(q);
+    const validation = validateUsernameFormat(username);
+    if (!validation.valid) return res.json({ available: false, error: validation.message });
+
+    const taken = await prisma.account.findFirst({
+      where: { username: { equals: username, mode: 'insensitive' } },
+    });
+    return res.json({ available: !taken });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/** GET /accounts/lookup?phoneNumber=... or email=... or username=...
+ * Used for emergency contacts: resolve a MOxE account by phone/email/username.
+ */
+router.get('/lookup', authenticate, async (req, res, next) => {
+  try {
+    const phoneNumberQ = req.query.phoneNumber;
+    const emailQ = req.query.email;
+    const usernameQ = req.query.username;
+
+    const phoneNumber = typeof phoneNumberQ === 'string' ? phoneNumberQ.trim() : '';
+    const email = typeof emailQ === 'string' ? emailQ.trim() : '';
+    const username = typeof usernameQ === 'string' ? usernameQ.trim() : '';
+
+    if (!phoneNumber && !email && !username) {
+      return res.status(400).json({ error: 'phoneNumber, email, or username required' });
+    }
+
+    function normalizePhone(phone: string): string {
+      const digits = phone.replace(/\D/g, '');
+      if (digits.length === 10) return `+1${digits}`;
+      if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+      if (phone.startsWith('+')) return phone;
+      return `+${digits}`;
+    }
+
+    if (phoneNumber) {
+      const normalized = normalizePhone(phoneNumber);
+      const accounts = await prisma.account.findMany({
+        where: { user: { phoneNumber: normalized } },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, username: true, displayName: true, accountType: true },
+      });
+      if (!accounts.length) return res.status(404).json({ error: 'Account not found' });
+      const account = accounts.find((a) => a.accountType === 'PERSONAL') ?? accounts[0];
+      return res.json({ account });
+    }
+
+    if (email) {
+      const accounts = await prisma.account.findMany({
+        where: { user: { email: { equals: email, mode: 'insensitive' } } },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, username: true, displayName: true, accountType: true },
+      });
+      if (!accounts.length) return res.status(404).json({ error: 'Account not found' });
+      const account = accounts.find((a) => a.accountType === 'PERSONAL') ?? accounts[0];
+      return res.json({ account });
+    }
+
+    // Username fallback
+    if (username) {
+      const normalizedUsername = normalizeUsername(username);
+      const account = await accountService.getAccountByUsername(normalizedUsername);
+      return res.json({ account });
+    }
+
+    return res.status(400).json({ error: 'Invalid lookup request' });
+  } catch (e) {
+    next(e);
+  }
+});
 
 /** GET /accounts/me — Instagram-style current account: { account, capabilities }. account: id, username, displayName?, bio?, avatarUrl?, isPrivate, accountType, postCount?, followerCount?, followingCount?, etc. capabilities: canPost, canCommerce, ... */
 router.get('/me', authenticate, async (req, res, next) => {
@@ -31,6 +114,16 @@ router.get('/me', authenticate, async (req, res, next) => {
       accountPayload.rating = rating;
       accountPayload.reviewsCount = reviewsCount;
     }
+    const [postCount, followersCount, followingCount] = await Promise.all([
+      prisma.post.count({ where: { accountId } }),
+      prisma.follow.count({ where: { followingId: accountId } }),
+      prisma.follow.count({ where: { followerId: accountId } }),
+    ]);
+    accountPayload.postsCount = postCount;
+    accountPayload.postCount = postCount;
+    accountPayload.followersCount = followersCount;
+    accountPayload.followerCount = followersCount;
+    accountPayload.followingCount = followingCount;
     res.json({ account: accountPayload, capabilities });
   } catch (e) {
     next(e);
@@ -72,6 +165,22 @@ router.get('/me/profile-visitors', authenticate, async (req, res, next) => {
     if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
     const list = await accountService.getProfileVisitors(accountId);
     res.json({ visitors: list });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/** GET /accounts/me/storage-usage — Storage used for capability/UI (e.g. StorageIndicator). */
+router.get('/me/storage-usage', authenticate, async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const account = await prisma.account.findUnique({
+      where: { id: accountId },
+      select: { storageBytesUsed: true },
+    });
+    const bytes = account?.storageBytesUsed ?? 0;
+    res.json({ usedGB: bytes / (1024 * 1024 * 1024), usedBytes: bytes });
   } catch (e) {
     next(e);
   }
@@ -307,6 +416,16 @@ router.get('/username/:username', authenticate, async (req, res, next) => {
       payload.rating = rating;
       payload.reviewsCount = reviewsCount;
     }
+    const [postCount, followersCount, followingCount] = await Promise.all([
+      prisma.post.count({ where: { accountId: account.id } }),
+      prisma.follow.count({ where: { followingId: account.id } }),
+      prisma.follow.count({ where: { followerId: account.id } }),
+    ]);
+    payload.postsCount = postCount;
+    payload.postCount = postCount;
+    payload.followersCount = followersCount;
+    payload.followerCount = followersCount;
+    payload.followingCount = followingCount;
     res.json(payload);
   } catch (e) {
     next(e);

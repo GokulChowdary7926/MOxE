@@ -4,6 +4,8 @@ import { Avatar } from './Avatar';
 import { useAccountCapabilities, useCurrentAccount } from '../../hooks/useAccountCapabilities';
 import { Heart, MessageCircle, Send, Bookmark, ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
 import { getApiBase, getToken } from '../../services/api';
+import { getSocket } from '../../services/socket';
+import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
 
 /** Web FeedPost – matches mobile (header, square media, actions, likes, caption). variant=light for home. */
 export function FeedPost({
@@ -40,6 +42,7 @@ export function FeedPost({
   const [isLiked, setLiked] = useState(initialLiked);
   const [isSaved, setSaved] = useState(initialSaved);
   const [likes, setLikes] = useState(likeCount);
+  const [commentCountLocal, setCommentCountLocal] = useState(commentCount);
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<any[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
@@ -84,6 +87,34 @@ export function FeedPost({
   const [translatingCommentId, setTranslatingCommentId] = useState<string | null>(null);
   const currentAccount = useCurrentAccount() as { id?: string } | null;
   const myAccountId = currentAccount?.id;
+
+  useEffect(() => {
+    setCommentCountLocal(commentCount);
+  }, [commentCount]);
+
+  useEffect(() => {
+    setLikes(likeCount);
+  }, [likeCount]);
+
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const onPostUpdated = (payload: { postId: string; likeCount?: number; commentCount?: number; comment?: any }) => {
+      if (payload.postId !== id) return;
+      if (payload.likeCount !== undefined) setLikes(payload.likeCount);
+      if (payload.commentCount !== undefined) setCommentCountLocal(payload.commentCount);
+      if (payload.comment && showComments) {
+        setComments((prev) => {
+          if (prev.some((c) => c.id === payload.comment?.id)) return prev;
+          return [{ ...payload.comment, createdAt: payload.comment.createdAt ?? new Date().toISOString() }, ...prev];
+        });
+      }
+    };
+    socket.on('post:updated', onPostUpdated);
+    return () => {
+      socket.off('post:updated', onPostUpdated);
+    };
+  }, [id, showComments]);
 
   // Record a lightweight VIEW interaction once when the post mounts.
   useEffect(() => {
@@ -542,7 +573,7 @@ export function FeedPost({
         onDoubleClick={handleDoubleTapLike}
       >
         <img
-          src={mediaUris[currentMediaIndex] || ''}
+          src={ensureAbsoluteMediaUrl(mediaUris[currentMediaIndex]) || ''}
           alt=""
           className="w-full h-full object-cover select-none"
         />
@@ -608,9 +639,9 @@ export function FeedPost({
           </button>
           <button type="button" onClick={openComments} className={`flex items-center gap-1.5 leading-none ${textPrimary}`}>
             <MessageCircle className="w-6 h-6 flex-shrink-0" />
-            {commentCount > 0 && (
+            {commentCountLocal > 0 && (
               <span className="text-sm font-medium">
-                {commentCount >= 1000 ? `${(commentCount / 1000).toFixed(1)}K` : commentCount}
+                {commentCountLocal >= 1000 ? `${(commentCountLocal / 1000).toFixed(1)}K` : commentCountLocal}
               </span>
             )}
           </button>
@@ -736,13 +767,13 @@ export function FeedPost({
         </div>
       )}
 
-      {commentCount > 0 && (
+      {commentCountLocal > 0 && (
         <button
           type="button"
           onClick={openComments}
           className={`px-4 mb-2 text-xs ${textSecondary}`}
         >
-          View all {commentCount} comments
+          View all {commentCountLocal} comments
         </button>
       )}
 

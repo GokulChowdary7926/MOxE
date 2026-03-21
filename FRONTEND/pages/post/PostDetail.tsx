@@ -6,9 +6,11 @@ import { FeedPost } from '../../components/ui/FeedPost';
 import { Avatar } from '../../components/ui/Avatar';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { getApiBase, getToken } from '../../services/api';
+import { getSocket } from '../../services/socket';
 import { getMockCommentsForPost } from '../../mocks/comments';
 import { mockPosts } from '../../mocks/posts';
 import { mockUsers } from '../../mocks/users';
+import { getFirstMediaUrl } from '../../utils/mediaUtils';
 
 export default function PostDetail() {
   const { id } = useParams<{ id: string }>();
@@ -54,7 +56,7 @@ export default function PostDetail() {
           id: mockPost.id,
           author: { username: author.username, displayName: author.displayName, avatarUrl: author.avatarUrl },
           media: mockPost.media,
-          mediaUrl: mockPost.media[0]?.url,
+          mediaUrl: getFirstMediaUrl(mockPost),
           caption: mockPost.caption,
           location: mockPost.location,
           likeCount: mockPost.likeCount,
@@ -110,6 +112,31 @@ export default function PostDetail() {
         });
     }
   }, [id, post, comments.length]);
+
+  useEffect(() => {
+    if (!id) return;
+    const socket = getSocket();
+    if (!socket) return;
+    const onPostUpdated = (payload: { postId: string; likeCount?: number; commentCount?: number; comment?: any }) => {
+      if (payload.postId !== id) return;
+      if (payload.likeCount !== undefined && post) {
+        setPost((p: any) => (p ? { ...p, likeCount: payload.likeCount } : null));
+      }
+      if (payload.commentCount !== undefined && post) {
+        setPost((p: any) => (p ? { ...p, commentCount: payload.commentCount } : null));
+      }
+      if (payload.comment) {
+        setComments((prev) => {
+          if (prev.some((c) => c.id === payload.comment?.id)) return prev;
+          return [{ ...payload.comment, createdAt: payload.comment.createdAt ?? new Date().toISOString() }, ...prev];
+        });
+      }
+    };
+    socket.on('post:updated', onPostUpdated);
+    return () => {
+      socket.off('post:updated', onPostUpdated);
+    };
+  }, [id, post]);
 
   const handleSubmitComment = async (e: React.FormEvent) => {
     e.preventDefault();

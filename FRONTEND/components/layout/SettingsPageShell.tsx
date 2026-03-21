@@ -1,8 +1,7 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { ChevronLeft } from 'lucide-react';
 import { ThemedView } from '../ui/Themed';
 import { MobileShell } from './MobileShell';
+import { MoxePageHeader } from './MoxePageHeader';
 
 /** Dark-theme settings page: back + title + optional right, then children. */
 export function SettingsPageShell({
@@ -19,13 +18,11 @@ export function SettingsPageShell({
   return (
     <ThemedView className="min-h-screen flex flex-col bg-black">
       <MobileShell>
-        <header className="sticky top-0 z-10 flex items-center justify-between h-12 px-3 border-b border-[#262626] bg-black safe-area-pt">
-          <Link to={backTo} className="flex items-center gap-1 text-white font-medium active:opacity-70" aria-label="Back">
-            <ChevronLeft className="w-6 h-6" />
-          </Link>
-          <span className="absolute left-1/2 -translate-x-1/2 text-white font-semibold">{title}</span>
-          <div className="min-w-[80px] flex justify-end">{right ?? <div className="w-10" />}</div>
-        </header>
+        <MoxePageHeader
+          title={title}
+          backTo={backTo}
+          right={right}
+        />
         <div className="flex-1 overflow-auto pb-20">{children}</div>
       </MobileShell>
     </ThemedView>

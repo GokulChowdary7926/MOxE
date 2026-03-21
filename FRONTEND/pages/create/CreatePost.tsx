@@ -458,7 +458,7 @@ export default function CreatePost() {
             {files.length ? (
               <div className="w-full h-full flex">
                 <img
-                  src={URL.createObjectURL(files[activeIndex] || files[0])}
+                  src={URL.createObjectURL(files[activeIndex] ?? files[0])}
                   alt={mediaAltTexts[activeIndex] || 'Selected media'}
                   className="w-full h-full object-cover transition-transform"
                   style={{

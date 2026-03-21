@@ -9,8 +9,9 @@ import { VerifiedBadge } from '../../components/atoms/VerifiedBadge';
 import { Grid3X3, User2, ChevronDown, Plus, Menu, Film, Bookmark } from 'lucide-react';
 import QR from 'qrcode';
 import { getApiBase, getToken } from '../../services/api';
-import { mockUsers } from '../../mocks/users';
-import { mockPosts } from '../../mocks/posts';
+import { getFirstMediaUrl, ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
+import { MobileShell } from '../../components/layout/MobileShell';
+import { MoxePageHeader } from '../../components/layout/MoxePageHeader';
 
 export default function Profile() {
   const { username } = useParams();
@@ -21,7 +22,8 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const isOwn = !username || (currentAccount as any)?.username === username;
   const accountType = (profile?.accountType || (currentAccount as any)?.accountType || 'PERSONAL').toLowerCase();
-  const label = profile?.accountType ? ACCOUNT_TYPE_LABELS[profile.accountType as keyof typeof ACCOUNT_TYPE_LABELS] : 'Personal';
+  const effectiveAccountType = (profile?.accountType || (currentAccount as any)?.accountType || 'PERSONAL') as keyof typeof ACCOUNT_TYPE_LABELS;
+  const label = ACCOUNT_TYPE_LABELS[effectiveAccountType] ?? 'Personal';
   const [highlights, setHighlights] = useState<any[]>([]);
   const [showQr, setShowQr] = useState(false);
   const [blocking, setBlocking] = useState(false);
@@ -40,6 +42,7 @@ export default function Profile() {
   useEffect(() => {
     const token = getToken();
     const API_BASE = getApiBase();
+    const ownProfile = !username || (currentAccount as any)?.username === username;
     const url = username ? `${API_BASE}/accounts/username/${username}` : `${API_BASE}/accounts/me`;
     const opts: RequestInit = {};
     if (token) opts.headers = { Authorization: `Bearer ${token}` };
@@ -53,23 +56,21 @@ export default function Profile() {
           setProfile(data);
           if (data.isBlockedByMe) setIsBlocked(true);
         } else {
-          // No API data: fallback to mock so profile is always populated.
-          const mockProfile = username
-            ? mockUsers.find((u) => u.username.toLowerCase() === username.toLowerCase())
-            : mockUsers[0];
-          if (mockProfile) {
+          if (ownProfile && currentAccount) {
+            const acc = currentAccount as any;
             setProfile({
-              id: mockProfile.id,
-              username: mockProfile.username,
-              displayName: mockProfile.displayName,
-              profilePhoto: mockProfile.avatarUrl,
-              avatarUri: mockProfile.avatarUrl,
-              bio: mockProfile.bio,
-              website: mockProfile.website,
-              postsCount: mockPosts.filter((p) => p.authorId === mockProfile.id).length,
-              followersCount: 0,
-              followingCount: 0,
-              accountType: mockProfile.accountType ?? 'PERSONAL',
+              id: acc.id,
+              username: acc.username,
+              displayName: acc.displayName ?? acc.username,
+              profilePhoto: acc.profilePhoto ?? acc.avatarUri,
+              avatarUri: acc.avatarUri ?? acc.profilePhoto,
+              bio: acc.bio,
+              website: acc.website,
+              link: acc.website ?? acc.link,
+              postsCount: acc.postsCount ?? acc.postCount ?? 0,
+              followersCount: acc.followersCount ?? acc.followerCount ?? 0,
+              followingCount: acc.followingCount ?? 0,
+              accountType: acc.accountType ?? 'PERSONAL',
             });
           } else {
             setProfile(null);
@@ -77,29 +78,28 @@ export default function Profile() {
         }
       })
       .catch(() => {
-        const mockProfile = username
-          ? mockUsers.find((u) => u.username.toLowerCase() === username.toLowerCase())
-          : mockUsers[0];
-        if (mockProfile) {
+        if (ownProfile && currentAccount) {
+          const acc = currentAccount as any;
           setProfile({
-            id: mockProfile.id,
-            username: mockProfile.username,
-            displayName: mockProfile.displayName,
-            profilePhoto: mockProfile.avatarUrl,
-            avatarUri: mockProfile.avatarUrl,
-            bio: mockProfile.bio,
-            website: mockProfile.website,
-            postsCount: mockPosts.filter((p) => p.authorId === mockProfile.id).length,
-            followersCount: 0,
-            followingCount: 0,
-            accountType: mockProfile.accountType ?? 'PERSONAL',
+            id: acc.id,
+            username: acc.username,
+            displayName: acc.displayName ?? acc.username,
+            profilePhoto: acc.profilePhoto ?? acc.avatarUri,
+            avatarUri: acc.avatarUri ?? acc.profilePhoto,
+            bio: acc.bio,
+            website: acc.website,
+            link: acc.website ?? acc.link,
+            postsCount: acc.postsCount ?? acc.postCount ?? 0,
+            followersCount: acc.followersCount ?? acc.followerCount ?? 0,
+            followingCount: acc.followingCount ?? 0,
+            accountType: acc.accountType ?? 'PERSONAL',
           });
         } else {
           setProfile(null);
         }
       })
       .finally(() => setLoading(false));
-  }, [username]);
+  }, [username, currentAccount?.id, (currentAccount as any)?.username]);
 
   useEffect(() => {
     const token = getToken();
@@ -113,6 +113,18 @@ export default function Profile() {
       })
       .catch(() => {});
   }, [isOwn]);
+
+  useEffect(() => {
+    if (isOwn || !profile?.id) return;
+    const token = getToken();
+    if (!token) return;
+    fetch(`${getApiBase()}/follow/status/${profile.id}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && typeof data.isFollowing === 'boolean') setFollowing(data.isFollowing);
+      })
+      .catch(() => {});
+  }, [isOwn, profile?.id]);
 
   useEffect(() => {
     if (isOwn || !profile?.id) return;
@@ -197,37 +209,10 @@ export default function Profile() {
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         const items = data?.items ?? data?.posts ?? [];
-        if (Array.isArray(items) && items.length > 0) {
-          setProfilePosts(items);
-          return;
-        }
-        // Empty or no API: use mocks for this profile.
-        const mockUserPosts = mockPosts
-          .filter((p) => p.authorId === profile.id)
-          .map((p) => ({
-            id: p.id,
-            media: p.media,
-            mediaUrl: p.media[0]?.url,
-            caption: p.caption,
-            location: p.location,
-            account: mockUsers.find((u) => u.id === p.authorId),
-            _count: { likes: p.likeCount, comments: p.commentCount },
-          }));
-        setProfilePosts(mockUserPosts);
+        setProfilePosts(Array.isArray(items) ? items : []);
       })
       .catch(() => {
-        const mockUserPosts = mockPosts
-          .filter((p) => p.authorId === profile.id)
-          .map((p) => ({
-            id: p.id,
-            media: p.media,
-            mediaUrl: p.media[0]?.url,
-            caption: p.caption,
-            location: p.location,
-            account: mockUsers.find((u) => u.id === p.authorId),
-            _count: { likes: p.likeCount, comments: p.commentCount },
-          }));
-        setProfilePosts(mockUserPosts);
+        setProfilePosts([]);
       });
   }, [profile?.id]);
 
@@ -303,40 +288,33 @@ export default function Profile() {
   }
 
   return (
-    <ThemedView className="min-h-screen flex flex-col bg-white">
-      {/* Username + status dot + chevron (left); + and menu (right) – same for all accounts */}
-      <header className="sticky top-0 z-10 flex items-center justify-between h-12 px-3 border-b border-[#DBDBDB] bg-white safe-area-pt">
-        {isOwn ? (
-          <Link to="/settings/accounts" className="flex items-center gap-1.5 text-black font-semibold text-sm active:opacity-80">
-            {uname}
-            <span className="w-2 h-2 rounded-full bg-[#ed4956] shrink-0" aria-hidden />
-            <ChevronDown className="w-4 h-4 text-[#a8a8a8]" />
-          </Link>
-        ) : (
-          <button type="button" className="flex items-center gap-1.5 text-black font-semibold text-sm">
-            {uname}
-            <span className="w-2 h-2 rounded-full bg-[#ed4956] shrink-0" aria-hidden />
-            <ChevronDown className="w-4 h-4 text-[#a8a8a8]" />
-          </button>
-        )}
-        <div className="flex items-center gap-2">
-          {!isOwn && (
-            <button
-              type="button"
-              onClick={toggleBlock}
-              className="text-[11px] px-2 py-1 rounded-moxe-md border border-moxe-border bg-moxe-surface text-moxe-text"
-            >
-              {blocking ? '…' : isBlocked ? 'Unblock' : 'Block'}
-            </button>
-          )}
-          <Link to="/create" className="p-2 -m-2 text-black" aria-label="Create">
-            <Plus className="w-6 h-6" />
-          </Link>
-          <Link to="/settings" className="p-2 -m-2 text-black" aria-label="Menu">
-            <Menu className="w-6 h-6" />
-          </Link>
-        </div>
-      </header>
+    <ThemedView className="min-h-screen flex flex-col bg-moxe-background">
+      <MobileShell>
+      {/* Header: username shown on left, actions on the right */}
+      <MoxePageHeader
+        title=""
+        className="bg-moxe-surface border-moxe-border"
+        left={<span className="text-moxe-text font-semibold text-base truncate max-w-[180px]">{uname}</span>}
+        right={
+          <div className="flex items-center gap-2">
+            {!isOwn && (
+              <button
+                type="button"
+                onClick={toggleBlock}
+                className="text-[11px] px-2 py-1 rounded-moxe-md border border-moxe-border bg-moxe-surface text-moxe-text"
+              >
+                {blocking ? '…' : isBlocked ? 'Unblock' : 'Block'}
+              </button>
+            )}
+            <Link to="/create" className="p-2 -m-2 text-black" aria-label="Create">
+              <Plus className="w-6 h-6" />
+            </Link>
+            <Link to="/settings" className="p-2 -m-2 text-moxe-text" aria-label="Menu">
+              <Menu className="w-6 h-6" />
+            </Link>
+          </div>
+        }
+      />
 
       <div className="flex-1 overflow-auto pb-20">
         <div className="w-full max-w-[935px] mx-auto px-4">
@@ -347,64 +325,64 @@ export default function Profile() {
           />
           <div className="flex-1 flex items-center justify-around gap-1">
             <div className="flex flex-col items-center">
-              <ThemedText className="font-bold text-black mb-0.5">{profile.postsCount ?? 21}</ThemedText>
-              <ThemedText secondary className="text-[#8e8e8e] text-xs">Posts</ThemedText>
+              <ThemedText className="font-bold text-moxe-text mb-0.5">{profile.postsCount ?? profile.postCount ?? 0}</ThemedText>
+              <ThemedText secondary className="text-moxe-textSecondary text-xs">Posts</ThemedText>
             </div>
             <span className="text-[#8e8e8e] text-[10px] leading-tight self-center" aria-hidden>⋯</span>
             <Link
               to={`/profile/${uname}/followers`}
               className="flex flex-col items-center"
             >
-              <ThemedText className="font-bold text-black mb-0.5">{profile.followersCount ?? 563}</ThemedText>
-              <ThemedText secondary className="text-[#8e8e8e] text-xs">Followers</ThemedText>
+              <ThemedText className="font-bold text-moxe-text mb-0.5">{profile.followersCount ?? profile.followerCount ?? 0}</ThemedText>
+              <ThemedText secondary className="text-moxe-textSecondary text-xs">Followers</ThemedText>
             </Link>
             <span className="text-[#8e8e8e] text-[10px] leading-tight self-center" aria-hidden>⋯</span>
             <Link
               to={`/profile/${uname}/following`}
               className="flex flex-col items-center"
             >
-              <ThemedText className="font-bold text-black mb-0.5">{profile.followingCount ?? 172}</ThemedText>
-              <ThemedText secondary className="text-[#8e8e8e] text-xs">Following</ThemedText>
+              <ThemedText className="font-bold text-moxe-text mb-0.5">{profile.followingCount ?? 0}</ThemedText>
+              <ThemedText secondary className="text-moxe-textSecondary text-xs">Following</ThemedText>
             </Link>
           </div>
         </div>
 
         {/* Username with verified badge */}
         <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-          <ThemedText className="font-semibold text-moxe-body text-black">{displayName}</ThemedText>
-          {(profile.isVerified ?? (mockUsers.find((u) => u.username === uname) as any)?.isVerified) && (
+          <ThemedText className="font-semibold text-moxe-body text-moxe-text">{displayName}</ThemedText>
+          {(profile.isVerified ?? (profile as any).user?.isVerified) && (
             <VerifiedBadge size={14} />
           )}
         </div>
         <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-          {(profile.businessCategory || (profile.accountType && profile.accountType !== 'PERSONAL')) && (
+          {(profile.businessCategory || (effectiveAccountType && effectiveAccountType !== 'PERSONAL')) && (
             <>
-              <span className="w-1.5 h-1.5 rounded-full bg-[#8e8e8e] shrink-0" aria-hidden />
+              <span className="w-1.5 h-1.5 rounded-full bg-moxe-textSecondary shrink-0" aria-hidden />
               <ThemedText secondary className="text-moxe-caption">
-                {profile.businessCategory || ACCOUNT_TYPE_LABELS[profile.accountType as keyof typeof ACCOUNT_TYPE_LABELS]}
+                {profile.businessCategory || label}
               </ThemedText>
             </>
           )}
         </div>
-        {profile.bio && <ThemedText secondary className="mb-1.5 block text-[#262626]">{profile.bio}</ThemedText>}
+        {profile.bio && <ThemedText secondary className="mb-1.5 block text-moxe-textSecondary">{profile.bio}</ThemedText>}
         {profile.location && (
           <ThemedText secondary className="mb-1 block text-moxe-caption">{profile.location}</ThemedText>
         )}
-        {profile.link && (
+        {(profile.link || profile.website) && (
           <a
-            href={profile.link}
+            href={profile.link || profile.website}
             target="_blank"
             rel="noreferrer"
             className="mb-1 block text-moxe-caption text-moxe-accent underline underline-offset-2"
           >
-            {profile.link}
+            {profile.link || profile.website}
           </a>
         )}
         {profile.pronouns && (
           <ThemedText secondary className="mb-3 block text-moxe-caption">{profile.pronouns}</ThemedText>
         )}
         {streakBadge && (
-          <div className="mb-1.5 inline-flex items-center px-2 py-0.5 rounded-full bg-[#fafafa] border border-[#dbdbdb]">
+          <div className="mb-1.5 inline-flex items-center px-2 py-0.5 rounded-full bg-moxe-surface border border-moxe-border">
             <ThemedText secondary className="text-[11px]">{streakBadge}</ThemedText>
               </div>
         )}
@@ -415,7 +393,7 @@ export default function Profile() {
             <button
               type="button"
               onClick={() => navigate('/profile/edit')}
-              className="flex-1 min-w-[100px] py-2.5 rounded-lg bg-[#efefef] border border-[#dbdbdb] text-black font-semibold text-sm"
+              className="flex-1 min-w-[100px] py-2.5 rounded-lg bg-moxe-surface border border-moxe-border text-moxe-text font-semibold text-sm"
             >
               Edit Profile
             </button>
@@ -424,21 +402,21 @@ export default function Profile() {
                 <button
                   type="button"
                   onClick={() => navigate('/business-dashboard')}
-                  className="flex-1 min-w-[100px] py-2.5 rounded-xl bg-[#363636] border-0 text-white font-semibold text-sm"
+                  className="flex-1 min-w-[100px] py-2.5 rounded-xl bg-moxe-primary border-0 text-white font-semibold text-sm"
                 >
                   MOxE E
                 </button>
                 <button
                   type="button"
                   onClick={() => navigate('/insights')}
-                  className="flex-1 min-w-[100px] py-2.5 rounded-xl bg-[#363636] border-0 text-white font-semibold text-sm"
+                  className="flex-1 min-w-[100px] py-2.5 rounded-xl bg-moxe-primary border-0 text-white font-semibold text-sm"
                 >
                   Insights
                 </button>
                 <button
                   type="button"
                   onClick={() => navigate('/ads')}
-                  className="flex-1 min-w-[100px] py-2.5 rounded-xl bg-[#363636] border-0 text-white font-semibold text-sm"
+                  className="flex-1 min-w-[100px] py-2.5 rounded-xl bg-moxe-primary border-0 text-white font-semibold text-sm"
                 >
                   Promotions
                 </button>
@@ -449,30 +427,63 @@ export default function Profile() {
                 <button
                   type="button"
                   onClick={() => navigate('/insights')}
-                  className="flex-1 min-w-[100px] py-2.5 rounded-xl bg-[#363636] border-0 text-white font-semibold text-sm"
+                  className="flex-1 min-w-[100px] py-2.5 rounded-xl bg-moxe-primary border-0 text-white font-semibold text-sm"
                 >
                   Insights
                 </button>
                 <button
                   type="button"
                   onClick={() => navigate('/ads')}
-                  className="flex-1 min-w-[100px] py-2.5 rounded-xl bg-[#363636] border-0 text-white font-semibold text-sm"
+                  className="flex-1 min-w-[100px] py-2.5 rounded-xl bg-moxe-primary border-0 text-white font-semibold text-sm"
                 >
                   Promotions
                 </button>
               </>
             )}
+            {accountType === 'job' && (
+              <button
+                type="button"
+                onClick={() => navigate('/job')}
+                className="flex-1 min-w-[100px] py-2.5 rounded-xl bg-moxe-primary border-0 text-white font-semibold text-sm"
+              >
+                Job tools
+              </button>
+            )}
           </div>
         ) : (
           <div className="flex flex-wrap gap-2 mb-4">
-            <FollowButton isFollowing={isFollowing} onClick={() => setFollowing((f) => !f)} className="flex-1 min-w-0" />
+            <FollowButton
+              isFollowing={isFollowing}
+              onClick={async () => {
+                if (!targetId || !getToken()) return;
+                try {
+                  if (isFollowing) {
+                    const r = await fetch(`${getApiBase()}/follow/${targetId}`, {
+                      method: 'DELETE',
+                      headers: { Authorization: `Bearer ${getToken()}` },
+                    });
+                    if (r.ok) setFollowing(false);
+                  } else {
+                    const r = await fetch(`${getApiBase()}/follow`, {
+                      method: 'POST',
+                      headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ accountId: targetId }),
+                    });
+                    if (r.ok) setFollowing(true);
+                  }
+                } catch {
+                  // ignore
+                }
+              }}
+              className="flex-1 min-w-0"
+            />
             {creatorTiers.length > 0 && (
               <>
                 {!isSubscribed ? (
                   <button
                     type="button"
                     onClick={() => setShowSubscribeModal(true)}
-                    className="flex-1 min-w-[100px] py-2.5 rounded-xl bg-[#a855f7] border-0 text-white font-semibold text-sm"
+                    className="flex-1 min-w-[100px] py-2.5 rounded-xl bg-moxe-accent border-0 text-white font-semibold text-sm"
                   >
                     Subscribe
                   </button>
@@ -493,7 +504,7 @@ export default function Profile() {
                         setSubscribing(false);
                       }
                     }}
-                    className="flex-1 min-w-[100px] py-2.5 rounded-xl bg-[#363636] border-0 text-moxe-body font-semibold text-sm"
+                    className="flex-1 min-w-[100px] py-2.5 rounded-xl bg-moxe-surface border-0 text-moxe-body font-semibold text-sm"
                   >
                     {subscribing ? '…' : 'Subscribed'}
                   </button>
@@ -502,7 +513,7 @@ export default function Profile() {
             )}
             <button
               type="button"
-              className="flex-1 min-w-[100px] py-2.5 rounded-xl bg-[#363636] border-0 text-moxe-body font-semibold text-white"
+              className="flex-1 min-w-[100px] py-2.5 rounded-xl bg-moxe-primary border-0 text-moxe-body font-semibold text-white"
               onClick={() => navigate(`/messages/${profile.id}`)}
             >
               Message
@@ -510,33 +521,35 @@ export default function Profile() {
           </div>
         )}
 
-        {/* Highlights: New + existing (same for all accounts) */}
+        {/* Highlights: New + existing (own profile only); others see only their highlights */}
         <div className="flex gap-4 overflow-x-auto pb-2 mb-3 no-scrollbar">
-          <Link
-            to="/highlights/manage"
-            className="flex flex-col items-center flex-shrink-0"
-          >
-            <div className="w-14 h-14 rounded-full bg-[#262626] flex items-center justify-center font-semibold border-2 border-[#363636] mb-1 text-white text-xl">
-              +
-            </div>
-            <span className="text-[#a8a8a8] text-xs">New</span>
-          </Link>
+          {isOwn && (
+            <Link
+              to="/highlights/manage"
+              className="flex flex-col items-center flex-shrink-0"
+            >
+              <div className="w-14 h-14 rounded-full bg-moxe-surface flex items-center justify-center font-semibold border-2 border-moxe-border mb-1 text-moxe-text text-xl">
+                +
+              </div>
+              <span className="text-moxe-textSecondary text-xs">New</span>
+            </Link>
+          )}
           {highlights.map((h: any) => (
             <Link
               key={h.id}
               to={`/highlights/${h.id}`}
               className="flex flex-col items-center flex-shrink-0"
             >
-              <div className="w-14 h-14 rounded-full border-2 border-[#363636] overflow-hidden mb-1 bg-[#262626]">
+              <div className="w-14 h-14 rounded-full border-2 border-moxe-border overflow-hidden mb-1 bg-moxe-surface">
                 {h.coverImage ? (
                   <img src={h.coverImage} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-white text-sm font-semibold">
+                          <div className="w-full h-full flex items-center justify-center text-moxe-text text-sm font-semibold">
                     {(h.name || 'Highlight').charAt(0)}
                   </div>
               )}
             </div>
-              <span className="text-[#a8a8a8] text-xs truncate max-w-[64px]">{h.name || 'Highlight'}</span>
+              <span className="text-moxe-textSecondary text-xs truncate max-w-[64px]">{h.name || 'Highlight'}</span>
             </Link>
           ))}
         </div>
@@ -579,7 +592,7 @@ export default function Profile() {
                   }}
                 >
                   {thumb ? (
-                    <img src={thumb} alt="" className="w-full h-full object-cover" />
+                    <img src={ensureAbsoluteMediaUrl(thumb)} alt="" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-moxe-textSecondary" />
                   )}
@@ -607,7 +620,7 @@ export default function Profile() {
             </div>
           )}
         </div>
-        </div>
+      </div>
       </div>
       {showQr && (
         <div className="fixed inset-0 z-40 bg-black/70 flex items-center justify-center">
@@ -695,6 +708,7 @@ export default function Profile() {
           </div>
         </div>
       )}
+      </MobileShell>
     </ThemedView>
   );
 }

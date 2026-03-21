@@ -13,7 +13,7 @@ This guide maps the **MOxE UI Design Blueprint** and the **Step-by-Step Coding G
 | **Navigation** | React Router v6 | React Navigation (stack, bottom-tabs, drawer) |
 | **State** | Redux Toolkit (auth, account) | AuthContext + AsyncStorage |
 | **API** | `services/api.ts` (fetch) + workflow modules | `config/api.ts` (API_BASE) + fetch |
-| **Styling** | Tailwind + CSS vars (Instagram/Atlassian tokens) | StyleSheet + `theme/` (Instagram/Atlassian) |
+| **Styling** | Tailwind + CSS vars (MOxE/MOxE tokens) | StyleSheet + `theme/` (MOxE/MOxE) |
 
 **Backend:** `BACKEND/` – Express, Prisma, Socket.IO. All APIs under `/api/*`.
 
@@ -38,7 +38,7 @@ FRONTEND/src/
 MOBILE/src/
 ├── context/         # AuthContext (token, user, login, logout)
 ├── config/          # api.ts (API_BASE)
-├── theme/           # colors, theme (Instagram/Atlassian)
+├── theme/           # colors, theme (MOxE/MOxE)
 ├── navigation/      # RootNavigator, AuthStack, MainTabs, HomeStack, ProfileStack, JobStack, etc.
 ├── screens/         # auth/, personal/, shared/, business/, creator/, job/
 ├── components/     # instagram/, atlassian/, shared/, ui/

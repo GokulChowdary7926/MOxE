@@ -78,9 +78,15 @@ export default function Live() {
   return (
     <div className="max-w-4xl mx-auto p-4">
       <h1 className="text-2xl font-semibold text-slate-800 dark:text-white mb-2">Live</h1>
-      <p className="text-slate-600 dark:text-slate-400 mb-6">
-        Go live and manage streams. Full streaming UI is coming soon.
+      <p className="text-slate-600 dark:text-slate-400 mb-4">
+        Go live with your camera. Viewers see your stream in real time.
       </p>
+      <Link
+        to="/live/start"
+        className="inline-flex items-center gap-2 px-4 py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white font-semibold text-sm mb-6"
+      >
+        Go Live
+      </Link>
       {loading && <p className="text-slate-500 text-sm">Loading…</p>}
       {!loading && items.length > 0 && (
         <div className="space-y-3">

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ThemedView, ThemedHeader, ThemedText, ThemedInput, ThemedButton } from '../../components/ui/Themed';
+import { safeFirstId } from '../../utils/safeAccess';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
 
@@ -50,9 +51,8 @@ export default function AnonymousSpaces() {
         }
         const list: Space[] = data.spaces ?? [];
         setSpaces(list);
-        if (list.length > 0) {
-          setActiveSpaceId(list[0].id);
-        }
+        const firstId = safeFirstId(list);
+        if (firstId) setActiveSpaceId(firstId);
       } catch (e: any) {
         setError(e.message || 'Failed to load spaces.');
       } finally {

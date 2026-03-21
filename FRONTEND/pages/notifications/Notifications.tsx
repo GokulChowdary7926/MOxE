@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Bell, Heart, MessageCircle, ChevronRight, ChevronLeft, ChevronDown } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Bell, Heart, MessageCircle, ChevronRight } from 'lucide-react';
 import { ThemedView, ThemedText } from '../../components/ui/Themed';
 import { MobileShell } from '../../components/layout/MobileShell';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -9,6 +9,8 @@ import { Avatar } from '../../components/ui/Avatar';
 import { UI } from '../../constants/uiTheme';
 import { getApiBase, getToken } from '../../services/api';
 import { useCurrentAccount } from '../../hooks/useAccountCapabilities';
+import { getSocket } from '../../services/socket';
+import { MoxePageHeader } from '../../components/layout/MoxePageHeader';
 
 type NotificationItem = {
   id: string;
@@ -20,6 +22,8 @@ type NotificationItem = {
   createdAt: string;
   targetPostId?: string;
   postThumbUrl?: string | null;
+  blockedMessageId?: string;
+  blockedSenderId?: string;
 };
 
 function relativeTime(date: string): string {
@@ -50,62 +54,109 @@ function sectionLabel(date: string): 'Today' | 'Yesterday' | 'Last 7 days' | nul
 
 export default function Notifications() {
   const currentAccount = useCurrentAccount() as any;
+  const navigate = useNavigate();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [followRequestCount, setFollowRequestCount] = useState(0);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const token = getToken();
-        if (!token) {
-          if (!cancelled) setItems([]);
-          return;
-        }
-        const res = await fetch(`${getApiBase()}/notifications`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await res.json().catch(() => ({}));
-        if (cancelled) return;
-        if (!res.ok) {
-          setError((data as { error?: string }).error || 'Failed to load notifications.');
-          setItems([]);
-          return;
-        }
-        const list = data.items ?? data.notifications ?? data ?? [];
-        const mapped: NotificationItem[] = Array.isArray(list)
-          ? list.map((n: any) => ({
-              id: n.id,
-              type: n.type,
-              actorId: n.actorId ?? n.accountId,
-              actorUsername: n.actor?.username ?? n.account?.username,
-              actorAvatar: n.actor?.profilePhoto ?? n.actor?.avatarUrl,
-              message: n.message ?? n.text ?? '',
-              createdAt: n.createdAt ?? n.timestamp,
-              targetPostId: n.targetPostId ?? n.postId,
-              postThumbUrl: n.postThumbUrl ?? n.mediaUrl,
-            }))
-          : [];
-        setItems(mapped);
-        if (typeof data.followRequestCount === 'number') setFollowRequestCount(data.followRequestCount);
-      } catch (e: any) {
-        if (!cancelled) {
-          setError(e.message || 'Failed to load notifications.');
-          setItems([]);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+  const loadNotifications = React.useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = getToken();
+      if (!token) {
+        setItems([]);
+        return;
       }
+      const res = await fetch(`${getApiBase()}/notifications`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError((data as { error?: string }).error || 'Failed to load notifications.');
+        setItems([]);
+        return;
+      }
+      const list = data.items ?? data.notifications ?? data ?? [];
+      const mapped: NotificationItem[] = Array.isArray(list)
+        ? list.map((n: any) => ({
+            id: n.id,
+            type: n.type,
+            actorId: n.actorId ?? n.sender?.id ?? n.accountId,
+            actorUsername: n.actor?.username ?? n.sender?.username ?? n.account?.username,
+            actorAvatar: n.actor?.profilePhoto ?? n.sender?.profilePhoto ?? n.actor?.avatarUrl,
+            message: n.message ?? n.text ?? n.content ?? '',
+            createdAt: n.createdAt ?? n.timestamp,
+            targetPostId: n.targetPostId ?? n.postId,
+            postThumbUrl: n.postThumbUrl ?? n.mediaUrl,
+            blockedMessageId: n.data?.messageId ?? undefined,
+            blockedSenderId: n.data?.senderId ?? undefined,
+          }))
+        : [];
+      setItems(mapped);
+      if (typeof data.followRequestCount === 'number') setFollowRequestCount(data.followRequestCount);
+    } catch (e: any) {
+      setError(e.message || 'Failed to load notifications.');
+      setItems([]);
+    } finally {
+      setLoading(false);
     }
-    load();
-    return () => {
-      cancelled = true;
-    };
   }, []);
+
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
+
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const onNotification = () => {
+      loadNotifications();
+    };
+    socket.on('notification', onNotification);
+    return () => {
+      socket.off('notification', onNotification);
+    };
+  }, [loadNotifications]);
+
+  const handlePremiumBlockedAction = async (n: NotificationItem, action: 'viewed' | 'reblocked' | 'reported') => {
+    if (!n.blockedMessageId || !n.blockedSenderId) return;
+    const token = getToken();
+    if (!token) return;
+
+    if (action === 'reported') {
+      const reason = window.prompt('Why are you reporting this message?')?.trim();
+      if (!reason) return;
+      const details = window.prompt('Optional details (helps us review)')?.trim() || reason;
+      const res = await fetch(`${getApiBase()}/premium/blocked-messages/${encodeURIComponent(n.blockedMessageId)}/action`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, reason, details }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || data?.reason || 'Failed to report.');
+    } else {
+      const res = await fetch(`${getApiBase()}/premium/blocked-messages/${encodeURIComponent(n.blockedMessageId)}/action`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || data?.reason || 'Failed to perform action.');
+    }
+
+    if (action === 'viewed') {
+      // View should open normal chat: remove the privacy block for this peer.
+      await fetch(`${getApiBase()}/privacy/block/${encodeURIComponent(n.blockedSenderId)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => undefined);
+      navigate(`/messages/${encodeURIComponent(n.blockedSenderId)}`);
+    } else {
+      await loadNotifications();
+    }
+  };
 
   const grouped = React.useMemo(() => {
     const groups: { label: 'Today' | 'Yesterday' | 'Last 7 days'; items: NotificationItem[] }[] = [];
@@ -122,33 +173,22 @@ export default function Notifications() {
     return groups;
   }, [items]);
 
-  const username = currentAccount?.username ?? currentAccount?.handle ?? '';
-
   return (
     <ThemedView className="min-h-screen flex flex-col bg-black">
       <MobileShell>
-        {/* Header – account name with dropdown + heart icon, Instagram-style */}
-        <header className="flex items-center justify-between h-12 px-3 border-b border-white/10 bg-black/95 safe-area-pt">
-          <div className="flex items-center gap-2">
-            <Link to="/" className="flex items-center text-white" aria-label="Back">
-              <ChevronLeft className="w-5 h-5" />
-            </Link>
+        <MoxePageHeader
+          title="Notifications"
+          backTo="/"
+          right={
             <button
               type="button"
-              className="flex items-center gap-1 text-white font-semibold text-sm"
+              className="w-8 h-8 flex items-center justify-center text-white"
+              aria-label="Activity"
             >
-              <span>{username}</span>
-              <ChevronDown className="w-4 h-4" />
+              <Heart className="w-5 h-5" />
             </button>
-          </div>
-          <button
-            type="button"
-            className="w-8 h-8 flex items-center justify-center text-white"
-            aria-label="Activity"
-          >
-            <Heart className="w-5 h-5" />
-          </button>
-        </header>
+          }
+        />
 
         <div className="flex-1 overflow-auto pb-20">
         {followRequestCount > 0 && (
@@ -203,38 +243,93 @@ export default function Notifications() {
                 <li key={label}>
                   <h2 className={UI.sectionTitle}>{label}</h2>
                   {sectionItems.map((n) => (
-                    <Link
-                      key={n.id}
-                      to={n.targetPostId ? `/post/${n.targetPostId}` : `/profile/${n.actorUsername ?? n.actorId}`}
-                      className={UI.listRow}
-                    >
-                      <div className={`${UI.listAvatar} relative`}>
-                        <Avatar uri={n.actorAvatar} size={44} className="w-full h-full" />
-                        {n.type === 'like' && (
+                    n.type === 'PREMIUM_BLOCKED_MESSAGE' && n.blockedMessageId && n.blockedSenderId ? (
+                      <div key={n.id} className={UI.listRow}>
+                        <div className={`${UI.listAvatar} relative`}>
+                          <Avatar uri={n.actorAvatar} size={44} className="w-full h-full" />
                           <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-black flex items-center justify-center">
-                            <Heart className="w-3 h-3 text-red-500 fill-red-500" />
+                            <ChevronRight className="w-3 h-3 text-[#0095f6]" />
                           </span>
-                        )}
-                        {n.type === 'comment' && (
-                          <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-black flex items-center justify-center">
-                            <MessageCircle className="w-3 h-3 text-white" />
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <ThemedText className="text-white text-sm">
-                          {n.message}{' '}
-                          <span className="text-[#737373] font-normal">{relativeTime(n.createdAt)}</span>
-                        </ThemedText>
-                      </div>
-                      {n.postThumbUrl ? (
-                        <div className={UI.listThumb}>
-                          <img src={n.postThumbUrl} alt="" className="w-full h-full object-cover" />
                         </div>
-                      ) : (
-                        <div className={UI.listThumb} />
-                      )}
-                    </Link>
+                        <div className="flex-1 min-w-0">
+                          <ThemedText className="text-white text-sm">
+                            {n.message}{' '}
+                            <span className="text-[#737373] font-normal">{relativeTime(n.createdAt)}</span>
+                          </ThemedText>
+                          <div className="flex gap-2 mt-2">
+                            <button
+                              type="button"
+                              className="px-2 py-1 text-[11px] rounded-moxe-md border border-moxe-border text-moxe-textSecondary"
+                              onClick={() => {
+                                void handlePremiumBlockedAction(n, 'viewed').catch((e) => {
+                                  // eslint-disable-next-line no-alert
+                                  alert(e?.message || 'Failed to view.');
+                                });
+                              }}
+                            >
+                              View
+                            </button>
+                            <button
+                              type="button"
+                              className="px-2 py-1 text-[11px] rounded-moxe-md border border-moxe-border text-moxe-textSecondary"
+                              onClick={() => {
+                                void handlePremiumBlockedAction(n, 'reblocked').catch((e) => {
+                                  // eslint-disable-next-line no-alert
+                                  alert(e?.message || 'Failed to re-block.');
+                                });
+                              }}
+                            >
+                              Re-block
+                            </button>
+                            <button
+                              type="button"
+                              className="px-2 py-1 text-[11px] rounded-moxe-md border border-moxe-danger/40 text-moxe-danger"
+                              onClick={() => {
+                                void handlePremiumBlockedAction(n, 'reported').catch((e) => {
+                                  // eslint-disable-next-line no-alert
+                                  alert(e?.message || 'Failed to report.');
+                                });
+                              }}
+                            >
+                              Report Abuse
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <Link
+                        key={n.id}
+                        to={n.targetPostId ? `/post/${n.targetPostId}` : `/profile/${n.actorUsername ?? n.actorId}`}
+                        className={UI.listRow}
+                      >
+                        <div className={`${UI.listAvatar} relative`}>
+                          <Avatar uri={n.actorAvatar} size={44} className="w-full h-full" />
+                          {n.type === 'like' && (
+                            <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-black flex items-center justify-center">
+                              <Heart className="w-3 h-3 text-red-500 fill-red-500" />
+                            </span>
+                          )}
+                          {n.type === 'comment' && (
+                            <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-black flex items-center justify-center">
+                              <MessageCircle className="w-3 h-3 text-white" />
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <ThemedText className="text-white text-sm">
+                            {n.message}{' '}
+                            <span className="text-[#737373] font-normal">{relativeTime(n.createdAt)}</span>
+                          </ThemedText>
+                        </div>
+                        {n.postThumbUrl ? (
+                          <div className={UI.listThumb}>
+                            <img src={n.postThumbUrl} alt="" className="w-full h-full object-cover" />
+                          </div>
+                        ) : (
+                          <div className={UI.listThumb} />
+                        )}
+                      </Link>
+                    )
                   ))}
                 </li>
               ))}

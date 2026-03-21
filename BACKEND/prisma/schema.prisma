@@ -24,6 +24,21 @@ enum SubscriptionTier {
   THICK
 }
 
+enum NoteType {
+  TEXT
+  MUSIC
+  VIDEO
+  POLL
+  LINK
+}
+
+enum NoteStatus {
+  ACTIVE
+  SCHEDULED
+  EXPIRED
+  DELETED
+}
+
 enum ContentType {
   POST
   STORY
@@ -146,8 +161,9 @@ model Account {
   nearbyEnabled             Boolean           @default(false)
   nearbyQueryCountToday     Int               @default(0)   // 3.1 daily limit for getNearby
   nearbyQueryResetAt        DateTime?         // midnight reset
-  nearbyPostCountToday      Int               @default(0)   // 4.1.1 nearby messaging posts (1 free/day paid, then $0.50 each)
-  nearbyPostResetAt         DateTime?         // midnight reset for post count
+  nearbyPostCountToday      Int               @default(0)   // photo/media nearby posts per day (limit 1 free)
+  nearbyTextMessageCountToday Int             @default(0)   // text-only nearby messages per day (limit 10 free)
+  nearbyPostResetAt         DateTime?         // midnight reset for both nearby counters
   // Per-type notification preferences (Guide 1.7): likes, comments, dms, mentions, follows, storyReplies
   notificationPrefs Json?   // { likes?: boolean, comments?: boolean, dms?: boolean, mentions?: boolean, follows?: boolean, storyReplies?: boolean } default all true
   // Quiet mode (Guide 1.7.2): silence notifications during window
@@ -388,6 +404,9 @@ model Account {
   premiumMessageGrantsReceived PremiumMessageGrant[]     @relation("premium_grants_received")
   premiumBlockedMessagesSent   PremiumBlockedMessage[]    @relation("premium_blocked_sent")
   premiumBlockedMessagesReceived PremiumBlockedMessage[]  @relation("premium_blocked_received")
+  notes                        Note[]
+  noteLikes                    NoteLike[]
+  notePollVotes                NotePollVote[]
   lifestyleStrikes             LifestyleStrike[]
   profileViewsAsOwner          ProfileView[]             @relation("profile_owner")
   profileViewsAsViewer         ProfileView[]             @relation("profile_viewer")
@@ -1572,6 +1591,73 @@ model Notification {
 
   @@index([recipientId])
   @@index([createdAt])
+}
+
+model Note {
+  id             String           @id @default(cuid())
+  accountId      String
+  accountType    AccountType
+  tier           SubscriptionTier @default(FREE)
+  type           NoteType         @default(TEXT)
+  contentJson    Json
+  appearanceJson Json?
+  audienceJson   Json
+  publishAt      DateTime
+  expiresAt      DateTime
+  status         NoteStatus       @default(ACTIVE)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  account   Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  likes     NoteLike[]
+  pollVotes NotePollVote[]
+  analytics NoteAnalytics?
+
+  @@index([accountId, status])
+  @@index([publishAt, status])
+  @@index([expiresAt, status])
+}
+
+model NoteLike {
+  id        String   @id @default(cuid())
+  noteId    String
+  accountId String
+  createdAt DateTime @default(now())
+
+  note    Note    @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([noteId, accountId])
+  @@index([noteId])
+  @@index([accountId])
+}
+
+model NotePollVote {
+  id        String   @id @default(cuid())
+  noteId    String
+  accountId String
+  option    String
+  createdAt DateTime @default(now())
+
+  note    Note    @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([noteId, accountId])
+  @@index([noteId])
+  @@index([accountId])
+}
+
+model NoteAnalytics {
+  id                   String   @id @default(cuid())
+  noteId               String   @unique
+  impressions          Int      @default(0)
+  uniqueImpressions    Int      @default(0)
+  hourlyBreakdown      Json?
+  promotionBudget      Float?
+  promotionImpressions Int      @default(0)
+  updatedAt            DateTime @updatedAt
+
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
 }
 
 // ==================== DISCOVERY & EXPLORATION ====================

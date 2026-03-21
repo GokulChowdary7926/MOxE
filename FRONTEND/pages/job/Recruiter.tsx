@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getApiBase } from '../../services/api';
 import { JobPageContent } from '../../components/job/JobPageContent';
+import { safeFirstId } from '../../utils/safeAccess';
 
 const API_BASE = getApiBase();
 
@@ -82,8 +83,9 @@ export default function Recruiter() {
       if (!res.ok) throw new Error('Failed to load jobs');
       const data = await res.json();
       setJobs(data || []);
-      if (!selectedJobId && data?.length) {
-        setSelectedJobId(data[0].id);
+      const firstId = safeFirstId(data);
+      if (!selectedJobId && firstId) {
+        setSelectedJobId(firstId);
       }
     } catch (e: any) {
       setError(e.message || 'Failed to load jobs');

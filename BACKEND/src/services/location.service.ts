@@ -8,6 +8,12 @@ import { ProximityService } from './proximity.service';
 const MAX_RADIUS_M = 50_000;
 const DEFAULT_RADIUS_M = 5000;
 const LOCATION_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24h
+const TAG_GEOCODE_LIMIT = 40;
+const geocodeCache = new Map<string, { lat: number; lng: number } | null>();
+
+/** Nearby messaging daily limits (reset at local server midnight). */
+export const NEARBY_TEXT_MESSAGES_FREE_PER_DAY = 10;
+export const NEARBY_PHOTO_POSTS_FREE_PER_DAY = 1;
 
 function haversineDistanceM(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000; // meters
@@ -21,6 +27,72 @@ function haversineDistanceM(lat1: number, lon1: number, lat2: number, lon2: numb
 }
 
 export class LocationService {
+  private async geocodeLocationName(name: string): Promise<{ lat: number; lng: number } | null> {
+    const key = name.trim().toLowerCase();
+    if (!key) return null;
+    if (geocodeCache.has(key)) return geocodeCache.get(key) ?? null;
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(name)}&limit=1`;
+      const res = await fetch(url, {
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'MOxE/1.0 (location-tag-lookup)',
+        },
+      });
+      const data = (await res.json().catch(() => [])) as Array<{ lat: string; lon: string }>;
+      const first = data[0];
+      if (!first) {
+        geocodeCache.set(key, null);
+        return null;
+      }
+      const coords = { lat: Number(first.lat), lng: Number(first.lon) };
+      if (!Number.isFinite(coords.lat) || !Number.isFinite(coords.lng)) {
+        geocodeCache.set(key, null);
+        return null;
+      }
+      geocodeCache.set(key, coords);
+      return coords;
+    } catch {
+      geocodeCache.set(key, null);
+      return null;
+    }
+  }
+
+  private async getNetworkAccountIds(
+    accountId: string,
+    scope: 'followers' | 'following' | 'friends' | 'close_friends',
+  ): Promise<string[]> {
+    if (scope === 'followers') {
+      const rows = await prisma.follow.findMany({
+        where: { followingId: accountId },
+        select: { followerId: true },
+      });
+      return rows.map((r) => r.followerId);
+    }
+    if (scope === 'following') {
+      const rows = await prisma.follow.findMany({
+        where: { followerId: accountId },
+        select: { followingId: true },
+      });
+      return rows.map((r) => r.followingId);
+    }
+    if (scope === 'close_friends') {
+      const rows = await prisma.closeFriend.findMany({
+        where: { accountId },
+        select: { friendId: true },
+      });
+      return rows.map((r) => r.friendId);
+    }
+
+    const [followingRows, followerRows] = await Promise.all([
+      prisma.follow.findMany({ where: { followerId: accountId }, select: { followingId: true } }),
+      prisma.follow.findMany({ where: { followingId: accountId }, select: { followerId: true } }),
+    ]);
+    const following = new Set(followingRows.map((r) => r.followingId));
+    const followers = new Set(followerRows.map((r) => r.followerId));
+    return [...following].filter((id) => followers.has(id));
+  }
+
   async updateLocation(accountId: string, data: { latitude: number; longitude: number; accuracy?: number }) {
     const { latitude, longitude, accuracy } = data;
     if (typeof latitude !== 'number' || typeof longitude !== 'number') {
@@ -159,63 +231,205 @@ export class LocationService {
     return { accounts: results };
   }
 
-  /** 4.1.1 Nearby messaging post: 1 free/day for paid (STAR/THICK), then $0.50 per extra. Records charge when over limit. */
-  async recordNearbyPost(accountId: string): Promise<{ ok: true; freeUsed: number; overLimitCharge?: number }> {
-    const acc = await prisma.account.findUnique({
-      where: { id: accountId },
-      select: { subscriptionTier: true, nearbyPostCountToday: true, nearbyPostResetAt: true },
-    });
-    if (!acc) throw new AppError('Account not found', 404);
-    const now = new Date();
-    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const needReset = !acc.nearbyPostResetAt || acc.nearbyPostResetAt < midnight;
-    const count = needReset ? 0 : (acc.nearbyPostCountToday ?? 0);
-    const freeLimit = acc.subscriptionTier === 'STAR' || acc.subscriptionTier === 'THICK' ? 1 : 0;
-    const overLimit = count >= freeLimit;
-    const chargeAmount = 0.5; // $0.50
+  async getNetworkLocations(
+    accountId: string,
+    scope: 'followers' | 'following' | 'friends' | 'close_friends',
+  ) {
+    const targetIds = await this.getNetworkAccountIds(accountId, scope);
 
-    if (overLimit) {
-      await prisma.nearbyPostCharge.create({
-        data: { accountId, amountCents: 50 },
-      });
-    }
+    if (targetIds.length === 0) return { locations: [] };
 
-    await prisma.account.update({
-      where: { id: accountId },
-      data: {
-        nearbyPostCountToday: needReset ? 1 : count + 1,
-        nearbyPostResetAt: needReset ? midnight : acc.nearbyPostResetAt,
+    const since = new Date(Date.now() - LOCATION_MAX_AGE_MS);
+    const latest = await prisma.locationHistory.findMany({
+      where: {
+        accountId: { in: targetIds },
+        timestamp: { gte: since },
+      },
+      orderBy: { timestamp: 'desc' },
+      include: {
+        account: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            profilePhoto: true,
+          },
+        },
       },
     });
 
+    const byAccount = new Map<string, (typeof latest)[number]>();
+    for (const loc of latest) {
+      if (!byAccount.has(loc.accountId)) byAccount.set(loc.accountId, loc);
+    }
+
     return {
-      ok: true,
-      freeUsed: needReset ? 1 : count + 1,
-      ...(overLimit && { overLimitCharge: chargeAmount }),
+      locations: [...byAccount.values()].map((loc) => ({
+        accountId: loc.accountId,
+        username: loc.account.username,
+        displayName: loc.account.displayName,
+        profilePhoto: loc.account.profilePhoto,
+        latitude: loc.latitude,
+        longitude: loc.longitude,
+        timestamp: loc.timestamp,
+      })),
     };
   }
 
-  /** Get nearby post usage and any pending charges (for display). */
-  async getNearbyPostUsage(accountId: string) {
+  async getNetworkTaggedLocations(
+    accountId: string,
+    scope: 'followers' | 'following' | 'friends' | 'close_friends',
+  ) {
+    const targetIds = await this.getNetworkAccountIds(accountId, scope);
+    if (targetIds.length === 0) return { tags: [] };
+
+    // Note: In this repo's Prisma schema, `Post` has a `location` field, but `Story` does not.
+    // So we only resolve tagged locations from posts here.
+    const posts = await prisma.post.findMany({
+      where: {
+        accountId: { in: targetIds },
+        location: { not: null },
+        isDeleted: false,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: TAG_GEOCODE_LIMIT,
+      select: {
+        id: true,
+        accountId: true,
+        location: true,
+        createdAt: true,
+        account: { select: { username: true, displayName: true } },
+      },
+    });
+
+    const combined = posts
+      .map((p) => ({ ...p, source: 'post' as const }))
+      .filter((x) => !!x.location && x.location.trim().length > 0)
+      .slice(0, TAG_GEOCODE_LIMIT);
+
+    const resolved = await Promise.all(
+      combined.map(async (item) => {
+        const coords = await this.geocodeLocationName(item.location as string);
+        if (!coords) return null;
+        return {
+          id: item.id,
+          source: item.source,
+          accountId: item.accountId,
+          username: item.account.username,
+          displayName: item.account.displayName,
+          location: item.location,
+          latitude: coords.lat,
+          longitude: coords.lng,
+          createdAt: item.createdAt,
+        };
+      }),
+    );
+
+    return { tags: resolved.filter(Boolean) };
+  }
+
+  /**
+   * Record a nearby messaging send. Text-only: 10 free/day. Photo/media: 1 free/day. Resets at midnight.
+   */
+  async recordNearbyMessaging(
+    accountId: string,
+    kind: 'text' | 'media',
+  ): Promise<{ ok: true; textUsed: number; mediaUsed: number }> {
     const acc = await prisma.account.findUnique({
       where: { id: accountId },
-      select: { subscriptionTier: true, nearbyPostCountToday: true, nearbyPostResetAt: true },
+      select: {
+        nearbyPostCountToday: true,
+        nearbyTextMessageCountToday: true,
+        nearbyPostResetAt: true,
+      },
     });
     if (!acc) throw new AppError('Account not found', 404);
     const now = new Date();
     const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const needReset = !acc.nearbyPostResetAt || acc.nearbyPostResetAt < midnight;
-    const count = needReset ? 0 : (acc.nearbyPostCountToday ?? 0);
-    const freeLimit = acc.subscriptionTier === 'STAR' || acc.subscriptionTier === 'THICK' ? 1 : 0;
+    const mediaCount = needReset ? 0 : (acc.nearbyPostCountToday ?? 0);
+    const textCount = needReset ? 0 : (acc.nearbyTextMessageCountToday ?? 0);
+
+    if (kind === 'text') {
+      if (textCount >= NEARBY_TEXT_MESSAGES_FREE_PER_DAY) {
+        throw new AppError(
+          `Daily nearby text limit reached (${NEARBY_TEXT_MESSAGES_FREE_PER_DAY} messages/day). Try again tomorrow.`,
+          429,
+        );
+      }
+      const nextText = needReset ? 1 : textCount + 1;
+      await prisma.account.update({
+        where: { id: accountId },
+        data: {
+          nearbyTextMessageCountToday: nextText,
+          nearbyPostCountToday: needReset ? 0 : mediaCount,
+          nearbyPostResetAt: needReset ? midnight : acc.nearbyPostResetAt,
+        },
+      });
+      return { ok: true, textUsed: nextText, mediaUsed: needReset ? 0 : mediaCount };
+    }
+
+    if (mediaCount >= NEARBY_PHOTO_POSTS_FREE_PER_DAY) {
+      throw new AppError(
+        `Daily nearby photo post limit reached (${NEARBY_PHOTO_POSTS_FREE_PER_DAY}/day). Try again tomorrow.`,
+        429,
+      );
+    }
+    const nextMedia = needReset ? 1 : mediaCount + 1;
+    await prisma.account.update({
+      where: { id: accountId },
+      data: {
+        nearbyPostCountToday: nextMedia,
+        nearbyTextMessageCountToday: needReset ? 0 : textCount,
+        nearbyPostResetAt: needReset ? midnight : acc.nearbyPostResetAt,
+      },
+    });
+    return { ok: true, textUsed: needReset ? 0 : textCount, mediaUsed: nextMedia };
+  }
+
+  /** @deprecated Use recordNearbyMessaging(accountId, 'media') */
+  async recordNearbyPost(accountId: string): Promise<{ ok: true; freeUsed: number }> {
+    const r = await this.recordNearbyMessaging(accountId, 'media');
+    return { ok: true, freeUsed: r.mediaUsed };
+  }
+
+  /** Get nearby messaging usage (text + photo) for UI. */
+  async getNearbyPostUsage(accountId: string) {
+    const acc = await prisma.account.findUnique({
+      where: { id: accountId },
+      select: {
+        nearbyPostCountToday: true,
+        nearbyTextMessageCountToday: true,
+        nearbyPostResetAt: true,
+      },
+    });
+    if (!acc) throw new AppError('Account not found', 404);
+    const now = new Date();
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const needReset = !acc.nearbyPostResetAt || acc.nearbyPostResetAt < midnight;
+    const mediaUsed = needReset ? 0 : (acc.nearbyPostCountToday ?? 0);
+    const textUsed = needReset ? 0 : (acc.nearbyTextMessageCountToday ?? 0);
+
     const chargesThisMonth = await prisma.nearbyPostCharge.count({
       where: {
         accountId,
         createdAt: { gte: new Date(now.getFullYear(), now.getMonth(), 1) },
       },
     });
+
+    const textRemaining = Math.max(0, NEARBY_TEXT_MESSAGES_FREE_PER_DAY - textUsed);
+    const mediaRemaining = Math.max(0, NEARBY_PHOTO_POSTS_FREE_PER_DAY - mediaUsed);
+
     return {
-      postsUsedToday: count,
-      freeLimitToday: freeLimit,
+      textUsedToday: textUsed,
+      textFreeLimit: NEARBY_TEXT_MESSAGES_FREE_PER_DAY,
+      textRemaining,
+      mediaUsedToday: mediaUsed,
+      mediaFreeLimit: NEARBY_PHOTO_POSTS_FREE_PER_DAY,
+      mediaRemaining,
+      /** Legacy aliases */
+      postsUsedToday: mediaUsed,
+      freeLimitToday: NEARBY_PHOTO_POSTS_FREE_PER_DAY,
       overLimitChargePerPost: 0.5,
       chargesThisMonth: chargesThisMonth * 0.5,
     };

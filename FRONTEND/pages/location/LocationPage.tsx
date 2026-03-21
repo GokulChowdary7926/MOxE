@@ -5,6 +5,7 @@ import { ThemedText } from '../../components/ui/Themed';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { mockPosts } from '../../mocks/posts';
 import { mockPlaces } from '../../mocks/places';
+import { getFirstMediaUrl } from '../../utils/mediaUtils';
 
 export default function LocationPage() {
   const { id } = useParams<{ id: string }>();
@@ -45,7 +46,7 @@ export default function LocationPage() {
         ) : (
           <div className="grid grid-cols-3 gap-[2px]">
             {posts.map((p) => {
-              const thumb = p.media[0]?.url ?? '';
+              const thumb = getFirstMediaUrl(p);
               return (
                 <button
                   key={p.id}

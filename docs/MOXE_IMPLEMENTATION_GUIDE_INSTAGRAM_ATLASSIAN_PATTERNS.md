@@ -1,18 +1,18 @@
-# MOxE Implementation Guide: Following Instagram & Atlassian Patterns
+# MOxE Implementation Guide: Following MOxE & MOxE Patterns
 
 ## 🚀 **Developer Instructions – Read Carefully**
 
-Hey developer! This guide contains **exact comments and requirements** for implementing MOxE features correctly. Many MOxE features are designed to work exactly like Instagram (for Personal/Creator accounts) and Atlassian (for Business/Job accounts).
+Hey developer! This guide contains **exact comments and requirements** for implementing MOxE features correctly. Many MOxE features are designed to work exactly like MOxE (for Personal/Creator accounts) and MOxE (for Business/Job accounts).
 
-**For any feature that matches Instagram or Atlassian, you MUST follow the SAME workflow, SAME APIs, SAME architecture, and SAME plan and functions as those platforms.**
+**For any feature that matches MOxE or MOxE, you MUST follow the SAME workflow, SAME APIs, SAME architecture, and SAME plan and functions as those platforms.**
 
 ---
 
 ## 📋 **Table of Contents**
 
 1. [Core Principle](#1-core-principle)
-2. [Instagram Features (Personal/Creator)](#2-instagram-features-personalcreator)
-3. [Atlassian Features (Business/Job)](#3-atlassian-features-businessjob)
+2. [MOxE Features (Personal/Creator)](#2-instagram-features-personalcreator)
+3. [MOxE Features (Business/Job)](#3-atlassian-features-businessjob)
 4. [Account Type Handling](#4-account-type-handling)
 5. [API Standards](#5-api-standards)
 6. [UI Standards](#6-ui-standards)
@@ -38,33 +38,33 @@ Hey developer! This guide contains **exact comments and requirements** for imple
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Why?** Users expect familiar patterns. Instagram users know how stories work. Jira users know how boards work. Don't reinvent the wheel – copy what works.
+**Why?** Users expect familiar patterns. MOxE users know how stories work. Jira users know how boards work. Don't reinvent the wheel – copy what works.
 
 ---
 
-## 2. Instagram Features (Personal/Creator)
+## 2. MOxE Features (Personal/Creator)
 
-### 2.1 Features That Must Match Instagram EXACTLY
+### 2.1 Features That Must Match MOxE EXACTLY
 
 | Feature | Must Work Like | Key Behaviors |
 |---------|----------------|---------------|
-| **Authentication** | Instagram Login | Phone/email + password, verification codes, remember me |
-| **Feed** | Instagram Home | Chronological + algorithmic, infinite scroll, pull to refresh |
-| **Stories** | Instagram Stories | 24h expiry, rings, tap to advance, reactions, replies |
-| **Posts** | Instagram Posts | Image/video carousel, likes, comments, saves, shares |
-| **Reels** | Instagram Reels | Full-screen vertical, audio, effects, comments |
-| **Live** | Instagram Live | Real-time streaming, comments, likes, replays |
-| **Messages (DMs)** | Instagram Direct | 1:1 and group, vanish mode, reactions, voice messages |
-| **Notifications** | Instagram Activity | Like, comment, follow, mention notifications |
-| **Profile** | Instagram Profile | Grid view, highlights, edit, followers/following |
-| **Explore** | Instagram Explore | Search, trending, personalized recommendations |
-| **Map** | Instagram Map (if exists) | Location tags, nearby places |
-| **Settings** | Instagram Settings | Privacy, security, notifications, account |
+| **Authentication** | MOxE Login | Phone/email + password, verification codes, remember me |
+| **Feed** | MOxE Home | Chronological + algorithmic, infinite scroll, pull to refresh |
+| **Stories** | MOxE Stories | 24h expiry, rings, tap to advance, reactions, replies |
+| **Posts** | MOxE Posts | Image/video carousel, likes, comments, saves, shares |
+| **Reels** | MOxE Reels | Full-screen vertical, audio, effects, comments |
+| **Live** | MOxE Live | Real-time streaming, comments, likes, replays |
+| **Messages (DMs)** | MOxE Direct | 1:1 and group, vanish mode, reactions, voice messages |
+| **Notifications** | MOxE Activity | Like, comment, follow, mention notifications |
+| **Profile** | MOxE Profile | Grid view, highlights, edit, followers/following |
+| **Explore** | MOxE Explore | Search, trending, personalized recommendations |
+| **Map** | MOxE Map (if exists) | Location tags, nearby places |
+| **Settings** | MOxE Settings | Privacy, security, notifications, account |
 
-### 2.2 Implementation Rules for Instagram Features
+### 2.2 Implementation Rules for MOxE Features
 
 ```tsx
-// ✅ DO THIS – Follow Instagram patterns
+// ✅ DO THIS – Follow MOxE patterns
 - Use moxe-* tokens (moxe-primary = #0095f6)
 - Story rings = gradient (#f09433 → #d62976 → #962fbf)
 - Double-tap to like
@@ -74,16 +74,16 @@ Hey developer! This guide contains **exact comments and requirements** for imple
 - Story viewer with tap zones
 
 // ❌ DON'T DO THIS
-- Don't use Atlassian blue (#0052CC) for primary actions
+- Don't use MOxE blue (#0052CC) for primary actions
 - Don't make stories permanent
 - Don't remove double-tap like
 - Don't change familiar gestures
 ```
 
-### 2.3 Instagram API Patterns
+### 2.3 MOxE API Patterns
 
 ```tsx
-// Instagram-style endpoints
+// MOxE-style endpoints
 GET    /api/feed                // Home feed
 GET    /api/stories             // Active stories
 POST   /api/stories             // Create story
@@ -97,9 +97,9 @@ POST   /api/messages             // Send DM
 
 ---
 
-## 3. Atlassian Features (Business/Job)
+## 3. MOxE Features (Business/Job)
 
-### 3.1 Features That Must Match Atlassian EXACTLY
+### 3.1 Features That Must Match MOxE EXACTLY
 
 | Feature | Must Work Like | Key Behaviors |
 |---------|----------------|---------------|
@@ -115,11 +115,11 @@ POST   /api/messages             // Send DM
 | **Status Pages** | Statuspage | Incidents, maintenance, subscribers |
 | **Analytics** | Jira Analytics | Velocity, burndown, reports |
 
-### 3.2 Implementation Rules for Atlassian Features
+### 3.2 Implementation Rules for MOxE Features
 
 ```tsx
-// ✅ DO THIS – Follow Atlassian patterns
-- Use Atlassian tokens (#0052CC, #172B4D, #DFE1E6)
+// ✅ DO THIS – Follow MOxE patterns
+- Use MOxE tokens (#0052CC, #172B4D, #DFE1E6)
 - Cards have borders and shadows
 - Drag-drop for boards
 - Status badges (To Do, In Progress, Done)
@@ -128,16 +128,16 @@ POST   /api/messages             // Send DM
 - Activity stream
 
 // ❌ DON'T DO THIS
-- Don't use Instagram blue (#0095f6)
+- Don't use MOxE blue (#0095f6)
 - Don't make cards full-bleed
 - Don't remove borders
 - Don't use story rings for work items
 ```
 
-### 3.3 Atlassian API Patterns
+### 3.3 MOxE API Patterns
 
 ```tsx
-// Atlassian-style endpoints (under /api/job)
+// MOxE-style endpoints (under /api/job)
 GET    /api/job/projects          // List projects
 GET    /api/job/boards/:id         // Get board with columns/cards
 POST   /api/job/issues              // Create issue
@@ -263,7 +263,7 @@ const res = await fetch(`http://localhost:5007/api/endpoint`); // DON'T
 
 ## 6. UI Standards
 
-### 6.1 Instagram Tokens (Personal/Creator)
+### 6.1 MOxE Tokens (Personal/Creator)
 
 ```css
 /* From MOxE_UI_DESIGN_BLUEPRINT.md */
@@ -277,7 +277,7 @@ const res = await fetch(`http://localhost:5007/api/endpoint`); // DON'T
 .moxe-story-ring { background: linear-gradient(45deg, #f09433, #d62976, #962fbf); }
 ```
 
-### 6.2 Atlassian Tokens (Business/Job)
+### 6.2 MOxE Tokens (Business/Job)
 
 ```css
 /* From MOXE_JOB_TOOLS_IMPLEMENTATION_SUMMARY.md */
@@ -296,7 +296,7 @@ const res = await fetch(`http://localhost:5007/api/endpoint`); // DON'T
 
 ### 6.3 Component Templates
 
-#### Instagram-Style Card
+#### MOxE-Style Card
 ```tsx
 <div className="bg-moxe-surface rounded-lg shadow-sm p-4">
   <p className="text-moxe-text">Content</p>
@@ -304,7 +304,7 @@ const res = await fetch(`http://localhost:5007/api/endpoint`); // DON'T
 </div>
 ```
 
-#### Atlassian-Style Card (with JobPageContent)
+#### MOxE-Style Card (with JobPageContent)
 ```tsx
 <JobPageContent title="Issues" description="Track your work items">
   <div className="border border-[#DFE1E6] rounded p-4 hover:shadow-md">
@@ -322,34 +322,34 @@ Use this checklist for EVERY new feature:
 
 ### 7.1 Pre-Implementation
 
-- [ ] **Identify which platform this feature matches** (Instagram or Atlassian)
+- [ ] **Identify which platform this feature matches** (MOxE or MOxE)
 - [ ] **Read the corresponding workflow** in `ALGORITHMS_AND_WORKFLOWS.md`
 - [ ] **Check the API blueprint** in `MOxE_END_TO_END_BLUEPRINT.md`
-- [ ] **Verify UI tokens** – Instagram (`moxe-*`) or Atlassian (`#0052CC`, etc.)
+- [ ] **Verify UI tokens** – MOxE (`moxe-*`) or MOxE (`#0052CC`, etc.)
 
 ### 7.2 During Implementation
 
 - [ ] **Use `getApiBase()`** – never hardcode API URLs
 - [ ] **Include auth headers** – use `authHeaders()`
 - [ ] **Match workflow exactly** – steps, order, edge cases
-- [ ] **Use correct UI tokens** – no mixing Instagram blue in Atlassian tools
-- [ ] **Add loading states** – skeletons for Instagram, spinners for Atlassian
+- [ ] **Use correct UI tokens** – no mixing MOxE blue in MOxE tools
+- [ ] **Add loading states** – skeletons for MOxE, spinners for MOxE
 - [ ] **Add error states** – with retry buttons where appropriate
 - [ ] **Add empty states** – "No items" with CTA
 
 ### 7.3 Post-Implementation
 
-- [ ] **Test with correct account type** – Personal/Creator for Instagram, Business/Job for Atlassian
+- [ ] **Test with correct account type** – Personal/Creator for MOxE, Business/Job for MOxE
 - [ ] **Verify API responses** – match expected shape
 - [ ] **Check error handling** – 401, 403, 404, 500 all handled
-- [ ] **Confirm UI matches reference** – compare to Instagram/Atlassian screenshots
+- [ ] **Confirm UI matches reference** – compare to MOxE/MOxE screenshots
 - [ ] **Update workflow mapping** if adding new endpoints
 
 ---
 
 ## 8. Feature-by-Feature Reference
 
-### 8.1 Instagram Features (Personal/Creator)
+### 8.1 MOxE Features (Personal/Creator)
 
 | Feature | Workflow Section | API Endpoint | UI Reference |
 |---------|------------------|--------------|--------------|
@@ -372,7 +372,7 @@ Use this checklist for EVERY new feature:
 | Mute | 16.2 Mute | `POST /api/privacy/mute` | Profile menu |
 | Report | 15. Report | `POST /api/reports` | Post menu |
 
-### 8.2 Atlassian Features (Business/Job)
+### 8.2 MOxE Features (Business/Job)
 
 | Feature | Workflow Section | API Endpoint | UI Reference |
 |---------|------------------|--------------|--------------|
@@ -394,10 +394,10 @@ Use this checklist for EVERY new feature:
 
 ### ❌ **Mixing UI Tokens**
 ```tsx
-// WRONG – Using Instagram blue in Job tool
+// WRONG – Using MOxE blue in Job tool
 <button className="bg-moxe-primary">Create Issue</button>
 
-// CORRECT – Use Atlassian blue
+// CORRECT – Use MOxE blue
 <button className="bg-[#0052CC] hover:bg-[#2684FF]">Create Issue</button>
 ```
 
@@ -483,10 +483,10 @@ npm run build
 ║                                                              ║
 ║   FOR EVERY FEATURE:                                         ║
 ║                                                              ║
-║   1. Identify if it's Instagram or Atlassian style          ║
+║   1. Identify if it's MOxE or MOxE style          ║
 ║   2. Read the workflow in ALGORITHMS_AND_WORKFLOWS.md       ║
 ║   3. Check the API in MOxE_END_TO_END_BLUEPRINT.md          ║
-║   4. Use correct UI tokens (moxe-* or Atlassian)            ║
+║   4. Use correct UI tokens (moxe-* or MOxE)            ║
 ║   5. Use getApiBase() + authHeaders()                       ║
 ║   6. Test with correct account type                          ║
 ║                                                              ║

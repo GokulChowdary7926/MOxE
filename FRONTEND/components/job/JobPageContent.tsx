@@ -1,35 +1,61 @@
 import React from 'react';
+import { JOB_MOBILE } from './jobMobileStyles';
 
 /**
- * Wrapper for Job tool page content. Keeps layout and typography consistent
- * across Overview, Track, Recruiter, Agile, etc., and avoids overflow/scroll bugs.
+ * Wrapper for Job tool page content. Mobile-first: single column, touch-friendly,
+ * consistent Atlassian-style tokens across all Job tools.
  */
 export function JobPageContent({
   title,
   description,
   error,
   children,
+  className = '',
 }: {
   title: string;
   description?: string;
   error?: string | null;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="job-page-content min-h-0">
-      <h2 className="text-lg font-semibold text-[#172B4D] dark:text-[#E6EDF3] mb-1">
-        {title}
-      </h2>
-      {description && (
-        <p className="text-sm text-[#5E6C84] dark:text-[#8C9BAB] mb-4">
-          {description}
-        </p>
-      )}
-      {error && (
-        <div className="mb-4 p-3 rounded-lg bg-[#FFEBE6] dark:bg-red-900/30 text-[#BF2600] dark:text-red-300 text-sm">
-          {error}
-        </div>
-      )}
+    <div className={`job-page-content min-h-0 ${className}`}>
+      <h1 className={JOB_MOBILE.pageTitle}>{title}</h1>
+      {description && <p className={JOB_MOBILE.pageDesc}>{description}</p>}
+      {error && <div className={`mb-4 ${JOB_MOBILE.error}`}>{error}</div>}
+      {children}
+    </div>
+  );
+}
+
+/** Mobile card for Job tools: rounded, bordered, padded. */
+export function JobCard({
+  children,
+  className = '',
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`${JOB_MOBILE.card} ${JOB_MOBILE.cardPadding} ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+/** Section with label (e.g. "Goals", "Pipelines") for stats or lists. */
+export function JobSection({
+  label,
+  children,
+  className = '',
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`${JOB_MOBILE.cardSection} ${className}`}>
+      <p className={`${JOB_MOBILE.label} mb-2`}>{label}</p>
       {children}
     </div>
   );

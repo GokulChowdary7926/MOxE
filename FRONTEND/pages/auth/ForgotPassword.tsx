@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { getApiBase } from '../../services/api';
 import { AUTH } from './authStyles';
 
 export default function ForgotPassword() {
@@ -17,10 +18,22 @@ export default function ForgotPassword() {
     }
     setLoading(true);
     try {
-      await new Promise((r) => setTimeout(r, 800));
-      setSent(true);
+      const base = getApiBase();
+      const res = await fetch(`${base}/auth/password/reset-request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emailOrPhone: emailOrPhone.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setSent(true);
+        return;
+      }
+      const msg = data?.error || (res.status === 501 ? 'Password reset is not available yet.' : 'Something went wrong. Try again.');
+      setError(msg);
+      if (res.status === 429) setError(data?.error || 'Too many attempts. Try again later.');
     } catch {
-      setError('Something went wrong. Try again.');
+      setError('Cannot reach server. Check that the backend is running and try again.');
     } finally {
       setLoading(false);
     }

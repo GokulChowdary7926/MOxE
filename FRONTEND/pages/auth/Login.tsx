@@ -7,6 +7,7 @@ import { login, fetchMe, clearError, logout } from '../../store/authSlice';
 import { setCurrentAccount, setCapabilities } from '../../store/accountSlice';
 import type { RootState } from '../../store';
 import { getApiBase } from '../../services/api';
+import { getHomeRouteForAccountType } from '../../constants/accountTypes';
 import { AUTH } from './authStyles';
 
 export default function Login() {
@@ -29,19 +30,12 @@ export default function Login() {
 
   const error = authError ?? localError;
 
-  const getHomeRouteForAccount = (account: any | null | undefined): string => {
-    const type = account?.accountType || account?.account_type || '';
-    if (type === 'JOB') return '/job';
-    // In future we can branch for BUSINESS / CREATOR, but default = Instagram home.
-    return '/';
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
     dispatch(clearError());
     if (!loginId?.trim() || !password) {
-      setLocalError('Enter your phone number, username or email and password.');
+      setLocalError('Enter your username and password.');
       return;
     }
     try {
@@ -50,7 +44,7 @@ export default function Login() {
         const me = await dispatch(fetchMe()).unwrap();
         dispatch(setCurrentAccount({ ...me.account, capabilities: me.capabilities }));
         dispatch(setCapabilities(me.capabilities ?? null));
-        navigate(getHomeRouteForAccount(me.account));
+        navigate(getHomeRouteForAccountType(me.account?.accountType ?? me.account?.account_type));
       } catch (meErr: unknown) {
         const payload = meErr && typeof meErr === 'object' && 'payload' in meErr ? (meErr as { payload: string }).payload : undefined;
         const msg = typeof payload === 'string' ? payload : (meErr && typeof meErr === 'object' && 'message' in meErr ? String((meErr as { message: string }).message) : '');
@@ -61,7 +55,7 @@ export default function Login() {
     } catch (err: unknown) {
       const payload = err && typeof err === 'object' && 'payload' in err ? (err as { payload: string }).payload : undefined;
       const msg = typeof payload === 'string' ? payload : (err && typeof err === 'object' && 'message' in err ? String((err as { message: string }).message) : '');
-      setLocalError(msg || 'Invalid username or password. Please try again.');
+      setLocalError(msg || 'Invalid username or password.');
     }
   };
 
@@ -80,7 +74,7 @@ export default function Login() {
               type="text"
               value={loginId}
               onChange={(e) => setLoginId(e.target.value)}
-              placeholder="Phone number, username or email"
+              placeholder="Username"
               autoComplete="username"
               className={AUTH.input}
             />
@@ -121,7 +115,7 @@ export default function Login() {
                   toast.error('Google sign-in will be available soon.');
                 }
               }}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-[#dbdbdb] bg-white text-[#262626] text-sm font-medium hover:bg-[#fafafa]"
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border bg-[var(--moxe-card)] text-[var(--moxe-text)] text-sm font-medium border-[var(--moxe-border)] hover:opacity-90"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>

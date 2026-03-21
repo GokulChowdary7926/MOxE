@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
-  ChevronLeft,
   Home,
   Briefcase,
   Users,
@@ -25,7 +24,9 @@ import {
   Wrench,
   Compass,
   Trophy,
+  ChevronLeft,
 } from "lucide-react";
+import { JOB_MOBILE } from "./jobMobileStyles";
 
 type JobMobileLayoutProps = {
   children: React.ReactNode;
@@ -77,77 +78,75 @@ export function JobMobileLayout({ children }: JobMobileLayoutProps) {
     (tabPath !== "/job/overview" && path.startsWith(tabPath));
 
   return (
-    <div className="flex flex-col min-h-[100dvh] min-h-screen w-full max-w-[428px] mx-auto bg-[#F4F5F7] dark:bg-[#161A1D]">
-      {/* Top bar – Atlassian-style */}
-      <header
-        className="flex-shrink-0 flex items-center justify-between gap-3 px-4 py-3 bg-white dark:bg-[#1D2125] border-b border-[#DFE1E6] dark:border-[#2C333A] safe-area-pt"
-        style={{ minHeight: 56 }}
-      >
+    <div className={`flex flex-col ${JOB_MOBILE.shell}`}>
+      {/* Top bar – mobile-optimized, safe area */}
+      <header className={JOB_MOBILE.header} style={{ minHeight: JOB_MOBILE.headerHeight }}>
         <Link
           to="/"
-          className="flex items-center gap-1 text-[#0052CC] dark:text-[#2684FF] font-medium text-sm px-2 py-1.5 rounded hover:bg-[#DEEBFF] dark:hover:bg-[#1D2125]"
+          className={`flex items-center gap-1 text-[#0052CC] dark:text-[#2684FF] font-medium text-sm rounded-lg active:opacity-80 ${JOB_MOBILE.touchMin} ${JOB_MOBILE.touchPadding}`}
+          aria-label="Back to app"
         >
-          <ChevronLeft className="w-5 h-5" />
+          <ChevronLeft className="w-5 h-5 flex-shrink-0" />
           Back
         </Link>
         <h1 className="text-base font-semibold text-[#172B4D] dark:text-[#E6EDF3] truncate flex-1 text-center">
-          MOxE Job
+          MOxE
         </h1>
-        <div className="w-14" />
+        <div className="w-14 min-w-[56px]" aria-hidden />
       </header>
 
-      {/* Main content – scrollable */}
-      <div className="flex-1 min-h-0 overflow-auto px-4 py-4 pb-24">{children}</div>
+      {/* Main content – scrollable, room for bottom nav */}
+      <main className={JOB_MOBILE.content}>{children}</main>
 
-      {/* Bottom navigation – Atlassian-style */}
-      <nav
-        className="fixed bottom-0 left-0 right-0 max-w-[428px] mx-auto z-30 flex items-stretch bg-white dark:bg-[#1D2125] border-t border-[#DFE1E6] dark:border-[#2C333A] safe-area-pb"
-        style={{ height: 56 }}
-      >
+      {/* Bottom navigation – 44px+ touch targets */}
+      <nav className={JOB_MOBILE.nav} style={{ minHeight: JOB_MOBILE.navHeight }} aria-label="Job tools">
         {MAIN_TABS.map(({ path: to, label, Icon }) => {
           const active = isActive(to);
           return (
             <Link
               key={to}
               to={to}
-              className={`flex flex-col items-center justify-center gap-0.5 flex-1 min-w-0 py-2 ${
+              className={`flex flex-col items-center justify-center gap-0.5 flex-1 min-w-0 min-h-[56px] py-2 ${
                 active
                   ? "text-[#0052CC] dark:text-[#2684FF]"
                   : "text-[#5E6C84] dark:text-[#8C9BAB]"
               }`}
+              aria-current={active ? "page" : undefined}
             >
               <Icon
                 className="w-6 h-6 flex-shrink-0"
                 strokeWidth={active ? 2.5 : 2}
+                aria-hidden
               />
-              <span className="text-[10px] font-medium truncate max-w-full">
-                {label}
-              </span>
+              <span className="text-[10px] font-medium truncate max-w-full">{label}</span>
             </Link>
           );
         })}
         <button
           type="button"
           onClick={() => setMoreOpen(true)}
-          className={`flex flex-col items-center justify-center gap-0.5 flex-1 min-w-0 py-2 ${
+          className={`flex flex-col items-center justify-center gap-0.5 flex-1 min-w-0 min-h-[56px] py-2 ${
             moreOpen || MORE_ITEMS.some((i) => path.startsWith(i.path))
               ? "text-[#0052CC] dark:text-[#2684FF]"
               : "text-[#5E6C84] dark:text-[#8C9BAB]"
           }`}
+          aria-label="More Job tools"
+          aria-expanded={moreOpen}
         >
           <LayoutGrid
             className="w-6 h-6 flex-shrink-0"
             strokeWidth={moreOpen ? 2.5 : 2}
+            aria-hidden
           />
           <span className="text-[10px] font-medium truncate">More</span>
         </button>
       </nav>
 
-      {/* More sheet – full-screen overlay list */}
+      {/* More sheet – mobile drawer */}
       {moreOpen && (
         <>
           <div
-            className="fixed inset-0 bg-black/40 z-40"
+            className={JOB_MOBILE.sheetOverlay}
             onClick={() => setMoreOpen(false)}
             onKeyDown={(e) => e.key === "Escape" && setMoreOpen(false)}
             role="button"
@@ -155,17 +154,15 @@ export function JobMobileLayout({ children }: JobMobileLayoutProps) {
             aria-label="Close menu"
           />
           <div
-            className="fixed bottom-0 left-0 right-0 max-w-[428px] mx-auto z-50 rounded-t-2xl bg-white dark:bg-[#1D2125] shadow-xl max-h-[85vh] overflow-hidden flex flex-col safe-area-pb"
-            style={{ animation: "slideUp 0.25s ease-out" }}
+            className={JOB_MOBILE.sheet}
+            style={{ animation: "jobSheetSlideUp 0.25s ease-out" }}
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-[#DFE1E6] dark:border-[#2C333A]">
-              <h2 className="text-base font-semibold text-[#172B4D] dark:text-[#E6EDF3]">
-                All tools
-              </h2>
+            <div className={JOB_MOBILE.sheetHeader}>
+              <h2 className={JOB_MOBILE.sheetTitle}>All tools</h2>
               <button
                 type="button"
                 onClick={() => setMoreOpen(false)}
-                className="p-2 rounded-lg text-[#5E6C84] dark:text-[#8C9BAB] hover:bg-[#F4F5F7] dark:hover:bg-[#2C333A]"
+                className={`p-2 rounded-xl text-[#5E6C84] dark:text-[#8C9BAB] active:bg-[#F4F5F7] dark:active:bg-[#2C333A] ${JOB_MOBILE.touchMin}`}
                 aria-label="Close"
               >
                 <ChevronLeft className="w-5 h-5 rotate-180" />
@@ -177,20 +174,15 @@ export function JobMobileLayout({ children }: JobMobileLayoutProps) {
                   key={to}
                   to={to}
                   onClick={() => setMoreOpen(false)}
-                  className={`flex items-center gap-3 px-4 py-3 active:bg-[#DEEBFF] dark:active:bg-[#2C333A] ${
-                    path.startsWith(to)
-                      ? "bg-[#DEEBFF]/50 dark:bg-[#2C333A]"
-                      : ""
-                  }`}
-                  style={{ minHeight: 48 }}
+                  className={`${JOB_MOBILE.sheetItem} ${path.startsWith(to) ? JOB_MOBILE.sheetItemActive : ""}`}
                 >
-                  <span className="flex items-center justify-center w-9 h-9 rounded-lg bg-[#F4F5F7] dark:bg-[#2C333A] text-[#0052CC] dark:text-[#2684FF]">
-                    <Icon className="w-5 h-5" />
+                  <span className="flex items-center justify-center w-10 h-10 rounded-xl bg-[#F4F5F7] dark:bg-[#2C333A] text-[#0052CC] dark:text-[#2684FF] flex-shrink-0">
+                    <Icon className="w-5 h-5" aria-hidden />
                   </span>
-                  <span className="flex-1 text-sm font-medium text-[#172B4D] dark:text-[#E6EDF3]">
+                  <span className="flex-1 text-sm font-medium text-[#172B4D] dark:text-[#E6EDF3] text-left">
                     {label}
                   </span>
-                  <ChevronLeft className="w-5 h-5 text-[#5E6C84] dark:text-[#8C9BAB] rotate-180" />
+                  <ChevronLeft className="w-5 h-5 text-[#5E6C84] dark:text-[#8C9BAB] rotate-180 flex-shrink-0" aria-hidden />
                 </Link>
               ))}
             </div>
@@ -199,7 +191,7 @@ export function JobMobileLayout({ children }: JobMobileLayoutProps) {
       )}
 
       <style>{`
-        @keyframes slideUp {
+        @keyframes jobSheetSlideUp {
           from { transform: translateY(100%); opacity: 0; }
           to { transform: translateY(0); opacity: 1; }
         }

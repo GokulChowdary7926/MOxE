@@ -1,13 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Camera, Image as ImageIcon } from 'lucide-react';
 import { ThemedView, ThemedText } from '../../components/ui/Themed';
 import { Avatar } from '../../components/ui/Avatar';
 import { MobileShell } from '../../components/layout/MobileShell';
 import { getApiBase, getToken, fetchApi } from '../../services/api';
+import { useCamera } from '../../hooks/useCamera';
 
 export default function EditProfile() {
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [pronouns, setPronouns] = useState('');
@@ -17,6 +19,23 @@ export default function EditProfile() {
   const [gender, setGender] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showPhotoOptions, setShowPhotoOptions] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  const { stream, error: cameraError, isActive, start, stop, capturePhoto } = useCamera({ video: true });
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (showCamera) {
+      start();
+      return () => stop();
+    }
+  }, [showCamera]);
+
+  useEffect(() => {
+    if (videoRef.current && stream) videoRef.current.srcObject = stream;
+  }, [stream]);
 
   useEffect(() => {
     const token = getToken();
@@ -41,6 +60,54 @@ export default function EditProfile() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  async function uploadAndSetProfilePhoto(file: File) {
+    const token = getToken();
+    if (!token) return;
+    setUploadingPhoto(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const uploadRes = await fetch(`${getApiBase()}/upload`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      const uploadData = await uploadRes.json().catch(() => ({}));
+      if (!uploadRes.ok || !uploadData.url) {
+        throw new Error(uploadData.error || 'Upload failed');
+      }
+      const res = await fetchApi('accounts/me', {
+        method: 'PATCH',
+        body: JSON.stringify({ profilePhoto: uploadData.url }),
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const acc = data?.account ?? data;
+        if (acc?.profilePhoto) setProfilePhoto(acc.profilePhoto);
+        setShowCamera(false);
+        setShowPhotoOptions(false);
+      }
+    } catch (e: any) {
+      console.error(e);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
+
+  async function handleTakePhoto() {
+    const blob = await capturePhoto();
+    if (!blob) return;
+    const file = new File([blob], `profile-${Date.now()}.png`, { type: 'image/png' });
+    await uploadAndSetProfilePhoto(file);
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (file) uploadAndSetProfilePhoto(file);
+    setShowPhotoOptions(false);
+  }
 
   async function handleSave() {
     const token = getToken();
@@ -102,8 +169,16 @@ export default function EditProfile() {
               <span className="text-2xl">🐵</span>
             </div>
           </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleFileChange}
+          />
           <button
             type="button"
+            onClick={() => setShowPhotoOptions(true)}
             className="text-[#0095f6] font-semibold text-sm px-4 pb-4"
           >
             Edit picture or avatar
@@ -209,6 +284,86 @@ export default function EditProfile() {
             </button>
           </div>
         </div>
+
+        {/* Photo source options */}
+        {showPhotoOptions && (
+          <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center safe-area-pb">
+            <div className="w-full max-w-[428px] bg-[#262626] rounded-t-2xl p-4 pb-8">
+              <ThemedText className="text-white font-semibold text-center mb-4">Change profile photo</ThemedText>
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => { fileInputRef.current?.click(); setShowPhotoOptions(false); }}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#363636] text-white"
+                >
+                  <ImageIcon className="w-6 h-6" />
+                  <span>Upload from gallery</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowPhotoOptions(false); setShowCamera(true); }}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#363636] text-white"
+                >
+                  <Camera className="w-6 h-6" />
+                  <span>Take photo</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPhotoOptions(false)}
+                  className="px-4 py-3 text-[#a8a8a8] text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Camera capture for profile photo */}
+        {showCamera && (
+          <div className="fixed inset-0 z-50 flex flex-col bg-black">
+            <div className="flex items-center justify-between px-4 py-3 safe-area-pt">
+              <button type="button" onClick={() => { stop(); setShowCamera(false); }} className="text-white font-medium">
+                Cancel
+              </button>
+              <span className="text-white font-semibold">Take profile photo</span>
+              <div className="w-14" />
+            </div>
+            <div className="flex-1 relative min-h-0">
+              {cameraError ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
+                  <ThemedText className="text-red-400 text-center mb-2">{cameraError}</ThemedText>
+                  <button type="button" onClick={() => start()} className="text-[#0095f6] text-sm font-semibold">Try again</button>
+                </div>
+              ) : (
+                <>
+                  {stream && (
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                  )}
+                  {!stream && (
+                    <div className="absolute inset-0 flex items-center justify-center text-[#737373] text-sm">Starting camera…</div>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="p-4 safe-area-pb bg-black/50">
+              <button
+                type="button"
+                onClick={handleTakePhoto}
+                disabled={!isActive || uploadingPhoto}
+                className="w-16 h-16 rounded-full border-4 border-white bg-transparent mx-auto block disabled:opacity-50"
+              >
+                {uploadingPhoto ? <span className="text-white text-sm">…</span> : null}
+              </button>
+            </div>
+          </div>
+        )}
       </MobileShell>
     </ThemedView>
   );

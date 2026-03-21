@@ -9,8 +9,22 @@ import { mockUsers } from '../../mocks/users';
 import { mockHashtags } from '../../mocks/hashtags';
 import { mockPlaces } from '../../mocks/places';
 import { mockReels } from '../../mocks/reels';
+import { getApiBase, getToken } from '../../services/api';
 
 type TabId = 'top' | 'accounts' | 'tags' | 'places' | 'audio';
+
+type SearchUserRow = {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string;
+};
+
+type ExploreSearchResponse = {
+  users?: { id: string; username: string; displayName?: string | null; profilePhoto?: string | null }[];
+  hashtags?: { name: string; postCount?: number }[];
+  posts?: unknown[];
+};
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'top', label: 'Top' },
@@ -25,23 +39,79 @@ export default function SearchResults() {
   const q = (searchParams.get('q') ?? '').toLowerCase().trim();
   const [tab, setTab] = useState<TabId>('top');
   const [inputValue, setInputValue] = useState(q);
+  const [apiSearch, setApiSearch] = useState<ExploreSearchResponse | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+
   useEffect(() => {
     setInputValue(q);
   }, [q]);
 
+  useEffect(() => {
+    const token = getToken();
+    if (!q || !token) {
+      setApiSearch(null);
+      return;
+    }
+    let cancelled = false;
+    setSearchLoading(true);
+    fetch(`${getApiBase()}/explore/search?q=${encodeURIComponent(q)}&type=all`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: ExploreSearchResponse | null) => {
+        if (!cancelled && data) setApiSearch(data);
+        else if (!cancelled) setApiSearch(null);
+      })
+      .catch(() => {
+        if (!cancelled) setApiSearch(null);
+      })
+      .finally(() => {
+        if (!cancelled) setSearchLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [q]);
+
+  const token = getToken();
+
+  const apiUsersAsRows: SearchUserRow[] = useMemo(() => {
+    const users = apiSearch?.users;
+    if (!users?.length) return [];
+    return users.map((u) => ({
+      id: u.id,
+      username: u.username,
+      displayName: u.displayName || u.username,
+      avatarUrl: u.profilePhoto || '/logo.png',
+    }));
+  }, [apiSearch]);
+
   const accounts = useMemo(() => {
+    if (token && q) {
+      if (searchLoading) return [];
+      if (apiSearch !== null) return apiUsersAsRows;
+    }
     if (!q) return mockUsers;
     return mockUsers.filter(
       (u) =>
         u.username.toLowerCase().includes(q) ||
         u.displayName.toLowerCase().includes(q)
     );
-  }, [q]);
+  }, [q, apiUsersAsRows, apiSearch, searchLoading, token]);
 
   const tags = useMemo(() => {
+    if (token && q) {
+      if (searchLoading) return [];
+      if (apiSearch !== null) {
+        return (apiSearch.hashtags ?? []).map((h) => ({
+          tag: (h.name || '').replace(/^#/, ''),
+          postCount: h.postCount ?? 0,
+        }));
+      }
+    }
     if (!q) return mockHashtags;
     return mockHashtags.filter((h) => h.tag.toLowerCase().includes(q));
-  }, [q]);
+  }, [q, apiSearch, token, searchLoading]);
 
   const places = useMemo(() => {
     if (!q) return mockPlaces;

@@ -13,11 +13,21 @@ export const login = createAsyncThunk<
   'auth/login',
   async ({ loginId, password }, { rejectWithValue }) => {
     const base = getApiBase();
-    const res = await fetch(`${base}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ loginId, password }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${base}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loginId, password }),
+      });
+    } catch (err) {
+      const isNetwork = err instanceof TypeError && (err.message === 'Failed to fetch' || (err as Error).message?.includes('fetch'));
+      return rejectWithValue(
+        isNetwork
+          ? 'Cannot reach server. Check your connection and that the backend is running (npm run dev in BACKEND).'
+          : (err instanceof Error ? err.message : 'Network error. Please try again.')
+      );
+    }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       const rawError = data?.error ?? data?.message ?? (Array.isArray(data?.errors) ? data.errors[0] : null);
@@ -26,13 +36,15 @@ export const login = createAsyncThunk<
         backendMsg ||
         (res.status === 401
           ? 'Invalid username or password.'
-          : res.status === 0
-            ? 'Cannot reach server. Check your connection and that the backend is running.'
-            : res.status === 404 || res.status >= 502
-              ? 'Server unavailable. Ensure the backend is running and try again.'
-              : res.status === 400
-                ? 'Invalid request. Check your username and password.'
-                : res.statusText?.trim() || 'Login failed. Check your username and password, or sign up with phone if you don\'t have an account.');
+          : res.status === 429
+            ? 'Too many attempts. Please try again later.'
+            : res.status === 0 || res.status === 500 || res.status >= 502
+              ? 'Server error or unavailable. Ensure the backend is running and try again.'
+              : res.status === 404
+                ? 'Server unavailable. Ensure the backend is running and try again.'
+                : res.status === 400
+                  ? 'Invalid request. Check your username and password.'
+                  : res.statusText?.trim() || 'Login failed. Check your username and password.');
       return rejectWithValue(msg);
     }
     if (!data.token) return rejectWithValue('No token returned');
@@ -47,25 +59,35 @@ export const login = createAsyncThunk<
 );
 
 export const register = createAsyncThunk<
-  { token: string; user: AuthUser },
-  { email: string; displayName: string; username: string; password: string },
+  { token: string; user: AuthUser; userId?: string; accountId?: string },
+  { username: string; displayName: string; password: string; accountType?: string },
   { rejectValue: string }
 >(
   'auth/register',
-  async ({ email, displayName, username, password }, { rejectWithValue }) => {
+  async ({ username, displayName, password, accountType }, { rejectWithValue }) => {
     const base = getApiBase();
-    const res = await fetch(`${base}/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, displayName, username, password }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${base}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username.trim(), displayName: displayName.trim(), password, accountType: accountType || 'PERSONAL' }),
+      });
+    } catch (err) {
+      const isNetwork = err instanceof TypeError && (err.message === 'Failed to fetch' || (err as Error).message?.includes('fetch'));
+      return rejectWithValue(
+        isNetwork ? 'Cannot reach server. Start the backend (npm run dev in BACKEND) and try again.' : (err instanceof Error ? err.message : 'Sign up failed')
+      );
+    }
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) return rejectWithValue(data?.error || 'Sign up failed');
-    if (!data.token) return rejectWithValue(data?.error || 'No token returned');
+    if (!res.ok) return rejectWithValue((data?.error as string) || 'Sign up failed');
+    if (!data.token) return rejectWithValue((data?.error as string) || 'No token returned');
     if (typeof localStorage !== 'undefined') localStorage.setItem('token', data.token);
     return {
       token: data.token,
       user: data.user ?? { id: data.userId ?? data.accountId ?? 'unknown' },
+      userId: data.userId,
+      accountId: data.accountId,
     };
   }
 );
@@ -80,11 +102,17 @@ export const fetchMe = createAsyncThunk<
     const t = getToken() ?? getState().auth.token;
     if (!t) return rejectWithValue('No token');
     const base = getApiBase();
-    const res = await fetch(`${base}/accounts/me`, {
-      headers: { Authorization: `Bearer ${t}` },
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${base}/accounts/me`, {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+    } catch (err) {
+      const isNetwork = err instanceof TypeError && (err.message === 'Failed to fetch' || (err as Error).message?.includes('fetch'));
+      return rejectWithValue(isNetwork ? 'Cannot reach server. Check that the backend is running.' : (err instanceof Error ? err.message : 'Request failed'));
+    }
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) return rejectWithValue(data?.error || 'Failed to load account');
+    if (!res.ok) return rejectWithValue(data?.error || (res.status === 401 ? 'Session expired. Please log in again.' : 'Failed to load account'));
     return { account: data.account ?? {}, capabilities: data.capabilities ?? null };
   }
 );

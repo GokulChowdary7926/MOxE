@@ -282,6 +282,13 @@ export class MessageService {
       if (blocked && (blocked.expiresAt == null || blocked.expiresAt > new Date()))
         throw new AppError('Recipient has blocked you', 403);
 
+      const blockedByYou = await prisma.block.findUnique({
+        where: { blockerId_blockedId: { blockerId: accountId, blockedId: recipientId } },
+        select: { expiresAt: true },
+      });
+      if (blockedByYou && (blockedByYou.expiresAt == null || blockedByYou.expiresAt > new Date()))
+        throw new AppError('You have blocked this recipient', 403);
+
       const senderAccount = await prisma.account.findUnique({
         where: { id: accountId },
         include: { user: { select: { dateOfBirth: true } } },
