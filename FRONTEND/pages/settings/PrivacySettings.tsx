@@ -5,7 +5,10 @@ import { ThemedText } from '../../components/ui/Themed';
 import { PageLayout } from '../../components/layout/PageLayout';
 import type { RootState } from '../../store';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+import { getApiBase } from '../../services/api';
+import { fetchClientSettings, patchClientSettings } from '../../services/clientSettings';
+
+const API_BASE = getApiBase();
 
 type RowProps = {
   label: string;
@@ -43,11 +46,13 @@ export default function PrivacySettings() {
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) return;
-    fetch(`${API_BASE}/accounts/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
+    Promise.all([
+      fetch(`${API_BASE}/accounts/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then((res) => (res.ok ? res.json() : null)),
+      fetchClientSettings(),
+    ])
+      .then(([data, clientSettings]) => {
         if (!data?.account) return;
         const acc = data.account;
         setIsPrivate(!!acc.isPrivate);
@@ -55,7 +60,14 @@ export default function PrivacySettings() {
         if (acc.searchVisibility) {
           setSearchVisibility(acc.searchVisibility as any);
         }
-        if (acc.defaultStoryAllowReplies === false) {
+        const aud = clientSettings?.story?.repliesAudience;
+        if (aud === 'off') {
+          setStoryReplies('OFF');
+        } else if (aud === 'followers') {
+          setStoryReplies('FOLLOWERS');
+        } else if (aud === 'everyone') {
+          setStoryReplies('EVERYONE');
+        } else if (acc.defaultStoryAllowReplies === false) {
           setStoryReplies('OFF');
         } else if (acc.defaultStoryAllowReplies === 'FOLLOWERS' || acc.defaultStoryAllowReplies === 'FOLLOWERS_ONLY') {
           setStoryReplies('FOLLOWERS');
@@ -166,15 +178,12 @@ export default function PrivacySettings() {
                   onChange={(e) => {
                     const value = e.target.value as 'EVERYONE' | 'FOLLOWERS' | 'OFF';
                     setStoryReplies(value);
-                    let allow: boolean | string;
-                    if (value === 'OFF') {
-                      allow = false;
-                    } else if (value === 'FOLLOWERS') {
-                      allow = 'FOLLOWERS';
-                    } else {
-                      allow = true;
-                    }
-                    updateAccount({ defaultStoryAllowReplies: allow });
+                    const repliesAudience: 'everyone' | 'followers' | 'off' =
+                      value === 'OFF' ? 'off' : value === 'FOLLOWERS' ? 'followers' : 'everyone';
+                    void patchClientSettings({
+                      story: { repliesAudience },
+                    });
+                    updateAccount({ defaultStoryAllowReplies: value !== 'OFF' });
                   }}
                   className="px-2 py-1 rounded-moxe-md bg-moxe-surface border border-moxe-border text-moxe-caption text-moxe-text"
                 >

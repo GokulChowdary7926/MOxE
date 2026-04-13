@@ -3,6 +3,7 @@ import {
   View,
   StyleSheet,
   Image,
+  ImageStyle,
   Alert,
   ScrollView,
   Switch,
@@ -60,11 +61,11 @@ export function StoryEditorScreen() {
   const type = params?.type ?? 'image';
   const mode = params?.mode ?? 'photo';
 
-  const imageStyle = useMemo(() => {
-    const base = [styles.media];
-    if (filter === 'warm') base.push(styles.mediaWarm);
-    if (filter === 'cool') base.push(styles.mediaCool);
-    if (filter === 'contrast') base.push(styles.mediaContrast);
+  const imageStyle = useMemo((): ImageStyle[] => {
+    const base: ImageStyle[] = [styles.media];
+    if (filter === 'warm') base.push(styles.mediaWarm as ImageStyle);
+    if (filter === 'cool') base.push(styles.mediaCool as ImageStyle);
+    if (filter === 'contrast') base.push(styles.mediaContrast as ImageStyle);
     return base;
   }, [filter]);
 

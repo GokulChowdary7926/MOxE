@@ -458,7 +458,7 @@ export class TrackRecruiterService {
     });
   }
 
-  /** Send email to candidate via MOxE MAIL (or Resend if configured). */
+  /** Send email to candidate via MOxE MAIL (webhook, Resend, SendGrid, or opt-in SES — see `moxe-mail.service.ts`). */
   async sendEmailToCandidate(
     accountId: string,
     kind: 'application' | 'recruitment',
@@ -502,7 +502,7 @@ export class TrackRecruiterService {
     };
   }
 
-  /** Send calendar invites via MOxE CALENDAR (reminder schedule from interview.reminderHoursBefore). */
+  /** Send calendar invites via MOxE CALENDAR webhook or Google Calendar (see `moxe-calendar.service.ts`). */
   async sendInterviewInvites(accountId: string, interviewId: string) {
     const interview = await this.getInterview(accountId, interviewId);
     const candidateEmail = (interview.jobApplication?.account as any)?.email

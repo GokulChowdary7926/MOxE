@@ -9,7 +9,9 @@ router.use(authenticate);
 
 router.get('/orgs', async (_req, res, next) => {
   try {
-    const orgs = await access.listOrgs();
+    const accountId = (_req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const orgs = await access.listOrgs(accountId);
     res.json(orgs);
   } catch (e) {
     next(e);
@@ -18,8 +20,10 @@ router.get('/orgs', async (_req, res, next) => {
 
 router.post('/orgs', async (req, res, next) => {
   try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
     const { name, domain } = req.body || {};
-    const org = await access.createOrg(name, domain);
+    const org = await access.createOrg(name, domain, accountId);
     res.status(201).json(org);
   } catch (e) {
     next(e);
@@ -28,7 +32,9 @@ router.post('/orgs', async (req, res, next) => {
 
 router.get('/orgs/:orgId/departments', async (req, res, next) => {
   try {
-    const list = await access.listDepartments(req.params.orgId);
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const list = await access.listDepartments(req.params.orgId, accountId);
     res.json(list);
   } catch (e) {
     next(e);
@@ -37,7 +43,9 @@ router.get('/orgs/:orgId/departments', async (req, res, next) => {
 
 router.post('/orgs/:orgId/departments', async (req, res, next) => {
   try {
-    const dept = await access.createDepartment(req.params.orgId, (req.body || {}).name, (req.body || {}).parentId);
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const dept = await access.createDepartment(req.params.orgId, accountId, (req.body || {}).name, (req.body || {}).parentId);
     res.status(201).json(dept);
   } catch (e) {
     next(e);
@@ -46,7 +54,9 @@ router.post('/orgs/:orgId/departments', async (req, res, next) => {
 
 router.get('/orgs/:orgId/roles', async (req, res, next) => {
   try {
-    const list = await access.listRoles(req.params.orgId);
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const list = await access.listRoles(req.params.orgId, accountId);
     res.json(list);
   } catch (e) {
     next(e);
@@ -55,7 +65,9 @@ router.get('/orgs/:orgId/roles', async (req, res, next) => {
 
 router.post('/orgs/:orgId/roles', async (req, res, next) => {
   try {
-    const role = await access.createRole(req.params.orgId, (req.body || {}).name);
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const role = await access.createRole(req.params.orgId, accountId, (req.body || {}).name);
     res.status(201).json(role);
   } catch (e) {
     next(e);
@@ -64,7 +76,9 @@ router.post('/orgs/:orgId/roles', async (req, res, next) => {
 
 router.get('/orgs/:orgId/groups', async (req, res, next) => {
   try {
-    const list = await access.listGroups(req.params.orgId);
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const list = await access.listGroups(req.params.orgId, accountId);
     res.json(list);
   } catch (e) {
     next(e);
@@ -75,7 +89,9 @@ router.get('/orgs/:orgId/groups', async (req, res, next) => {
 
 router.get('/orgs/:orgId/sso', async (req, res, next) => {
   try {
-    const cfg = await access.getSsoConfig(req.params.orgId);
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const cfg = await access.getSsoConfig(req.params.orgId, accountId);
     res.json(cfg);
   } catch (e) {
     next(e);
@@ -84,7 +100,9 @@ router.get('/orgs/:orgId/sso', async (req, res, next) => {
 
 router.post('/orgs/:orgId/sso', async (req, res, next) => {
   try {
-    const cfg = await access.configureSso(req.params.orgId, req.body || {});
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const cfg = await access.configureSso(req.params.orgId, accountId, req.body || {});
     res.status(201).json(cfg);
   } catch (e) {
     next(e);
@@ -93,8 +111,10 @@ router.post('/orgs/:orgId/sso', async (req, res, next) => {
 
 router.post('/orgs/:orgId/sso/domains', async (req, res, next) => {
   try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
     const { domains } = req.body || {};
-    const cfg = await access.setSsoDomains(req.params.orgId, Array.isArray(domains) ? domains : []);
+    const cfg = await access.setSsoDomains(req.params.orgId, accountId, Array.isArray(domains) ? domains : []);
     res.json(cfg);
   } catch (e) {
     next(e);
@@ -103,8 +123,10 @@ router.post('/orgs/:orgId/sso/domains', async (req, res, next) => {
 
 router.post('/orgs/:orgId/sso/enforcement', async (req, res, next) => {
   try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
     const { enforcementLevel } = req.body || {};
-    const cfg = await access.setSsoEnforcement(req.params.orgId, enforcementLevel || 'optional');
+    const cfg = await access.setSsoEnforcement(req.params.orgId, accountId, enforcementLevel || 'optional');
     res.json(cfg);
   } catch (e) {
     next(e);
@@ -113,7 +135,9 @@ router.post('/orgs/:orgId/sso/enforcement', async (req, res, next) => {
 
 router.post('/orgs/:orgId/sso/test', async (req, res, next) => {
   try {
-    const result = await access.testSsoConnection(req.params.orgId);
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const result = await access.testSsoConnection(req.params.orgId, accountId);
     res.json(result);
   } catch (e) {
     next(e);
@@ -122,8 +146,10 @@ router.post('/orgs/:orgId/sso/test', async (req, res, next) => {
 
 router.post('/orgs/:orgId/sso/activate', async (req, res, next) => {
   try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
     const { isActive } = req.body || {};
-    const cfg = await access.activateSso(req.params.orgId, !!isActive);
+    const cfg = await access.activateSso(req.params.orgId, accountId, !!isActive);
     res.json(cfg);
   } catch (e) {
     next(e);
@@ -134,7 +160,9 @@ router.post('/orgs/:orgId/sso/activate', async (req, res, next) => {
 
 router.get('/orgs/:orgId/mfa-policy', async (req, res, next) => {
   try {
-    const policy = await access.getMfaPolicy(req.params.orgId);
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const policy = await access.getMfaPolicyForMember(req.params.orgId, accountId);
     res.json(policy);
   } catch (e) {
     next(e);
@@ -143,8 +171,23 @@ router.get('/orgs/:orgId/mfa-policy', async (req, res, next) => {
 
 router.post('/orgs/:orgId/mfa-policy', async (req, res, next) => {
   try {
-    const policy = await access.setMfaPolicy(req.params.orgId, req.body || {});
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const policy = await access.setMfaPolicy(req.params.orgId, req.body || {}, accountId);
     res.status(201).json(policy);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get('/orgs/:orgId/audit', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const raw = parseInt(String(req.query.limit ?? '50'), 10);
+    const limit = Number.isFinite(raw) ? raw : 50;
+    const list = await access.listAuditLog(req.params.orgId, accountId, limit);
+    res.json(list);
   } catch (e) {
     next(e);
   }
@@ -152,7 +195,9 @@ router.post('/orgs/:orgId/mfa-policy', async (req, res, next) => {
 
 router.get('/orgs/:orgId/mfa/compliance', async (req, res, next) => {
   try {
-    const summary = await access.getMfaCompliance(req.params.orgId);
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const summary = await access.getMfaCompliance(req.params.orgId, accountId);
     res.json(summary);
   } catch (e) {
     next(e);
@@ -161,7 +206,9 @@ router.get('/orgs/:orgId/mfa/compliance', async (req, res, next) => {
 
 router.post('/orgs/:orgId/groups', async (req, res, next) => {
   try {
-    const group = await access.createGroup(req.params.orgId, (req.body || {}).name);
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const group = await access.createGroup(req.params.orgId, accountId, (req.body || {}).name);
     res.status(201).json(group);
   } catch (e) {
     next(e);
@@ -170,7 +217,9 @@ router.post('/orgs/:orgId/groups', async (req, res, next) => {
 
 router.get('/orgs/:orgId/invitations', async (req, res, next) => {
   try {
-    const list = await access.listInvitations(req.params.orgId);
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const list = await access.listInvitations(req.params.orgId, accountId);
     res.json(list);
   } catch (e) {
     next(e);
@@ -179,8 +228,21 @@ router.get('/orgs/:orgId/invitations', async (req, res, next) => {
 
 router.get('/orgs/:orgId/users', async (req, res, next) => {
   try {
-    const list = await access.listUsers(req.params.orgId);
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const list = await access.listUsers(req.params.orgId, accountId);
     res.json(list);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.delete('/orgs/:orgId/users/:id', async (req, res, next) => {
+  try {
+    const adminAccountId = (req as any).user?.accountId;
+    if (!adminAccountId) return res.status(401).json({ error: 'Unauthorized' });
+    await access.removeOrgUser(adminAccountId, req.params.orgId, req.params.id);
+    res.json({ ok: true });
   } catch (e) {
     next(e);
   }
@@ -188,7 +250,7 @@ router.get('/orgs/:orgId/users', async (req, res, next) => {
 
 router.post('/users', async (req, res, next) => {
   try {
-    const adminAccountId = (req as any).user?.accountId || (req as any).user?.userId;
+    const adminAccountId = (req as any).user?.accountId;
     if (!adminAccountId) return res.status(401).json({ error: 'Unauthorized' });
     const user = await access.addUser(adminAccountId, req.body || {});
     res.status(201).json(user);
@@ -199,7 +261,7 @@ router.post('/users', async (req, res, next) => {
 
 router.patch('/users/:id', async (req, res, next) => {
   try {
-    const adminAccountId = (req as any).user?.accountId || (req as any).user?.userId;
+    const adminAccountId = (req as any).user?.accountId;
     if (!adminAccountId) return res.status(401).json({ error: 'Unauthorized' });
     const user = await access.updateUser(adminAccountId, req.params.id, req.body || {});
     res.json(user);
@@ -210,7 +272,7 @@ router.patch('/users/:id', async (req, res, next) => {
 
 router.post('/users/import', async (req, res, next) => {
   try {
-    const adminAccountId = (req as any).user?.accountId || (req as any).user?.userId;
+    const adminAccountId = (req as any).user?.accountId;
     if (!adminAccountId) return res.status(401).json({ error: 'Unauthorized' });
     const { orgId, rows } = req.body || {};
     if (!orgId || !Array.isArray(rows)) return res.status(400).json({ error: 'orgId and rows[] required' });
@@ -223,7 +285,7 @@ router.post('/users/import', async (req, res, next) => {
 
 router.post('/invitations', async (req, res, next) => {
   try {
-    const adminAccountId = (req as any).user?.accountId || (req as any).user?.userId;
+    const adminAccountId = (req as any).user?.accountId;
     if (!adminAccountId) return res.status(401).json({ error: 'Unauthorized' });
     const invite = await access.createInvitation(adminAccountId, req.body || {});
     res.status(201).json(invite);
@@ -234,7 +296,7 @@ router.post('/invitations', async (req, res, next) => {
 
 router.post('/invitations/accept', async (req, res, next) => {
   try {
-    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    const accountId = (req as any).user?.accountId;
     if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
     const { token } = req.body || {};
     if (!token) return res.status(400).json({ error: 'token required' });

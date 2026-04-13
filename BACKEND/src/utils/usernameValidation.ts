@@ -1,8 +1,9 @@
 export type UsernameValidationResult =
-  | { valid: true }
+  | { valid: true; normalized: string }
   | { valid: false; message: string };
 
-const USERNAME_REGEX = /^[a-zA-Z0-9._]{3,30}$/;
+/** Usernames: lowercase English letters only (a–z), 3–30 characters. */
+const USERNAME_REGEX = /^[a-z]{3,30}$/;
 
 // Keep this list aligned with MOxE “reserved” concept.
 // NOTE: comparisons should be case-insensitive.
@@ -18,7 +19,24 @@ const RESERVED_USERNAMES = new Set([
 ]);
 
 export function normalizeUsername(input: string): string {
-  return input.trim().replace(/^@+/, '');
+  return input.trim().replace(/^@+/, '').toLowerCase();
+}
+
+/** Google / OAuth: derive a valid username from email local-part (letters only). */
+export function suggestUsernameFromEmailLocalPart(localPart: string): string {
+  const lettersOnly = localPart.replace(/[^a-zA-Z]/g, '').toLowerCase();
+  let base = lettersOnly.slice(0, 30);
+  if (base.length < 3) {
+    base = `${lettersOnly}moxeuser`.replace(/[^a-z]/g, '').toLowerCase().slice(0, 30);
+  }
+  if (base.length < 3) base = 'mox';
+  return base.slice(0, 30);
+}
+
+const LOWER = 'abcdefghijklmnopqrstuvwxyz';
+
+export function randomAlphabeticLower(length: number): string {
+  return Array.from({ length }, () => LOWER[Math.floor(Math.random() * 26)]).join('');
 }
 
 export function validateUsernameFormat(input: string): UsernameValidationResult {
@@ -31,14 +49,13 @@ export function validateUsernameFormat(input: string): UsernameValidationResult 
   if (!USERNAME_REGEX.test(username)) {
     return {
       valid: false,
-      message: 'Username can only contain letters, numbers, periods (.) and underscores (_)',
+      message: 'Username can only use lowercase letters (a–z), no numbers or symbols',
     };
   }
-  const lower = username.toLowerCase();
-  if (RESERVED_USERNAMES.has(lower)) {
+  if (RESERVED_USERNAMES.has(username)) {
     return { valid: false, message: 'This username is reserved' };
   }
 
-  return { valid: true };
+  return { valid: true, normalized: username };
 }
 

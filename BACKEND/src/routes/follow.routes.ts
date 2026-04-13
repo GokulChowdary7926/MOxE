@@ -19,6 +19,16 @@ router.get('/followers/by/:username', optionalAuthenticate, async (req, res, nex
   }
 });
 
+/** Public or authenticated: list following of an account by username (for profile following list). */
+router.get('/following/by/:username', optionalAuthenticate, async (req, res, next) => {
+  try {
+    const list = await service.listFollowingByUsername(req.params.username);
+    res.json({ following: list });
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.use(authenticate);
 
 router.post('/', async (req, res, next) => {

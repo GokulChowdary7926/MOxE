@@ -32,7 +32,7 @@ export type EmailNotifications = {
   tipsAndTricks: boolean;
 };
 
-export type FromInstagram = {
+export type FromMoxe = {
   productAnnouncements: boolean;
   supportEmails: boolean;
   tips: boolean;
@@ -49,18 +49,25 @@ export type NotificationsState = {
   followingFollowers: FollowingFollowers;
   messages: MessagesNotifications;
   email: EmailNotifications;
-  fromInstagram: FromInstagram;
+  fromMoxe: FromMoxe;
   liveReels: LiveReels;
 };
 
 export type DailyLimitValue = '15' | '30' | '45' | '60' | '120' | 'off';
 
-/** App theme: dark, light, or default (dark). */
-export type AppTheme = 'dark' | 'light' | 'default';
+/** App theme is fixed to dark (MOxE product decision). */
+export type AppTheme = 'dark';
 
 const THEME_STORAGE_KEY = 'moxe_app_theme';
 
 function getStoredTheme(): AppTheme {
+  if (typeof localStorage !== 'undefined') {
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, 'dark');
+    } catch {
+      /* ignore */
+    }
+  }
   return 'dark';
 }
 
@@ -93,7 +100,7 @@ const defaultEmail: EmailNotifications = {
   tipsAndTricks: false,
 };
 
-const defaultFromInstagram: FromInstagram = {
+const defaultFromMoxe: FromMoxe = {
   productAnnouncements: true,
   supportEmails: true,
   tips: true,
@@ -126,7 +133,7 @@ const initialState: SettingsState = {
     followingFollowers: defaultFollowingFollowers,
     messages: defaultMessages,
     email: defaultEmail,
-    fromInstagram: defaultFromInstagram,
+    fromMoxe: defaultFromMoxe,
     liveReels: defaultLiveReels,
   },
   dailyLimit: 'off',
@@ -157,8 +164,8 @@ const settingsSlice = createSlice({
     setEmailNotifications: (state, action: PayloadAction<Partial<EmailNotifications>>) => {
       state.notifications.email = { ...state.notifications.email, ...action.payload };
     },
-    setFromInstagram: (state, action: PayloadAction<Partial<FromInstagram>>) => {
-      state.notifications.fromInstagram = { ...state.notifications.fromInstagram, ...action.payload };
+    setFromMoxe: (state, action: PayloadAction<Partial<FromMoxe>>) => {
+      state.notifications.fromMoxe = { ...state.notifications.fromMoxe, ...action.payload };
     },
     setLiveReels: (state, action: PayloadAction<Partial<LiveReels>>) => {
       state.notifications.liveReels = { ...state.notifications.liveReels, ...action.payload };
@@ -169,10 +176,14 @@ const settingsSlice = createSlice({
     setLanguage: (state, action: PayloadAction<string>) => {
       state.language = action.payload;
     },
-    setAppTheme: (state, action: PayloadAction<AppTheme>) => {
-      state.appTheme = action.payload;
+    setAppTheme: (state, _action: PayloadAction<AppTheme>) => {
+      state.appTheme = 'dark';
       if (typeof localStorage !== 'undefined') {
-        localStorage.setItem(THEME_STORAGE_KEY, action.payload);
+        try {
+          localStorage.setItem(THEME_STORAGE_KEY, 'dark');
+        } catch {
+          /* ignore */
+        }
       }
     },
     setBlockedUserIds: (state, action: PayloadAction<string[]>) => {
@@ -219,7 +230,7 @@ export const {
   setFollowingFollowers,
   setMessagesNotifications,
   setEmailNotifications,
-  setFromInstagram,
+  setFromMoxe,
   setLiveReels,
   setDailyLimit,
   setLanguage,

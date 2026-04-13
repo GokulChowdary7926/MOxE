@@ -4,6 +4,7 @@
  */
 import { prisma } from '../server';
 import { AppError } from '../utils/AppError';
+import { isProductionFreeSubscriptionsEnabled } from '../constants/tierCapabilities';
 
 export class CreatorToolsService {
   /** 13.2 Quick replies (message templates) */
@@ -135,7 +136,8 @@ export class CreatorToolsService {
       where: { id: accountId },
       select: { accountType: true, subscriptionTier: true },
     });
-    if (!account || (account.subscriptionTier !== 'STAR' && account.subscriptionTier !== 'THICK'))
+    if (!account) throw new AppError('Account not found', 404);
+    if (!isProductionFreeSubscriptionsEnabled() && account.subscriptionTier !== 'STAR' && account.subscriptionTier !== 'THICK')
       throw new AppError('Best time recommendations require Creator Paid or Star', 403);
     const events = await prisma.analyticsEvent.findMany({
       where: { accountId, timestamp: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },

@@ -15,9 +15,35 @@ type NearbyClient = {
 };
 
 const nearbyClients = new Map<string, NearbyClient>();
+const nearbyRecentMessageByAccount = new Map<string, { fingerprint: string; at: number }>();
+const nearbyLocationLastAtBySocket = new Map<string, number>();
+const dmTypingLastAtBySocket = new Map<string, number>();
 
 /** All clients viewing Nearby messaging join this room so broadcasts reach them even before first GPS fix. */
 const NEARBY_FEED_ROOM = 'nearby:feed';
+const NEARBY_DEDUP_WINDOW_MS = 1200;
+const NEARBY_DEDUP_RETENTION_MS = 5 * 60 * 1000;
+const NEARBY_DEDUP_MAX_ENTRIES = 5000;
+const NEARBY_LOCATION_THROTTLE_MS = 800;
+const DM_TYPING_THROTTLE_MS = 400;
+const NEARBY_MAX_TEXT_LENGTH = 1200;
+const NEARBY_MAX_IMAGE_URL_LENGTH = 2048;
+
+function pruneNearbyDedupMap(now = Date.now()): void {
+  for (const [accountId, entry] of nearbyRecentMessageByAccount.entries()) {
+    if (now - entry.at > NEARBY_DEDUP_RETENTION_MS) {
+      nearbyRecentMessageByAccount.delete(accountId);
+    }
+  }
+
+  // Hard cap as a final safeguard in case of unusual account churn.
+  if (nearbyRecentMessageByAccount.size <= NEARBY_DEDUP_MAX_ENTRIES) return;
+  const sorted = Array.from(nearbyRecentMessageByAccount.entries()).sort((a, b) => a[1].at - b[1].at);
+  const toDelete = nearbyRecentMessageByAccount.size - NEARBY_DEDUP_MAX_ENTRIES;
+  for (let i = 0; i < toDelete; i++) {
+    nearbyRecentMessageByAccount.delete(sorted[i][0]);
+  }
+}
 
 function haversineKm(a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }): number {
   const toRad = (x: number) => (x * Math.PI) / 180;
@@ -40,6 +66,24 @@ const locationService = new LocationService();
 export function setupSocketHandlers(io: Server, prismaInstance?: PrismaLike) {
   ioRef = io;
   const getPrisma = () => prismaInstance ?? (global as any).__MOXE_PRISMA__;
+  const isActiveAccount = async (id?: string | null): Promise<boolean> => {
+    if (!id) return false;
+    const prisma = getPrisma();
+    if (!prisma) return false;
+    try {
+      const account = await prisma.account.findUnique({
+        where: { id },
+        select: { id: true, isActive: true },
+      });
+      return !!account?.id && account?.isActive !== false;
+    } catch {
+      return false;
+    }
+  };
+  const dedupPruneTimer = setInterval(() => {
+    pruneNearbyDedupMap();
+  }, 60 * 1000);
+  dedupPruneTimer.unref();
 
   // Root namespace – used for generic events (e.g. translation, story stickers, nearby messaging, notifications).
   io.on('connection', (socket) => {
@@ -54,9 +98,21 @@ export function setupSocketHandlers(io: Server, prismaInstance?: PrismaLike) {
       if (id && typeof id === 'string') socket.join(`account:${id}`);
     });
 
+    socket.on('nearby:join', async () => {
+      await socket.join(NEARBY_FEED_ROOM);
+    });
+    socket.on('nearby:leave', async () => {
+      await socket.leave(NEARBY_FEED_ROOM);
+    });
+
     socket.on('nearby:location', (payload: { latitude?: number; longitude?: number }) => {
+      const now = Date.now();
+      const lastLocationAt = nearbyLocationLastAtBySocket.get(socket.id) ?? 0;
+      if (now - lastLocationAt < NEARBY_LOCATION_THROTTLE_MS) return;
+      nearbyLocationLastAtBySocket.set(socket.id, now);
       const { latitude, longitude } = payload || {};
       if (typeof latitude !== 'number' || typeof longitude !== 'number') return;
+      if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return;
       const updated: NearbyClient = {
         socketId: socket.id,
         userId,
@@ -87,12 +143,16 @@ export function setupSocketHandlers(io: Server, prismaInstance?: PrismaLike) {
     });
 
     socket.on('nearby:message', async (payload: { text?: string; imageUrl?: string; anonymous?: boolean }) => {
-      const text = (payload?.text ?? '').toString().trim();
-      const imageUrl = typeof payload?.imageUrl === 'string' && payload.imageUrl ? payload.imageUrl : undefined;
+      const text = (payload?.text ?? '').toString().trim().slice(0, NEARBY_MAX_TEXT_LENGTH);
+      const rawImageUrl =
+        typeof payload?.imageUrl === 'string' && payload.imageUrl ? payload.imageUrl.trim() : undefined;
+      const imageUrl =
+        rawImageUrl && rawImageUrl.length <= NEARBY_MAX_IMAGE_URL_LENGTH ? rawImageUrl : undefined;
       if (!text && !imageUrl) return;
 
       const sender = nearbyClients.get(socket.id);
       const radiusKm = 5;
+      const accountIdToBill = sender?.accountId ?? accountId;
 
       let fromUsername: string | null = null;
       let fromDisplayName: string | null = null;
@@ -126,10 +186,12 @@ export function setupSocketHandlers(io: Server, prismaInstance?: PrismaLike) {
       }
 
       const messagePayload = {
+        messageId: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
         text: text || (imageUrl ? '[Photo]' : ''),
         imageUrl: imageUrl || undefined,
         from: {
           userId: sender?.userId ?? userId ?? null,
+          accountId: payload.anonymous ? null : accountIdToBill,
           latitude: sender?.latitude ?? 0,
           longitude: sender?.longitude ?? 0,
           username: fromUsername,
@@ -138,11 +200,26 @@ export function setupSocketHandlers(io: Server, prismaInstance?: PrismaLike) {
         sentAt: new Date().toISOString(),
       };
 
-      const accountIdToBill = sender?.accountId ?? accountId;
       if (!accountIdToBill) {
         socket.emit('nearby:message:error', { code: 'AUTH', message: 'Sign in to post to Nearby.' });
         return;
       }
+
+      // Server-side idempotency for rapid duplicate sends from same account.
+      // Prevents accidental double posts due to retries/taps/reconnect races.
+      const fingerprint = `${(text || '').toLowerCase()}|${imageUrl || ''}|${payload?.anonymous ? '1' : '0'}`;
+      const now = Date.now();
+      pruneNearbyDedupMap(now);
+      const previous = nearbyRecentMessageByAccount.get(accountIdToBill);
+      if (
+        previous &&
+        previous.fingerprint === fingerprint &&
+        now - previous.at <= NEARBY_DEDUP_WINDOW_MS
+      ) {
+        return;
+      }
+      nearbyRecentMessageByAccount.set(accountIdToBill, { fingerprint, at: now });
+
       const kind: 'text' | 'media' = imageUrl ? 'media' : 'text';
       try {
         await locationService.recordNearbyMessaging(accountIdToBill, kind);
@@ -187,6 +264,7 @@ export function setupSocketHandlers(io: Server, prismaInstance?: PrismaLike) {
 
     socket.on('disconnect', () => {
       nearbyClients.delete(socket.id);
+      nearbyLocationLastAtBySocket.delete(socket.id);
       console.log('Client disconnected:', socket.id);
     });
   });
@@ -210,6 +288,10 @@ export function setupSocketHandlers(io: Server, prismaInstance?: PrismaLike) {
   const liveNs = io.of('/live');
   liveNs.on('connection', (socket) => {
     const accountId = (socket.handshake.auth?.accountId ?? socket.handshake.auth?.userId) as string | undefined;
+    void (async () => {
+      const ok = await isActiveAccount(accountId);
+      if (!ok) socket.disconnect(true);
+    })();
 
     socket.on('live:start', (payload: { liveId?: string }) => {
       const liveId = (payload?.liveId ?? '').toString().trim();
@@ -263,6 +345,66 @@ export function setupSocketHandlers(io: Server, prismaInstance?: PrismaLike) {
       liveRooms.delete(liveId);
     });
 
+    // WebRTC signaling (viewer ↔ broadcaster). Payloads are JSON-serialized SDP/ICE from the browser.
+    socket.on('live:webrtc-request', (payload: { liveId?: string }) => {
+      const liveId = (payload?.liveId ?? '').toString().trim();
+      if (!liveId) return;
+      const room = liveRooms.get(liveId);
+      if (!room || socket.id === room.broadcasterSocketId) return;
+      liveNs.to(room.broadcasterSocketId).emit('live:webrtc-request', { liveId, viewerSocketId: socket.id });
+    });
+
+    socket.on(
+      'live:webrtc-offer',
+      (payload: { liveId?: string; viewerSocketId?: string; sdp?: { type?: string; sdp?: string } }) => {
+        const liveId = (payload?.liveId ?? '').toString().trim();
+        const viewerSocketId = (payload?.viewerSocketId ?? '').toString().trim();
+        const sdp = payload?.sdp;
+        if (!liveId || !viewerSocketId || !sdp?.sdp || !sdp?.type) return;
+        const room = liveRooms.get(liveId);
+        if (!room || room.broadcasterSocketId !== socket.id) return;
+        liveNs.to(viewerSocketId).emit('live:webrtc-offer', { liveId, sdp: { type: sdp.type, sdp: sdp.sdp } });
+      },
+    );
+
+    socket.on('live:webrtc-answer', (payload: { liveId?: string; sdp?: { type?: string; sdp?: string } }) => {
+      const liveId = (payload?.liveId ?? '').toString().trim();
+      const sdp = payload?.sdp;
+      if (!liveId || !sdp?.sdp || !sdp?.type) return;
+      const room = liveRooms.get(liveId);
+      if (!room || socket.id === room.broadcasterSocketId) return;
+      liveNs.to(room.broadcasterSocketId).emit('live:webrtc-answer', {
+        liveId,
+        sdp: { type: sdp.type, sdp: sdp.sdp },
+        viewerSocketId: socket.id,
+      });
+    });
+
+    socket.on(
+      'live:webrtc-ice',
+      (payload: {
+        liveId?: string;
+        toSocketId?: string;
+        candidate?: { candidate?: string; sdpMid?: string | null; sdpMLineIndex?: number | null };
+      }) => {
+        const liveId = (payload?.liveId ?? '').toString().trim();
+        if (!liveId || payload.candidate == null) return;
+        const room = liveRooms.get(liveId);
+        if (!room) return;
+        if (socket.id === room.broadcasterSocketId) {
+          const toSocketId = (payload.toSocketId ?? '').toString().trim();
+          if (!toSocketId) return;
+          liveNs.to(toSocketId).emit('live:webrtc-ice', { liveId, candidate: payload.candidate });
+        } else {
+          liveNs.to(room.broadcasterSocketId).emit('live:webrtc-ice', {
+            liveId,
+            candidate: payload.candidate,
+            viewerSocketId: socket.id,
+          });
+        }
+      },
+    );
+
     socket.on('disconnect', () => {
       for (const [liveId, room] of liveRooms.entries()) {
         if (room.broadcasterSocketId === socket.id) {
@@ -284,19 +426,28 @@ export function setupSocketHandlers(io: Server, prismaInstance?: PrismaLike) {
   const dm = io.of('/dm');
   dm.on('connection', (socket) => {
     const userId = socket.handshake.auth?.userId as string | undefined;
-    if (!userId) {
-      socket.disconnect(true);
-      return;
-    }
-    socket.join(userId);
-    console.log('DM client connected', userId, socket.id);
+    if (!userId) return socket.disconnect(true);
+    let authorized = false;
+    void (async () => {
+      const ok = await isActiveAccount(userId);
+      if (!ok) return socket.disconnect(true);
+      authorized = true;
+      socket.join(userId);
+      console.log('DM client connected', userId, socket.id);
+    })();
 
     socket.on('typing', (payload: { to?: string }) => {
-      if (!payload?.to) return;
+      if (!authorized) return;
+      const now = Date.now();
+      const lastTypingAt = dmTypingLastAtBySocket.get(socket.id) ?? 0;
+      if (now - lastTypingAt < DM_TYPING_THROTTLE_MS) return;
+      dmTypingLastAtBySocket.set(socket.id, now);
+      if (!payload?.to || typeof payload.to !== 'string' || payload.to.length > 128) return;
       dm.to(payload.to).emit('typing', { from: userId });
     });
 
     socket.on('disconnect', () => {
+      dmTypingLastAtBySocket.delete(socket.id);
       console.log('DM client disconnected', userId, socket.id);
     });
   });
@@ -317,7 +468,16 @@ export function emitFeedNewPost(): void {
 }
 
 /** Broadcast post like/comment updates so PostDetail and FeedPost can update in real time. */
-export function emitPostUpdated(postId: string, payload: { likeCount?: number; commentCount?: number; comment?: object }): void {
+export function emitPostUpdated(
+  postId: string,
+  payload: {
+    likeCount?: number;
+    commentCount?: number;
+    comment?: object;
+    allowComments?: boolean;
+    hideLikeCount?: boolean;
+  },
+): void {
   if (ioRef) ioRef.emit('post:updated', { postId, ...payload });
 }
 
@@ -339,4 +499,10 @@ export function emitNoteDeleted(noteId: string): void {
 /** Broadcast notes refresh event (expiry/scheduled transitions). */
 export function emitNotesRefresh(): void {
   if (ioRef) ioRef.emit('note:refresh', {});
+}
+
+/** Broadcast to everyone in Socket.IO `/live` room `live:${liveId}` (Q&A, moderators, etc.). */
+export function emitLiveRoomEvent(liveId: string, event: string, payload: object): void {
+  if (!ioRef) return;
+  ioRef.of('/live').to(`live:${liveId}`).emit(event, payload);
 }

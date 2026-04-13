@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { getApiBase } from '../../services/api';
 import { JobPageContent } from '../../components/job/JobPageContent';
+import { JobBibleReferenceSection, JobToolBibleShell } from '../../components/job/bible';
+import { JOB_MOBILE } from '../../components/job/jobMobileStyles';
 
 const API_BASE = getApiBase();
 
@@ -247,32 +249,30 @@ export default function Atlas() {
         key={obj.id}
         type="button"
         onClick={() => openObjective(obj)}
-        className="w-full text-left p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors"
+        className={`w-full text-left p-4 ${JOB_MOBILE.trackCard} hover:border-primary/45 transition-colors`}
       >
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold text-slate-700 dark:text-slate-100">
-              {obj.title}
-            </div>
-            <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{periodLabel}</div>
+            <div className="text-sm font-semibold text-on-surface">{obj.title}</div>
+            <div className="text-xs text-on-surface-variant mt-1">{periodLabel}</div>
             {obj.linkedProject && (
-              <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Linked project: <span className="font-medium">{obj.linkedProject.name}</span>
+              <div className="mt-1 text-xs text-on-surface-variant">
+                Linked project: <span className="font-medium text-on-surface">{obj.linkedProject.name}</span>
               </div>
             )}
           </div>
           <div className="flex flex-col items-end gap-1">
-            <span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5 text-[11px] font-medium text-slate-700 dark:text-slate-100">
+            <span className="inline-flex items-center rounded-full bg-surface-container-high px-2 py-0.5 text-[11px] font-medium text-on-surface">
               {obj.state.toLowerCase()}
             </span>
             <div className="w-24">
-              <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mb-1">
+              <div className="flex items-center justify-between text-[11px] text-on-surface-variant mb-1">
                 <span>Progress</span>
                 <span>{Math.round(obj.progress)}%</span>
               </div>
-              <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+              <div className="h-1.5 rounded-full bg-surface-container-high overflow-hidden">
                 <div
-                  className="h-full bg-indigo-500"
+                  className="h-full bg-[#2684FF]"
                   style={{ width: `${Math.max(0, Math.min(100, obj.progress))}%` }}
                 />
               </div>
@@ -470,69 +470,57 @@ export default function Atlas() {
 
   if (loading && objectives.length === 0) {
     return (
-      <JobPageContent title="MOxE Atlas" description="Define quarterly objectives and track key results.">
-        <div className="flex items-center justify-center py-12">
-          <div className="h-16 w-full max-w-xs bg-[#F4F5F7] animate-pulse rounded" />
-        </div>
+      <JobPageContent variant="track">
+        <JobToolBibleShell toolTitle="MOxE ATLAS" toolIconMaterial="emoji_events">
+          <div className="flex items-center justify-center py-12">
+            <div className="h-16 w-full max-w-xs animate-pulse rounded-xl bg-surface-container-high" />
+          </div>
+        </JobToolBibleShell>
       </JobPageContent>
     );
   }
 
   return (
-    <JobPageContent
-      title="MOxE Atlas"
-      description="Define quarterly objectives, track key results, and connect work across MOxE Track and Flow."
-      error={error}
-    >
+    <JobPageContent variant="track" error={error}>
+      <JobToolBibleShell toolTitle="MOxE ATLAS" toolIconMaterial="emoji_events">
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-          Your objectives
-        </h3>
+      <div className="flex items-center justify-between mb-4 gap-3">
+        <h3 className="text-sm font-semibold text-on-surface">Your objectives</h3>
         <button
           type="button"
           onClick={() => setShowCreate((v) => !v)}
-          className="inline-flex items-center rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+          className="inline-flex items-center shrink-0 rounded-xl bg-[#0052CC] hover:bg-[#0747A6] px-3 py-2 text-sm font-medium text-white min-h-[44px]"
         >
           + New objective
         </button>
       </div>
 
       {showCreate && (
-        <form
-          onSubmit={handleCreate}
-          className="mb-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 space-y-4"
-        >
+        <form onSubmit={handleCreate} className={`mb-6 ${JOB_MOBILE.formPanel} space-y-4`}>
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-              Objective title
-            </label>
+            <label className={JOB_MOBILE.formLabel}>Objective title</label>
             <input
               type="text"
               value={form.title}
               onChange={(e) => updateFormField('title', e.target.value)}
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
+              className={JOB_MOBILE.formInput}
               placeholder="Ship v1 of our new onboarding experience"
               required
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-              Description (optional)
-            </label>
+            <label className={JOB_MOBILE.formLabel}>Description (optional)</label>
             <textarea
               value={form.description}
               onChange={(e) => updateFormField('description', e.target.value)}
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
+              className={JOB_MOBILE.formTextarea}
               rows={2}
               placeholder="What outcome does this objective drive for your team or job search?"
             />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3">
             <div>
-              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                Period
-              </label>
+              <label className={JOB_MOBILE.formLabel}>Period</label>
               <select
                 value={form.periodType}
                 onChange={(e) =>
@@ -541,7 +529,7 @@ export default function Atlas() {
                     e.target.value as ObjectiveFormState['periodType']
                   )
                 }
-                className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
+                className={JOB_MOBILE.formSelect}
               >
                 <option value="QUARTER">Quarter</option>
                 <option value="HALF_YEAR">Half-year</option>
@@ -550,37 +538,33 @@ export default function Atlas() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                Start date
-              </label>
+              <label className={JOB_MOBILE.formLabel}>Start date</label>
               <input
                 type="date"
                 value={form.startDate}
                 onChange={(e) => updateFormField('startDate', e.target.value)}
-                className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
+                className={JOB_MOBILE.formInput}
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                End date
-              </label>
+              <label className={JOB_MOBILE.formLabel}>End date</label>
               <input
                 type="date"
                 value={form.endDate}
                 onChange={(e) => updateFormField('endDate', e.target.value)}
-                className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
+                className={JOB_MOBILE.formInput}
               />
             </div>
           </div>
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">
+              <span className="text-[11px] font-bold uppercase tracking-wide text-on-surface-variant">
                 Key results
-              </label>
+              </span>
               <button
                 type="button"
                 onClick={addKeyResultRow}
-                className="text-xs font-medium text-indigo-600 dark:text-indigo-400"
+                className="text-xs font-medium text-[#2684FF] min-h-[44px] px-1"
               >
                 + Add key result
               </button>
@@ -589,13 +573,13 @@ export default function Atlas() {
               {form.keyResults.map((kr, idx) => (
                 <div
                   key={idx}
-                  className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center"
+                  className="grid grid-cols-1 gap-2 items-center"
                 >
                   <input
                     type="text"
                     value={kr.title}
                     onChange={(e) => updateKeyResult(idx, 'title', e.target.value)}
-                    className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
+                    className={JOB_MOBILE.formInput}
                     placeholder="Increase qualified leads per week"
                     required={idx === 0}
                   />
@@ -603,14 +587,14 @@ export default function Atlas() {
                     type="text"
                     value={kr.unit}
                     onChange={(e) => updateKeyResult(idx, 'unit', e.target.value)}
-                    className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
+                    className={JOB_MOBILE.formInput}
                     placeholder="leads / week"
                   />
                   <input
                     type="number"
                     value={kr.targetValue}
                     onChange={(e) => updateKeyResult(idx, 'targetValue', e.target.value)}
-                    className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
+                    className={JOB_MOBILE.formInput}
                     placeholder="100"
                     min={0}
                     step="any"
@@ -623,14 +607,14 @@ export default function Atlas() {
             <button
               type="button"
               onClick={() => setShowCreate(false)}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800"
+              className={`px-3 py-2 rounded-xl text-sm text-on-surface border border-outline-variant/35 bg-surface-container min-h-[44px] ${creating ? 'opacity-60' : ''}`}
               disabled={creating}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-3 py-1.5 rounded-lg bg-indigo-600 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+              className="px-3 py-2 rounded-xl bg-[#0052CC] hover:bg-[#0747A6] text-sm font-medium text-white disabled:opacity-60 min-h-[44px]"
               disabled={creating}
             >
               {creating ? 'Creating…' : 'Create objective'}
@@ -640,7 +624,7 @@ export default function Atlas() {
       )}
 
       {objectives.length === 0 ? (
-        <p className="text-slate-500 text-sm">
+        <p className={JOB_MOBILE.formMuted}>
           No objectives yet. Use “New objective” to define your first Atlas goal.
         </p>
       ) : (
@@ -650,20 +634,16 @@ export default function Atlas() {
       )}
 
       {selectedObjective && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-2xl rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 max-h-[80vh] overflow-y-auto">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-surface-container border border-outline-variant/25 shadow-xl p-5 max-h-[85vh] overflow-y-auto">
             <div className="flex items-start justify-between gap-3 mb-3">
               <div>
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
-                  {selectedObjective.title}
-                </h3>
+                <h3 className="text-lg font-semibold text-on-surface">{selectedObjective.title}</h3>
                 {selectedObjective.description && (
-                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                    {selectedObjective.description}
-                  </p>
+                  <p className="mt-1 text-sm text-on-surface-variant">{selectedObjective.description}</p>
                 )}
                 <div className="mt-2 flex items-center gap-2">
-                  <span className="text-xs text-slate-500 dark:text-slate-400">State:</span>
+                  <span className="text-xs text-on-surface-variant">State:</span>
                   <select
                     value={selectedObjective.state}
                     onChange={(e) =>
@@ -673,7 +653,7 @@ export default function Atlas() {
                       )
                     }
                     disabled={updatingState}
-                    className="text-xs rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1 text-slate-800 dark:text-slate-100"
+                    className={`${JOB_MOBILE.formSelect} text-xs min-h-0 py-1.5`}
                   >
                     <option value="DRAFT">Draft</option>
                     <option value="ACTIVE">Active</option>
@@ -682,10 +662,8 @@ export default function Atlas() {
                   </select>
                 </div>
                 <div className="mt-3 space-y-1">
-                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                    Linked Track project
-                  </p>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <p className="text-xs font-medium text-on-surface-variant">Linked Track project</p>
+                  <div className="flex flex-col gap-2">
                     <select
                       value={
                         selectedObjective.linkedProject?.id ||
@@ -694,7 +672,7 @@ export default function Atlas() {
                       }
                       onChange={(e) => setSelectedProjectId(e.target.value)}
                       disabled={loadingProjects || linkingProject}
-                      className="w-full sm:w-64 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1.5 text-xs text-slate-800 dark:text-slate-100"
+                      className={`${JOB_MOBILE.formSelect} text-xs`}
                     >
                       <option value="">
                         {loadingProjects ? 'Loading projects…' : 'Select a project'}
@@ -710,7 +688,7 @@ export default function Atlas() {
                         type="button"
                         onClick={handleLinkProject}
                         disabled={linkingProject || !selectedProjectId}
-                        className="text-xs px-3 py-1.5 rounded-md bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-60"
+                        className="text-xs px-3 py-2 rounded-xl bg-[#0052CC] hover:bg-[#0747A6] text-white font-medium disabled:opacity-60 min-h-[40px]"
                       >
                         {linkingProject ? 'Linking…' : 'Link'}
                       </button>
@@ -719,7 +697,7 @@ export default function Atlas() {
                           type="button"
                           onClick={handleUnlinkProject}
                           disabled={linkingProject}
-                          className="text-xs px-3 py-1.5 rounded-md border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 disabled:opacity-60"
+                          className="text-xs px-3 py-2 rounded-xl border border-outline-variant/35 text-on-surface bg-surface-container-low disabled:opacity-60 min-h-[40px]"
                         >
                           Unlink
                         </button>
@@ -727,7 +705,7 @@ export default function Atlas() {
                     </div>
                   </div>
                   {selectedObjective.linkedProject && (
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    <p className="text-[11px] text-on-surface-variant">
                       Currently linked to: {selectedObjective.linkedProject.name}
                     </p>
                   )}
@@ -736,19 +714,19 @@ export default function Atlas() {
               <button
                 type="button"
                 onClick={closeObjective}
-                className="text-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                className="text-sm text-on-surface-variant hover:text-on-surface min-h-[44px] min-w-[44px]"
               >
                 ✕
               </button>
             </div>
             <div className="mb-4">
-              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
+              <div className="flex items-center justify-between text-xs text-on-surface-variant mb-1">
                 <span>Progress</span>
                 <span>{Math.round(selectedObjective.progress)}%</span>
               </div>
-              <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+              <div className="h-1.5 rounded-full bg-surface-container-high overflow-hidden">
                 <div
-                  className="h-full bg-indigo-500"
+                  className="h-full bg-[#2684FF]"
                   style={{
                     width: `${Math.max(0, Math.min(100, selectedObjective.progress))}%`,
                   }}
@@ -756,11 +734,9 @@ export default function Atlas() {
               </div>
             </div>
             <div>
-              <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">
-                Key results
-              </h4>
+              <h4 className="text-sm font-semibold text-on-surface mb-2">Key results</h4>
               {selectedObjective.keyResults.length === 0 ? (
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-on-surface-variant">
                   This objective has no key results yet.
                 </p>
               ) : (
@@ -781,26 +757,24 @@ export default function Atlas() {
                     return (
                       <div
                         key={kr.id}
-                        className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2"
+                        className="rounded-xl border border-outline-variant/20 bg-surface-container-low px-3 py-2"
                       >
                         <div className="flex items-center justify-between gap-2 mb-1">
-                          <div className="text-xs font-medium text-slate-800 dark:text-slate-100">
-                            {kr.title}
-                          </div>
-                          <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                          <div className="text-xs font-medium text-on-surface">{kr.title}</div>
+                          <div className="text-[11px] text-on-surface-variant">
                             {current}
                             {kr.unit ? ` ${kr.unit}` : ''} / {target}
                             {kr.unit ? ` ${kr.unit}` : ''}
                           </div>
                         </div>
-                        <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                        <div className="h-1.5 rounded-full bg-surface-container-high overflow-hidden">
                           <div
                             className="h-full bg-emerald-500"
                             style={{ width: `${Math.max(0, Math.min(100, pct))}%` }}
                           />
                         </div>
                         <div className="mt-2 space-y-2">
-                          <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-2 items-center">
+                          <div className="grid grid-cols-1 gap-2 items-center">
                             <div className="flex flex-col gap-1">
                               <input
                                 type="number"
@@ -811,7 +785,7 @@ export default function Atlas() {
                                     [kr.id]: { ...input, value: e.target.value },
                                   }))
                                 }
-                                className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 text-xs text-slate-900 dark:text-slate-50"
+                                className={`${JOB_MOBILE.formInput} text-xs min-h-0 py-1.5`}
                                 placeholder="New value"
                               />
                               <input
@@ -823,7 +797,7 @@ export default function Atlas() {
                                     [kr.id]: { ...input, note: e.target.value },
                                   }))
                                 }
-                                className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 text-xs text-slate-900 dark:text-slate-50"
+                                className={`${JOB_MOBILE.formInput} text-xs min-h-0 py-1.5`}
                                 placeholder="Optional note"
                               />
                             </div>
@@ -831,17 +805,17 @@ export default function Atlas() {
                               type="button"
                               onClick={() => handleSaveKeyResultProgress(kr, selectedObjective)}
                               disabled={savingProgressFor === kr.id}
-                              className="text-xs px-3 py-1 rounded-md bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-60"
+                              className="text-xs px-3 py-2 rounded-xl bg-[#0052CC] hover:bg-[#0747A6] text-white font-medium disabled:opacity-60 min-h-[40px]"
                             >
                               {savingProgressFor === kr.id ? 'Saving…' : 'Update'}
                             </button>
                           </div>
-                          <div className="border-t border-slate-200 dark:border-slate-700 pt-2 mt-1">
-                            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
+                          <div className="border-t border-outline-variant/20 pt-2 mt-1">
+                            <p className="text-[11px] font-medium text-on-surface-variant mb-1">
                               Linked Track issues
                             </p>
                             {currentLinks.length === 0 ? (
-                              <p className="text-[11px] text-slate-500 dark:text-slate-500">
+                              <p className="text-[11px] text-on-surface-variant">
                                 No issues linked yet.
                               </p>
                             ) : (
@@ -849,7 +823,7 @@ export default function Atlas() {
                                 {currentLinks.map((link) => (
                                   <li
                                     key={link.issueId}
-                                    className="flex items-center justify-between gap-2 text-[11px] text-slate-600 dark:text-slate-300"
+                                    className="flex items-center justify-between gap-2 text-[11px] text-on-surface-variant"
                                   >
                                     <span>
                                       {link.issue?.summary || link.issueId}
@@ -891,13 +865,13 @@ export default function Atlas() {
                               <input
                                 name="issueId"
                                 type="text"
-                                className="flex-1 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 text-[11px] text-slate-900 dark:text-slate-50"
+                                className={`flex-1 ${JOB_MOBILE.formInput} text-[11px] min-h-[40px]`}
                                 placeholder="Add issue ID from Track"
                               />
                               <button
                                 type="submit"
                                 disabled={updatingLinksFor === kr.id}
-                                className="text-[11px] px-2 py-1 rounded-md border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 disabled:opacity-60"
+                                className="text-[11px] px-2 py-2 rounded-xl border border-outline-variant/35 text-on-surface bg-surface-container disabled:opacity-60 min-h-[40px]"
                               >
                                 {updatingLinksFor === kr.id ? 'Linking…' : 'Link'}
                               </button>
@@ -913,7 +887,9 @@ export default function Atlas() {
           </div>
         </div>
       )}
+      <JobBibleReferenceSection toolKey="atlas" />
     </div>
+      </JobToolBibleShell>
     </JobPageContent>
   );
 }

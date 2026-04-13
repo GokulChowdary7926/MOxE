@@ -1,5 +1,6 @@
 import { prisma } from '../server';
 import { AppError } from '../utils/AppError';
+import { ReviewService } from './review.service';
 import { normalizeUsername, validateUsernameFormat } from '../utils/usernameValidation';
 import { AccountType as PrismaAccountType, SubscriptionTier as PrismaTier } from '@prisma/client';
 import { getCapabilities, type AccountType, type SubscriptionTier } from '../constants/capabilities';
@@ -30,8 +31,8 @@ export class AccountService {
   }
 
   async getAccountByUsername(username: string) {
-    const account = await prisma.account.findUnique({
-      where: { username },
+    const account = await prisma.account.findFirst({
+      where: { username: { equals: username, mode: 'insensitive' } },
       include: {
         user: { select: { id: true, isVerified: true } },
         links: { orderBy: { order: 'asc' } },
@@ -66,6 +67,43 @@ export class AccountService {
       account.accountType as AccountType,
       account.subscriptionTier as SubscriptionTier
     );
+  }
+
+  /**
+   * Shared payload for GET /accounts/me and GET /users/me — { account, capabilities } with counts and business rating.
+   */
+  async getMeBundle(accountId: string): Promise<{
+    account: Record<string, unknown>;
+    capabilities: ReturnType<typeof getCapabilities>;
+  }> {
+    const account = await this.getAccountById(accountId);
+    const capabilities = await this.getCapabilities(accountId);
+    const accountPayload = { ...account } as unknown as Record<string, unknown>;
+    if (account.accountType === 'BUSINESS') {
+      try {
+        const reviewService = new ReviewService();
+        const { rating, reviewsCount } = await reviewService.getRatingForSeller(account.id);
+        accountPayload.rating = rating;
+        accountPayload.reviewsCount = reviewsCount;
+      } catch (err) {
+        console.warn('[AccountService.getMeBundle] seller rating skipped', err);
+        accountPayload.rating = null;
+        accountPayload.reviewsCount = 0;
+      }
+    }
+    const [postCount, followersCount, followingCount] = await Promise.all([
+      prisma.post.count({ where: { accountId } }),
+      prisma.follow.count({ where: { followingId: accountId } }),
+      prisma.follow.count({ where: { followerId: accountId } }),
+    ]);
+    accountPayload.postsCount = postCount;
+    accountPayload.postCount = postCount;
+    accountPayload.followersCount = followersCount;
+    accountPayload.followerCount = followersCount;
+    accountPayload.followingCount = followingCount;
+    const adminIds = (process.env.ADMIN_ACCOUNT_IDS || '').trim().split(',').filter(Boolean);
+    accountPayload.isPlatformAdmin = adminIds.length > 0 && adminIds.includes(accountId);
+    return { account: accountPayload, capabilities };
   }
 
   /** Guide: 2 business/creator + 1 personal, or 2 job + 1 personal (max 3 accounts). */
@@ -250,6 +288,65 @@ export class AccountService {
       where: { id: accountId },
       data: update as any,
     });
+
+    try {
+      const logs: { type: string; title: string; description: string; metadata?: object }[] = [];
+      if (update.username != null && String(update.username) !== account.username) {
+        logs.push({
+          type: 'username',
+          title: 'Username',
+          description: `You changed your username to **${String(update.username)}**.`,
+          metadata: { oldUsername: account.username, newUsername: String(update.username) },
+        });
+      }
+      if (update.displayName != null && String(update.displayName) !== account.displayName) {
+        logs.push({
+          type: 'displayName',
+          title: 'Name',
+          description: 'You updated your display name.',
+          metadata: { old: account.displayName, new: String(update.displayName) },
+        });
+      }
+      if (update.bio !== undefined) {
+        const nb = update.bio == null ? '' : String(update.bio);
+        const ob = account.bio ?? '';
+        if (nb !== ob) {
+          logs.push({ type: 'bio', title: 'Bio', description: 'You changed your bio.', metadata: {} });
+        }
+      }
+      if (update.isPrivate != null && Boolean(update.isPrivate) !== account.isPrivate) {
+        logs.push({
+          type: 'privacy',
+          title: 'Privacy',
+          description: Boolean(update.isPrivate)
+            ? 'You set your account to **private**.'
+            : 'You set your account to **public**.',
+          metadata: { isPrivate: Boolean(update.isPrivate) },
+        });
+      }
+      if (update.accountType != null && String(update.accountType) !== account.accountType) {
+        logs.push({
+          type: 'accountType',
+          title: 'Account type',
+          description: `You changed account type to **${String(update.accountType)}**.`,
+          metadata: { old: account.accountType, new: String(update.accountType) },
+        });
+      }
+      for (const log of logs) {
+        await prisma.accountActivityLog.create({
+          data: {
+            accountId,
+            type: log.type,
+            title: log.title,
+            description: log.description,
+            metadata: log.metadata ?? undefined,
+          },
+        });
+      }
+    } catch {
+      /* activity log must not fail profile update */
+    }
+
     // Blue Badge gate (4.3): when upgrading to STAR/THICK, grant verifiedBadge if they have an approved verification request
     const newTier = update.subscriptionTier as string | undefined;
     if (newTier === 'STAR' || newTier === 'THICK') {
@@ -401,5 +498,57 @@ export class AccountService {
     if (value === undefined || value === false)
       throw new AppError('Feature not available for this account type', 403);
     return cap;
+  }
+
+  /** Deep-merge plain objects (no arrays). Used for clientSettings JSON. */
+  private mergePlainObjects(a: Record<string, unknown>, b: Record<string, unknown>): Record<string, unknown> {
+    const out: Record<string, unknown> = { ...a };
+    for (const [k, v] of Object.entries(b)) {
+      if (v === undefined) continue;
+      const prev = out[k];
+      if (
+        v !== null &&
+        typeof v === 'object' &&
+        !Array.isArray(v) &&
+        prev !== null &&
+        typeof prev === 'object' &&
+        !Array.isArray(prev)
+      ) {
+        out[k] = this.mergePlainObjects(prev as Record<string, unknown>, v as Record<string, unknown>);
+      } else {
+        out[k] = v;
+      }
+    }
+    return out;
+  }
+
+  async getClientSettings(accountId: string): Promise<Record<string, unknown>> {
+    const row = await prisma.account.findUnique({
+      where: { id: accountId },
+      select: { clientSettings: true },
+    });
+    if (!row) throw new AppError('Account not found', 404);
+    const raw = row.clientSettings;
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) return raw as Record<string, unknown>;
+    return {};
+  }
+
+  async patchClientSettings(accountId: string, patch: Record<string, unknown>): Promise<Record<string, unknown>> {
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new AppError('Invalid body', 400);
+    const row = await prisma.account.findUnique({
+      where: { id: accountId },
+      select: { clientSettings: true },
+    });
+    if (!row) throw new AppError('Account not found', 404);
+    const current =
+      row.clientSettings && typeof row.clientSettings === 'object' && !Array.isArray(row.clientSettings)
+        ? (row.clientSettings as Record<string, unknown>)
+        : {};
+    const next = this.mergePlainObjects(current, patch);
+    await prisma.account.update({
+      where: { id: accountId },
+      data: { clientSettings: next as object },
+    });
+    return next;
   }
 }

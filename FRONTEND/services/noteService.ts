@@ -1,4 +1,4 @@
-import { apiFetch, getApiBase, getToken } from './api';
+import { apiFetch, getApiBase, getToken, getUploadUrl } from './api';
 
 export type NoteItem = {
   id: string;
@@ -7,7 +7,13 @@ export type NoteItem = {
   contentJson: Record<string, any>;
   appearanceJson?: Record<string, any> | null;
   expiresAt: string;
-  account?: { id: string; username: string; profilePhoto?: string | null };
+  account?: {
+    id: string;
+    username: string;
+    displayName?: string | null;
+    profilePhoto?: string | null;
+    avatarUri?: string | null;
+  };
   likes?: Array<{ accountId: string }>;
   pollVotes?: Array<{ accountId: string; option: string }>;
 };
@@ -144,7 +150,7 @@ export async function uploadNoteMedia(file: File): Promise<string> {
   if (!token) throw new Error('You must be logged in.');
   const form = new FormData();
   form.append('file', file);
-  const res = await fetch(`${getApiBase()}/upload`, {
+  const res = await fetch(getUploadUrl(), {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: form,

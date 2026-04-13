@@ -1,52 +1,25 @@
 import React from 'react';
-import { View, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, ScrollView, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../theme/ThemeContext';
 import { useAccount } from '../context/AccountContext';
 import { ThemedView, ThemedText, ThemedHeader, ThemedButton, ThemedSurface } from '../components/Themed';
 
-type TransactionType = 'subscription' | 'gift' | 'badge' | 'sale' | 'payout' | 'bonus' | 'refund';
-
-interface Transaction {
-  id: string;
-  type: TransactionType;
-  label: string;
-  amount: number;
-  date: string;
-  isCredit: boolean;
-}
-
-const MOCK_BALANCE = 1247.5;
-const MOCK_PENDING = 382.0;
-const MOCK_THIS_MONTH = 890.25;
-
-const MOCK_TRANSACTIONS: Transaction[] = [
-  { id: '1', type: 'subscription', label: 'Subscriber · @sarah_k', amount: 4.99, date: 'Today, 2:30 PM', isCredit: true },
-  { id: '2', type: 'gift', label: 'Gift (Hearts) from @mike_nyc', amount: 2.50, date: 'Today, 11:00 AM', isCredit: true },
-  { id: '3', type: 'payout', label: 'Payout to bank', amount: 500.0, date: 'Yesterday', isCredit: false },
-  { id: '4', type: 'badge', label: 'Live badge · Gold from @alex_m', amount: 4.99, date: 'Mar 2', isCredit: true },
-  { id: '5', type: 'sale', label: 'Order #RC-2847', amount: 45.0, date: 'Mar 1', isCredit: true },
-  { id: '6', type: 'bonus', label: 'Reels bonus (Mar)', amount: 125.0, date: 'Mar 1', isCredit: true },
-];
-
 function formatMoney(value: number): string {
   return value >= 0 ? `$${value.toFixed(2)}` : `-$${Math.abs(value).toFixed(2)}`;
 }
 
-const TYPE_LABELS: Record<TransactionType, string> = {
-  subscription: 'Subscription',
-  gift: 'Gift',
-  badge: 'Live badge',
-  sale: 'Sale',
-  payout: 'Payout',
-  bonus: 'Bonus',
-  refund: 'Refund',
-};
-
+/**
+ * Creator/business balance — activity from API only when wallet/settlements endpoints exist.
+ */
 export function BalanceScreen() {
   const { theme } = useTheme();
   const { accountType } = useAccount();
   const navigation = useNavigation();
+
+  const availableBalance = 0;
+  const thisMonth = 0;
+  const pending = 0;
 
   return (
     <ThemedView style={styles.flex}>
@@ -58,10 +31,10 @@ export function BalanceScreen() {
       >
         <ThemedSurface style={styles.card}>
           <ThemedText secondary style={styles.cardLabel}>Available balance</ThemedText>
-          <ThemedText style={styles.balanceAmount}>{formatMoney(MOCK_BALANCE)}</ThemedText>
+          <ThemedText style={styles.balanceAmount}>{formatMoney(availableBalance)}</ThemedText>
           <ThemedButton
             label="Withdraw"
-            onPress={() => (navigation as any).navigate('Withdraw')}
+            onPress={() => (navigation as { navigate: (name: string) => void }).navigate('Withdraw')}
             style={styles.withdrawBtn}
           />
         </ThemedSurface>
@@ -69,46 +42,19 @@ export function BalanceScreen() {
         <View style={styles.summaryRow}>
           <View style={[styles.summaryBox, { borderColor: theme.colors.border }]}>
             <ThemedText secondary style={styles.summaryLabel}>This month</ThemedText>
-            <ThemedText style={styles.summaryValue}>{formatMoney(MOCK_THIS_MONTH)}</ThemedText>
+            <ThemedText style={styles.summaryValue}>{formatMoney(thisMonth)}</ThemedText>
           </View>
           <View style={[styles.summaryBox, { borderColor: theme.colors.border }]}>
             <ThemedText secondary style={styles.summaryLabel}>Pending</ThemedText>
-            <ThemedText style={styles.summaryValue}>{formatMoney(MOCK_PENDING)}</ThemedText>
+            <ThemedText style={styles.summaryValue}>{formatMoney(pending)}</ThemedText>
           </View>
         </View>
 
         <View style={styles.section}>
           <ThemedText style={styles.sectionTitle}>Recent activity</ThemedText>
-          {MOCK_TRANSACTIONS.map((t) => (
-            <TouchableOpacity
-              key={t.id}
-              style={[styles.txRow, { borderBottomColor: theme.colors.border }]}
-              activeOpacity={0.7}
-              onPress={() =>
-                (navigation as any).navigate('TransactionDetail', {
-                  transactionId: t.id,
-                  label: t.label,
-                  amount: t.amount,
-                  date: t.date,
-                  isCredit: t.isCredit,
-                  type: TYPE_LABELS[t.type] ?? t.type,
-                })
-              }
-            >
-              <View style={styles.txLeft}>
-                <ThemedText style={styles.txLabel}>{t.label}</ThemedText>
-                <ThemedText secondary style={styles.txDate}>{t.date}</ThemedText>
-              </View>
-              <ThemedText
-                style={[
-                  styles.txAmount,
-                  { color: t.isCredit ? theme.colors.success : theme.colors.text },
-                ]}
-              >
-                {t.isCredit ? '+' : '-'}{formatMoney(t.amount)}
-              </ThemedText>
-            </TouchableOpacity>
-          ))}
+          <ThemedText secondary style={styles.emptyActivity}>
+            No transactions yet. Earnings and payouts will appear here when your account is set up for payouts on MOxE.
+          </ThemedText>
         </View>
 
         {(accountType === 'creator' || accountType === 'business') && (
@@ -146,16 +92,6 @@ const styles = StyleSheet.create({
   summaryValue: { fontSize: 18, fontWeight: '600' },
   section: { marginBottom: 16 },
   sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12 },
-  txRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  txLeft: {},
-  txLabel: { fontWeight: '500', marginBottom: 2 },
-  txDate: { fontSize: 12 },
-  txAmount: { fontSize: 15, fontWeight: '600' },
+  emptyActivity: { fontSize: 14, lineHeight: 20 },
   footer: { fontSize: 12, marginTop: 8 },
 });

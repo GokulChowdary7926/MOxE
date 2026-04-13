@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Smartphone } from 'lucide-react';
 import { SettingsPageShell } from '../../components/layout/SettingsPageShell';
 
@@ -15,7 +16,7 @@ export default function ContactAccessSettings() {
         </p>
         <p className="text-[#a8a8a8] text-sm text-center mb-2">Your contacts will be periodically synced and stored securely.</p>
         <p className="text-[#a8a8a8] text-sm text-center mb-4">You can turn off syncing at any time in settings.</p>
-        <a href="#" className="text-[#0095f6] text-sm font-medium mb-8">Learn more</a>
+        <Link to="/settings/info/help-contact-access" className="text-[#0095f6] text-sm font-medium mb-8">Learn more</Link>
         <button type="button" className="w-full py-3 rounded-lg bg-[#0095f6] text-white font-semibold">Go to Settings</button>
         <button type="button" className="w-full py-3 text-white font-medium mt-2">Skip</button>
       </div>

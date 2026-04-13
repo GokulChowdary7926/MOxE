@@ -36,7 +36,7 @@ export default function AccountsCentre() {
         <div className="flex-1 overflow-auto pb-20">
           <p className="text-white font-semibold text-xl text-center pt-6 pb-2">Accounts Centre</p>
           <p className="text-[#a8a8a8] text-sm px-4 pb-6 text-center">
-            Manage your connected experiences and account settings across MOxE technologies such as Facebook, MOxE and Meta Horizon. <span className="text-[#0095f6]">Learn more</span>
+            Manage your connected experiences and account settings across MOxE products and services. <span className="text-[#0095f6]">Learn more</span>
           </p>
 
           <Link to="/settings/account-centre/profiles-personal-details" className="flex items-center gap-3 px-4 py-3 border-t border-b border-[#262626] text-white active:bg-white/5">

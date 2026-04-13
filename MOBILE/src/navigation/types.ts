@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { CompositeScreenProps } from '@react-navigation/native';
+import type { NavigatorScreenParams } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 
 export type AuthStackParamList = {
@@ -7,13 +7,16 @@ export type AuthStackParamList = {
   Onboarding: undefined;
 };
 
-export type MainTabsParamList = {
+/** Tab routes (separate name from global augmentation to avoid recursive self-reference). */
+export type MainTabsRouteList = {
   Feed: undefined;
   Explore: undefined;
   Map: undefined;
   Messages: undefined;
   Profile: undefined;
 };
+
+export type MainTabsParamList = MainTabsRouteList;
 
 export type FeedStackParamList = {
   Home: undefined;
@@ -30,7 +33,7 @@ export type TransactionDetailParams = {
 };
 
 export type RootStackParamList = {
-  Main: undefined;
+  Main: NavigatorScreenParams<MainTabsRouteList> | undefined;
   Auth: undefined;
   CreatePost: undefined;
   CreateStory: undefined;
@@ -48,7 +51,6 @@ export type RootStackParamList = {
   SellerOrders: undefined;
   SellerProducts: undefined;
   CreatorStudio: undefined;
-  JobHub: undefined;
   ManageHighlights: undefined;
   EmergencyContacts: undefined;
   HangoutMode: undefined;
@@ -65,13 +67,13 @@ export type RootStackParamList = {
 export type AuthStackScreenProps<T extends keyof AuthStackParamList> =
   NativeStackScreenProps<AuthStackParamList, T>;
 
-export type MainTabsScreenProps<T extends keyof MainTabsParamList> =
-  BottomTabScreenProps<MainTabsParamList, T>;
+export type MainTabsScreenProps<T extends keyof MainTabsRouteList> =
+  BottomTabScreenProps<MainTabsRouteList, T>;
 
 declare global {
   namespace ReactNavigation {
     interface RootParamList extends RootStackParamList {}
     interface AuthParamList extends AuthStackParamList {}
-    interface MainTabsParamList extends MainTabsParamList {}
+    interface MainTabsParamList extends MainTabsRouteList {}
   }
 }

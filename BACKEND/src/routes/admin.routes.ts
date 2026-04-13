@@ -1,7 +1,14 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { reviewVerificationRequest } from '../services/verification.service';
+import {
+  adminListMemorializationRequests,
+  adminListProfileClaims,
+  adminReviewMemorializationRequest,
+  adminReviewProfileClaim,
+} from '../services/legal.service';
 import { AppError } from '../utils/AppError';
+import { listHiddenWordModerationLogs } from '../services/activity.service';
 
 const router = Router();
 
@@ -39,6 +46,85 @@ router.patch('/verification-requests/:id', authenticate, requireAdmin, async (re
       return next(new AppError('status must be APPROVED or REJECTED', 400));
     }
     const result = await reviewVerificationRequest(req.params.id, status);
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get('/memorialization-requests', authenticate, requireAdmin, async (_req, res, next) => {
+  try {
+    const list = await adminListMemorializationRequests();
+    res.json({ requests: list });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.patch('/memorialization-requests/:id', authenticate, requireAdmin, async (req, res, next) => {
+  try {
+    const status = req.body?.status as string;
+    if (status !== 'APPROVED' && status !== 'REJECTED') {
+      return next(new AppError('status must be APPROVED or REJECTED', 400));
+    }
+    const result = await adminReviewMemorializationRequest(
+      req.params.id,
+      status,
+      typeof req.body?.staffNote === 'string' ? req.body.staffNote : undefined,
+    );
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get('/profile-claims', authenticate, requireAdmin, async (_req, res, next) => {
+  try {
+    const list = await adminListProfileClaims();
+    res.json({ claims: list });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.patch('/profile-claims/:id', authenticate, requireAdmin, async (req, res, next) => {
+  try {
+    const status = req.body?.status as string;
+    if (status !== 'APPROVED' && status !== 'REJECTED') {
+      return next(new AppError('status must be APPROVED or REJECTED', 400));
+    }
+    const result = await adminReviewProfileClaim(
+      req.params.id,
+      status,
+      typeof req.body?.staffNote === 'string' ? req.body.staffNote : undefined,
+    );
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+/**
+ * GET /admin/hidden-word-moderation/:accountId — Review safety moderation audit for a user (support).
+ * Query: limit, cursor, type (comma-separated, same as GET /accounts/me/hidden-word-moderation).
+ */
+router.get('/hidden-word-moderation/:accountId', authenticate, requireAdmin, async (req, res, next) => {
+  try {
+    const targetAccountId = req.params.accountId;
+    if (!targetAccountId) return next(new AppError('accountId required', 400));
+    const limitRaw = parseInt(String(req.query.limit ?? ''), 10);
+    const limit = Number.isNaN(limitRaw) ? undefined : limitRaw;
+    const cursorId = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
+    const typeParam = typeof req.query.type === 'string' ? req.query.type : '';
+    const types = typeParam
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const result = await listHiddenWordModerationLogs(targetAccountId, {
+      limit,
+      cursorId,
+      types: types.length ? types : undefined,
+    });
     res.json(result);
   } catch (e) {
     next(e);

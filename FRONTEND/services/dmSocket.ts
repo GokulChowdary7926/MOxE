@@ -1,17 +1,24 @@
 import { io, Socket } from 'socket.io-client';
+import { getBackendOrigin } from './api';
 
 let dmSocket: Socket | null = null;
+let dmSocketUserId: string | null = null;
 
 export function connectDmSocket(userId: string): Socket {
-  if (dmSocket && dmSocket.connected) {
+  if (dmSocket && dmSocket.connected && dmSocketUserId === userId) {
     return dmSocket;
   }
-  const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
-  const base = apiBase.replace(/\/api$/, '');
+  if (dmSocket && dmSocketUserId !== userId) {
+    dmSocket.removeAllListeners();
+    dmSocket.disconnect();
+    dmSocket = null;
+  }
+  const base = getBackendOrigin();
   dmSocket = io(`${base}/dm`, {
     auth: { userId },
-    transports: ['websocket'],
+    transports: ['websocket', 'polling'],
   });
+  dmSocketUserId = userId;
   return dmSocket;
 }
 
@@ -21,8 +28,10 @@ export function getDmSocket(): Socket | null {
 
 export function disconnectDmSocket() {
   if (dmSocket) {
+    dmSocket.removeAllListeners();
     dmSocket.disconnect();
     dmSocket = null;
   }
+  dmSocketUserId = null;
 }
 

@@ -185,7 +185,24 @@ export const TIER_CAPABILITIES: Record<string, FullAccountCapabilities> = {
 
 export type EffectiveTierKey = keyof typeof TIER_CAPABILITIES;
 
+/**
+ * Production override: unlock subscription/premium tool tiers by default.
+ * Set MOXE_PROD_FREE_SUBSCRIPTIONS=false to disable this behavior.
+ */
+export function isProductionFreeSubscriptionsEnabled(): boolean {
+  const inProd = (process.env.NODE_ENV || '').toLowerCase() === 'production';
+  if (!inProd) return false;
+  const raw = (process.env.MOXE_PROD_FREE_SUBSCRIPTIONS || 'true').toLowerCase().trim();
+  return raw !== 'false' && raw !== '0' && raw !== 'no';
+}
+
 export function getEffectiveTierKey(accountType: AccountType, subscriptionTier: SubscriptionTier): EffectiveTierKey {
+  if (isProductionFreeSubscriptionsEnabled()) {
+    if (accountType === 'PERSONAL') return 'PERSONAL_STAR';
+    if (accountType === 'BUSINESS') return 'BUSINESS_PAID';
+    if (accountType === 'CREATOR') return 'CREATOR_PAID';
+    if (accountType === 'JOB') return 'JOB_PAID';
+  }
   if (accountType === 'PERSONAL') return subscriptionTier === 'STAR' ? 'PERSONAL_STAR' : 'PERSONAL_FREE';
   if (accountType === 'BUSINESS') return subscriptionTier === 'THICK' ? 'BUSINESS_PAID' : 'BUSINESS_FREE';
   if (accountType === 'CREATOR') return subscriptionTier === 'THICK' ? 'CREATOR_PAID' : 'CREATOR_FREE';

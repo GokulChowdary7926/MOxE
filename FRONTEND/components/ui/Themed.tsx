@@ -99,17 +99,17 @@ export function ThemedButton({
 }
 
 /** Same as mobile ThemedInput */
-export function ThemedInput({
-  className = '',
-  ...props
-}: React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      className={`w-full bg-moxe-surface border border-moxe-border rounded-moxe-md px-moxe-md py-moxe-sm text-moxe-text text-moxe-body placeholder:text-moxe-textSecondary ${className}`}
-      {...props}
-    />
-  );
-}
+export const ThemedInput = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
+  function ThemedInput({ className = '', ...props }, ref) {
+    return (
+      <input
+        ref={ref}
+        className={`w-full bg-moxe-surface border border-moxe-border rounded-moxe-md px-moxe-md py-moxe-sm text-moxe-text text-moxe-body placeholder:text-moxe-textSecondary ${className}`}
+        {...props}
+      />
+    );
+  },
+);
 
 /** Same as mobile ThemedHeader – title + optional left/right */
 export function ThemedHeader({

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getApiBase } from '../../services/api';
 import { JobPageContent } from '../../components/job/JobPageContent';
+import { JobBibleReferenceSection, JobToolBibleShell } from '../../components/job/bible';
 import { safeFirst, safeFirstProperty } from '../../utils/safeAccess';
 
 const API_BASE = getApiBase();
@@ -78,9 +79,10 @@ export default function Code() {
     try {
       const res = await fetch(`${API_BASE}/job/code/repos`, { headers });
       if (!res.ok) throw new Error('Failed to load repositories');
-      const data = await res.json();
-      setRepos(data || []);
-      const firstRepo = safeFirst(data);
+      const data: unknown = await res.json();
+      const list = Array.isArray(data) ? data : [];
+      setRepos(list as CodeRepo[]);
+      const firstRepo = safeFirst(list as CodeRepo[]);
       if (!selectedRepo && firstRepo) {
         setSelectedRepo(firstRepo);
       }
@@ -101,12 +103,14 @@ export default function Code() {
       ]);
       if (!branchesRes.ok) throw new Error('Failed to load branches');
       if (!pullsRes.ok) throw new Error('Failed to load pull requests');
-      const branchesData = await branchesRes.json();
-      const pullsData = await pullsRes.json();
-      setBranches(branchesData || []);
-      setPulls(pullsData || []);
-      const defaultBranchName = safeFirstProperty(branchesData, 'name') ?? '';
-      const defaultBranchId = safeFirstProperty(branchesData, 'id') ?? '';
+      const branchesData: unknown = await branchesRes.json();
+      const pullsData: unknown = await pullsRes.json();
+      const branchesArr = Array.isArray(branchesData) ? branchesData : [];
+      const pullsArr = Array.isArray(pullsData) ? pullsData : [];
+      setBranches(branchesArr as CodeBranch[]);
+      setPulls(pullsArr as PullRequest[]);
+      const defaultBranchName = safeFirstProperty(branchesArr as CodeBranch[], 'name') ?? '';
+      const defaultBranchId = safeFirstProperty(branchesArr as CodeBranch[], 'id') ?? '';
       setNewBranch((b) => ({
         ...b,
         fromBranch: b.fromBranch || defaultBranchName,
@@ -249,13 +253,10 @@ export default function Code() {
   };
 
   return (
-    <JobPageContent
-      title="MOxE Code"
-      description="Manage lightweight repositories, branches, and pull requests scoped to your Job account."
-      error={error}
-    >
-    <div className="flex flex-col lg:flex-row gap-6">
-      <div className="w-full lg:w-72">
+    <JobPageContent variant="track" error={error}>
+      <JobToolBibleShell toolTitle="MOxE CODE" toolIconMaterial="code">
+    <div className="flex flex-col gap-6">
+      <div className="w-full min-w-0">
         <form
           onSubmit={handleCreateRepo}
           className="mb-4 p-3 rounded-xl border border-[#DFE1E6] dark:border-slate-700 bg-white dark:bg-slate-800 space-y-2"
@@ -389,7 +390,7 @@ export default function Code() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <div className="rounded-xl border border-[#DFE1E6] dark:border-slate-700 bg-white dark:bg-slate-800 p-3 space-y-2">
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">
@@ -595,8 +596,10 @@ export default function Code() {
             </div>
           </div>
         )}
+      <JobBibleReferenceSection toolKey="code" />
       </div>
     </div>
+      </JobToolBibleShell>
     </JobPageContent>
   );
 }

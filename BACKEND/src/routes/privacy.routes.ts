@@ -50,6 +50,30 @@ router.delete('/block/:accountId', async (req, res, next) => {
   }
 });
 
+router.get('/blocked/history', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const list = await service.listBlockHistory(accountId);
+    res.json(list);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.patch('/block/:accountId/extend', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const days = parseInt(String(req.body?.durationDays ?? 0), 10);
+    if (!days || Number.isNaN(days)) return res.status(400).json({ error: 'durationDays required' });
+    const result = await service.extendTemporaryBlock(accountId, req.params.accountId, days);
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
 /** GET /privacy/can-message/:accountId – can the current user message this account? (block status for DMs) */
 router.get('/can-message/:accountId', async (req, res, next) => {
   try {
@@ -94,6 +118,42 @@ router.delete('/mute/:accountId', async (req, res, next) => {
     const accountId = (req as any).user?.accountId;
     if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
     await service.unmute(accountId, req.params.accountId);
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get('/snoozed', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const list = await service.listSnoozedAccounts(accountId);
+    res.json(list);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post('/snooze', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const { accountId: targetId, durationDays } = req.body;
+    if (!targetId) return res.status(400).json({ error: 'accountId required' });
+    const days = durationDays != null ? parseInt(String(durationDays), 10) : 30;
+    const result = await service.snoozeFeed(accountId, targetId, Number.isNaN(days) ? 30 : days);
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.delete('/snooze/:accountId', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    await service.unsnoozeFeed(accountId, req.params.accountId);
     res.json({ ok: true });
   } catch (e) {
     next(e);
@@ -188,6 +248,73 @@ router.patch('/limit-interactions', async (req, res, next) => {
     if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
     const state = await limitService.save(accountId, req.body);
     res.json(state);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get('/hidden-words', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const config = await service.getHiddenWordsConfig(accountId);
+    res.json(config);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.put('/hidden-words', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const config = await service.saveHiddenWordsConfig(accountId, req.body ?? {});
+    res.json(config);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post('/hidden-words/import', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const config = await service.importHiddenWords(accountId, req.body ?? {});
+    res.json(config);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get('/hidden-words/export', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const result = await service.exportHiddenWords(accountId);
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get('/anonymous-reporting-default', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const result = await service.getAnonymousReportingDefault(accountId);
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.put('/anonymous-reporting-default', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const enabled = !!req.body?.anonymousReportingDefault;
+    const result = await service.setAnonymousReportingDefault(accountId, enabled);
+    res.json(result);
   } catch (e) {
     next(e);
   }

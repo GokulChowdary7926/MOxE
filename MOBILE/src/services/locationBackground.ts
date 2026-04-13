@@ -10,7 +10,8 @@ const TASK_NAME = 'moxe-nearby-location';
 
 export type LocationBackgroundState = 'idle' | 'requesting' | 'active' | 'error';
 
-TaskManager.defineTask(TASK_NAME, async ({ data, error }) => {
+TaskManager.defineTask(TASK_NAME, async (taskBody: { data?: unknown; error?: unknown }) => {
+  const { data, error } = taskBody;
   if (error) {
     console.warn('[MOxE location task]', error);
     return;

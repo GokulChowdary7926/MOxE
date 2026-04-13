@@ -16,12 +16,22 @@ export class ExploreRankingService extends BaseRankingService {
    * This uses ContentFeatures + UserEmbedding and a simple blend of
    * similarity, engagement, virality and recency.
    */
-  async getRankedItems(userId: string, limit = 50): Promise<RankingScore[]> {
+  async getRankedItems(userId: string, limit = 50, category: string | null = null): Promise<RankingScore[]> {
+    const baseTypes = ['POST', 'REEL', 'JOB', 'PROJECT'] as const;
+    const typeIn =
+      category === 'posts'
+        ? (['POST'] as const)
+        : category === 'reels'
+          ? (['REEL'] as const)
+          : category === 'jobs'
+            ? (['JOB', 'PROJECT'] as const)
+            : baseTypes;
+
     const [embedding, features] = await Promise.all([
       prisma.userEmbedding.findUnique({ where: { userId } }).catch(() => null),
       prisma.contentFeatures.findMany({
         where: {
-          contentType: { in: ['POST', 'REEL', 'JOB', 'PROJECT'] },
+          contentType: { in: [...typeIn] },
         },
         orderBy: { createdAt: 'desc' },
         take: limit * 4,

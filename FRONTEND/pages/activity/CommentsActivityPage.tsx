@@ -1,12 +1,15 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronLeft, ChevronDown } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { ThemedView } from '../../components/ui/Themed';
 import { MobileShell } from '../../components/layout/MobileShell';
 import { UI } from '../../constants/uiTheme';
 
+/**
+ * Activity — comments you’ve received (MOxE social shell).
+ */
 export default function CommentsActivityPage() {
-  const items: { id: string; text: string; postId: string }[] = [];
+  const items: { id: string; text: string; postId: string; createdAt: string; fromName: string }[] = [];
 
   return (
     <ThemedView className={`min-h-screen flex flex-col ${UI.bg}`}>
@@ -16,25 +19,19 @@ export default function CommentsActivityPage() {
             <ChevronLeft className="w-6 h-6" />
           </Link>
           <span className={UI.headerTitle}>Comments</span>
-          <button type="button" className={UI.headerAction}>Select</button>
+          <div className="w-11" />
         </header>
-        <div className="flex-1 overflow-auto pb-20">
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-[#262626]">
-            <button type="button" className={`flex items-center gap-1 px-3 py-2 rounded-lg ${UI.filterPill} ${UI.filterPillInactive}`}>
-              Newest to oldest <ChevronDown className="w-4 h-4 ml-0.5" />
-            </button>
-            <button type="button" className={`flex items-center gap-1 px-3 py-2 rounded-lg ${UI.filterPill} ${UI.filterPillInactive}`}>
-              All dates <ChevronDown className="w-4 h-4 ml-0.5" />
-            </button>
-          </div>
+
+        <div className="flex-1 overflow-auto pb-20 px-4">
           {items.length === 0 ? (
-            <div className="px-4 py-12 text-center text-[#737373] text-sm">No comments yet.</div>
+            <p className="text-center text-[#8e8e8e] text-sm py-16">No comments yet.</p>
           ) : (
             <ul className="divide-y divide-[#262626]">
               {items.map((item) => (
-                <li key={item.id}>
-                  <Link to={`/post/${item.postId}`} className={UI.listRow}>
-                    <span className="text-white text-sm">{item.text}</span>
+                <li key={item.id} className="py-4">
+                  <Link to={`/post/${item.postId}`} className="block active:opacity-80">
+                    <p className="text-[12px] text-[#8e8e8e] mb-1">{item.fromName}</p>
+                    <p className="text-[15px] text-white leading-snug">{item.text}</p>
                   </Link>
                 </li>
               ))}

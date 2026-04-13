@@ -1,8 +1,9 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { X, Settings, Search, MapPin, AtSign, Music, Image as ImageIcon, FileImage, Users, LayoutGrid, HelpCircle, Scissors, Heart, Link2, Hash } from 'lucide-react';
-import { ThemedView, ThemedText } from '../../components/ui/Themed';
+import { X, Settings, Search, MapPin, AtSign, Music, Image as ImageIcon, FileImage, Users, LayoutGrid, HelpCircle, Scissors, Heart, Link2, Hash, BadgeCheck } from 'lucide-react';
+import { ThemedView } from '../../components/ui/Themed';
 import { MobileShell } from '../../components/layout/MobileShell';
+import { useCurrentAccount } from '../../hooks/useAccountCapabilities';
 
 const FEATURE_BUTTONS = [
   { key: 'location', label: 'Location', icon: MapPin },
@@ -23,8 +24,12 @@ const FEATURE_BUTTONS = [
  * Search page in story (stickers / features) – same for all accounts.
  * Header: X, Add to story, gear. Q Search. Grid of feature buttons. Sticker grid below.
  */
+const VERIFIED_ONLY_STICKERS = ['Verified banner', 'Blue seal', 'Official link'];
+
 export default function StorySearchStickersPage() {
   const navigate = useNavigate();
+  const account = useCurrentAccount() as { verifiedBadge?: boolean } | null;
+  const isVerified = !!account?.verifiedBadge;
 
   return (
     <ThemedView className="min-h-screen flex flex-col bg-black">
@@ -71,6 +76,28 @@ export default function StorySearchStickersPage() {
                 key={i}
                 type="button"
                 className="aspect-square rounded-xl bg-[#262626] border border-[#363636] flex items-center justify-center text-white text-sm font-medium"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+
+          <p className="text-white font-semibold text-sm mt-6 mb-2 flex items-center gap-1">
+            <BadgeCheck className="w-4 h-4 text-[#0095f6]" aria-hidden />
+            Verified-only stickers
+          </p>
+          {!isVerified ? (
+            <p className="text-[#737373] text-xs px-0.5">
+              These stickers are available to verified accounts. Get verified to unlock them on your stories.
+            </p>
+          ) : null}
+          <div className={`grid grid-cols-4 gap-3 mt-2 ${!isVerified ? 'opacity-40 pointer-events-none' : ''}`}>
+            {VERIFIED_ONLY_STICKERS.map((s) => (
+              <button
+                key={s}
+                type="button"
+                disabled={!isVerified}
+                className="aspect-square rounded-xl bg-[#262626] border border-[#363636] flex items-center justify-center text-white text-xs font-medium text-center px-1"
               >
                 {s}
               </button>

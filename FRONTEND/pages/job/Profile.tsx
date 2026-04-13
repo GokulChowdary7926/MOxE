@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useCurrentAccount } from '../../hooks/useAccountCapabilities';
+import { getApiBase } from '../../services/api';
+import { JobPageContent, JobCard } from '../../components/job/JobPageContent';
+import { JobBibleReferenceSection, JobToolBibleShell } from '../../components/job/bible';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type JobProfile = {
   id: string;
@@ -129,43 +133,43 @@ export default function JobProfileTool() {
 
   if (loading) {
     return (
-      <div className="p-4 text-sm text-slate-500 dark:text-slate-400">Loading Job profile…</div>
+      <JobPageContent variant="track">
+        <JobToolBibleShell toolTitle="MOxE PROFILE" toolIconMaterial="person">
+          <div className="py-8 text-center text-sm text-on-surface-variant">Loading Job profile…</div>
+        </JobToolBibleShell>
+      </JobPageContent>
     );
   }
 
   if (!profile) {
     return (
-      <div className="p-4 text-sm text-red-500">
-        {error || 'Could not load Job profile for this account.'}
-      </div>
+      <JobPageContent variant="track" error={error || 'Could not load Job profile for this account.'}>
+        <JobToolBibleShell toolTitle="MOxE PROFILE" toolIconMaterial="person">
+          <></>
+        </JobToolBibleShell>
+      </JobPageContent>
     );
   }
 
   const isJobAccount = (profile.accountType || currentAccount?.accountType) === 'JOB';
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6">
-      <div className="w-full lg:w-80 space-y-3">
-        <div>
-          <h2 className="text-2xl font-semibold text-slate-800 dark:text-white mb-1">
-            MOxE PROFILE (Job)
-          </h2>
-          <p className="text-slate-600 dark:text-slate-400 text-sm">
-            Manage your Job account professional profile: headline, skills, and availability.
-          </p>
-        </div>
-        {error && (
-          <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-200 text-xs">
-            {error}
-          </div>
-        )}
+    <JobPageContent variant="track" error={error}>
+      <JobToolBibleShell toolTitle="MOxE PROFILE" toolIconMaterial="person">
+    <div className="flex flex-col gap-4">
+      <Link
+        to="/job/profile"
+        className="inline-flex w-fit items-center rounded-lg border border-[#DFE1E6] px-3 py-1.5 text-xs font-medium text-[#0052CC] dark:border-[#2C333A] dark:text-[#2684FF]"
+      >
+        ← View Job profile (social + recruiters)
+      </Link>
+      <div className="w-full space-y-3">
         {!isJobAccount && (
-          <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-200 text-xs">
-            This account is not currently a Job account. Some fields may be ignored until you
-            switch to a Job account type.
+          <div className="p-3 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 text-xs">
+            This account is not currently a Job account. Some fields may be ignored until you switch to a Job account type.
           </div>
         )}
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 text-xs space-y-1.5">
+        <JobCard variant="track" className="text-xs space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="font-semibold text-slate-800 dark:text-slate-100">
               @{profile.username}
@@ -186,19 +190,19 @@ export default function JobProfileTool() {
                 href={website}
                 target="_blank"
                 rel="noreferrer"
-                className="text-indigo-600 dark:text-indigo-400 underline"
+                className="text-[#0052CC] dark:text-[#2684FF] underline"
               >
                 {website}
               </a>
             </div>
           )}
-        </div>
+        </JobCard>
       </div>
 
-      <div className="flex-1 min-w-0 space-y-4">
+      <div className="w-full min-w-0 space-y-4">
         <form
           onSubmit={handleSave}
-          className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 space-y-4"
+          className="rounded-xl border border-[#DFE1E6] dark:border-[#2C333A] bg-white dark:bg-[#1D2125] p-4 space-y-4"
         >
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-slate-700 dark:text-slate-200">
@@ -244,7 +248,7 @@ export default function JobProfileTool() {
             </label>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3">
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-slate-700 dark:text-slate-200">
                 Location
@@ -299,14 +303,17 @@ export default function JobProfileTool() {
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex items-center justify-center rounded-md bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-xs font-medium px-3 py-1.5"
+              className="inline-flex items-center justify-center rounded-md bg-[#0052CC] hover:bg-[#0747A6] disabled:opacity-50 dark:bg-[#2684FF] dark:hover:bg-[#0052CC] text-white text-xs font-medium px-3 py-1.5"
             >
               {saving ? 'Saving…' : 'Save Job profile'}
             </button>
           </div>
         </form>
       </div>
+      <JobBibleReferenceSection toolKey="profile" />
     </div>
+      </JobToolBibleShell>
+    </JobPageContent>
   );
 }
 

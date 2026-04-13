@@ -6,7 +6,7 @@ import type { AppDispatch } from '../../store';
 import { login, fetchMe, clearError, logout } from '../../store/authSlice';
 import { setCurrentAccount, setCapabilities } from '../../store/accountSlice';
 import type { RootState } from '../../store';
-import { getApiBase } from '../../services/api';
+import { DEV_API_START_HINT, getApiBase } from '../../services/api';
 import { getHomeRouteForAccountType } from '../../constants/accountTypes';
 import { AUTH } from './authStyles';
 
@@ -18,6 +18,43 @@ export default function Login() {
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
+  const [apiProbe, setApiProbe] = useState<{ level: 'ok' | 'warn' | 'err'; text: string } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const base = getApiBase();
+    (async () => {
+      try {
+        const live = await fetch(`${base}/health/live`, { method: 'GET' });
+        if (cancelled) return;
+        if (!live.ok) {
+          setApiProbe({
+            level: 'err',
+            text: `No liveness from API (${live.status}). ${DEV_API_START_HINT}`,
+          });
+          return;
+        }
+        const ready = await fetch(`${base}/health/ready`);
+        const rd = (await ready.json().catch(() => ({}))) as { checks?: { database?: boolean } };
+        if (cancelled) return;
+        if (ready.ok && rd?.checks?.database === true) {
+          setApiProbe({ level: 'ok', text: `API reachable (${base}) • database OK` });
+        } else {
+          setApiProbe({
+            level: 'warn',
+            text: `API up at ${base} but database check failed. Start PostgreSQL, set DATABASE_URL in BACKEND/.env, then run npx prisma db push.`,
+          });
+        }
+      } catch {
+        if (!cancelled) {
+          setApiProbe({ level: 'err', text: `Cannot reach ${base}. ${DEV_API_START_HINT}` });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     dispatch(clearError());
@@ -44,7 +81,14 @@ export default function Login() {
         const me = await dispatch(fetchMe()).unwrap();
         dispatch(setCurrentAccount({ ...me.account, capabilities: me.capabilities }));
         dispatch(setCapabilities(me.capabilities ?? null));
-        navigate(getHomeRouteForAccountType(me.account?.accountType ?? me.account?.account_type));
+        const acc = me.account as Record<string, unknown> | undefined;
+        const accountType =
+          typeof acc?.accountType === 'string'
+            ? acc.accountType
+            : typeof acc?.account_type === 'string'
+              ? acc.account_type
+              : undefined;
+        navigate(getHomeRouteForAccountType(accountType));
       } catch (meErr: unknown) {
         const payload = meErr && typeof meErr === 'object' && 'payload' in meErr ? (meErr as { payload: string }).payload : undefined;
         const msg = typeof payload === 'string' ? payload : (meErr && typeof meErr === 'object' && 'message' in meErr ? String((meErr as { message: string }).message) : '');
@@ -66,6 +110,20 @@ export default function Login() {
         <div className={AUTH.logoWrapper}>
           <img src="/logo.png" alt="MOxE" className="w-14 h-14 rounded-xl object-cover" />
         </div>
+
+        {apiProbe && (
+          <div
+            className={
+              apiProbe.level === 'ok'
+                ? AUTH.info
+                : apiProbe.level === 'warn'
+                  ? 'w-full p-3 rounded-lg text-xs text-center border bg-amber-500/10 border-amber-500/35 text-amber-200 mb-3'
+                  : AUTH.error
+            }
+          >
+            {apiProbe.text}
+          </div>
+        )}
 
         {/* Login card */}
         <div className={AUTH.card}>
@@ -135,6 +193,21 @@ export default function Login() {
             Don&apos;t have an account? <Link to="/register" className={AUTH.link}>Sign up</Link>
           </p>
         </div>
+
+        <p className="mt-3 px-2 text-[10px] leading-snug text-center text-[var(--moxe-text-secondary)] max-w-[350px]">
+          <span className="font-semibold text-[var(--moxe-text)]">Connection tip:</span> API base{' '}
+          <code className="break-all text-[#a8a8a8]">{getApiBase()}</code>
+          {import.meta.env.DEV ? (
+            <>
+              {' '}
+              · Use <code className="text-[#a8a8a8]">http://localhost:3001</code> for this app in dev (Vite proxies{' '}
+              <code className="text-[#a8a8a8]">/api</code> → port 5007). If you still see an old error after updating code, hard-refresh (
+              Safari: empty cache then reload, or Cmd+Option+E then reload).
+            </>
+          ) : (
+            <> · Production build calls the URL above directly; ensure the API is running and CORS allows this origin.</>
+          )}
+        </p>
       </div>
     </div>
   );

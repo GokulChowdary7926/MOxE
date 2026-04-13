@@ -4,8 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../theme/ThemeContext';
 import { ThemedView, ThemedText, ThemedHeader, ThemedButton, ThemedSurface } from '../../components/Themed';
 
-const MOCK_AVAILABLE = 1247.5;
-const MOCK_BANK = 'Chase •••• 4521';
+const AVAILABLE_BALANCE = 0;
 
 export function WithdrawScreen() {
   const { theme } = useTheme();
@@ -14,18 +13,23 @@ export function WithdrawScreen() {
   const [error, setError] = useState('');
 
   const numAmount = parseFloat(amount) || 0;
-  const isValid = numAmount > 0 && numAmount <= MOCK_AVAILABLE;
+  const isValid = numAmount > 0 && numAmount <= AVAILABLE_BALANCE;
   const fee = 0;
   const receive = numAmount - fee;
 
   const handleWithdraw = () => {
     if (!isValid) {
-      setError(numAmount <= 0 ? 'Enter an amount' : 'Amount exceeds balance');
+      setError(
+        AVAILABLE_BALANCE <= 0
+          ? 'No balance available. Complete payout setup on MOxE web first.'
+          : numAmount <= 0
+            ? 'Enter an amount'
+            : 'Amount exceeds balance',
+      );
       return;
     }
     setError('');
-    // In a real app: submit then go back
-    (navigation as any).goBack();
+    (navigation as { goBack: () => void }).goBack();
   };
 
   return (
@@ -33,7 +37,7 @@ export function WithdrawScreen() {
       <ThemedHeader
         title="Withdraw"
         left={
-          <TouchableOpacity onPress={() => (navigation as any).goBack()}>
+          <TouchableOpacity onPress={() => (navigation as { goBack: () => void }).goBack()}>
             <Text style={{ fontSize: 24, color: theme.colors.text }}>←</Text>
           </TouchableOpacity>
         }
@@ -51,7 +55,7 @@ export function WithdrawScreen() {
           showsVerticalScrollIndicator={false}
         >
           <ThemedText secondary style={styles.hint}>
-            Available: ${MOCK_AVAILABLE.toFixed(2)}
+            Available: ${AVAILABLE_BALANCE.toFixed(2)}
           </ThemedText>
           <ThemedSurface style={styles.card}>
             <ThemedText secondary style={styles.label}>Amount</ThemedText>
@@ -59,7 +63,10 @@ export function WithdrawScreen() {
               <ThemedText style={styles.currency}>$</ThemedText>
               <TextInput
                 value={amount}
-                onChangeText={(t) => { setAmount(t); setError(''); }}
+                onChangeText={(t) => {
+                  setAmount(t);
+                  setError('');
+                }}
                 placeholder="0.00"
                 placeholderTextColor={theme.colors.textSecondary}
                 keyboardType="decimal-pad"
@@ -72,12 +79,13 @@ export function WithdrawScreen() {
           <ThemedSurface style={styles.card}>
             <ThemedText secondary style={styles.label}>To</ThemedText>
             <View style={[styles.bankRow, { borderColor: theme.colors.border }]}>
-              <ThemedText style={styles.bankName}>{MOCK_BANK}</ThemedText>
-              <ThemedText secondary style={styles.change}>Change</ThemedText>
+              <ThemedText secondary style={styles.bankName}>
+                No bank account on file. Add payout details in MOxE on the web.
+              </ThemedText>
             </View>
           </ThemedSurface>
 
-          {numAmount > 0 && (
+          {numAmount > 0 && AVAILABLE_BALANCE > 0 ? (
             <ThemedSurface style={styles.card}>
               <View style={[styles.summaryRow, { borderBottomColor: theme.colors.border }]}>
                 <ThemedText secondary>Amount</ThemedText>
@@ -88,13 +96,13 @@ export function WithdrawScreen() {
                 <ThemedText>${fee.toFixed(2)}</ThemedText>
               </View>
               <View style={styles.summaryRow}>
-                <ThemedText style={styles.receiveLabel}>You'll receive</ThemedText>
+                <ThemedText style={styles.receiveLabel}>{"You'll receive"}</ThemedText>
                 <ThemedText style={[styles.receiveValue, { color: theme.colors.success }]}>
                   ${receive.toFixed(2)}
                 </ThemedText>
               </View>
             </ThemedSurface>
-          )}
+          ) : null}
 
           <ThemedButton
             label="Withdraw"
@@ -133,8 +141,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 14,
   },
-  bankName: { fontWeight: '500' },
-  change: { fontSize: 14 },
+  bankName: { flex: 1, fontWeight: '400', fontSize: 14 },
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

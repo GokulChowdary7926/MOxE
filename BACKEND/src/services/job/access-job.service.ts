@@ -52,6 +52,19 @@ export class JobAccessService {
       },
     });
 
+    try {
+      await prisma.orgAuditLog.create({
+        data: {
+          orgId: org.id,
+          actorAccountId: account.id,
+          action: 'ORG_PROVISIONED',
+          summary: 'Organization created for MOxE Job / Access',
+        },
+      });
+    } catch {
+      // OrgAuditLog table may not exist until migration applied
+    }
+
     return org;
   }
 }

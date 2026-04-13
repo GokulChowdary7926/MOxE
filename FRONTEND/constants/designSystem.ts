@@ -1,10 +1,10 @@
 /**
- * MOxE Design System – Instagram-inspired, production-ready.
+ * MOxE Design System – production-ready social surfaces.
  * Used across Personal, Business, Creator, Job account templates.
  * NO EMPTY STATES: all screens use populated content.
  */
 
-/** Primary gradient (Instagram): purple → pink → orange */
+/** Primary gradient: purple → pink → orange */
 export const GRADIENT = {
   start: '#833AB4',
   mid: '#E1306C',
@@ -15,7 +15,7 @@ export const GRADIENT = {
   cssVertical: 'linear-gradient(180deg, #833AB4 0%, #E1306C 50%, #FCAF45 100%)',
 } as const;
 
-/** Light mode (default Instagram) */
+/** Light mode (default MOxE social) */
 export const LIGHT = {
   background: '#FFFFFF',
   card: '#FAFAFA',
@@ -53,7 +53,7 @@ export const ACCENT = {
   closeFriends: '#00C853', // Green ring
 } as const;
 
-/** Typography (Instagram-style) */
+/** Typography (MOxE social) */
 export const TYPOGRAPHY = {
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
   weight: {

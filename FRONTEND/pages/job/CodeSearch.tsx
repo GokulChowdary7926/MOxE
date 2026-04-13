@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import { getApiBase } from '../../services/api';
+import { JobPageContent, JobCard } from '../../components/job/JobPageContent';
+import { JOB_MOBILE } from '../../components/job/jobMobileStyles';
+import { JobBibleReferenceSection, JobToolBibleShell } from '../../components/job/bible';
 import { safeFirst } from '../../utils/safeAccess';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type CodeRepo = {
   id: string;
@@ -100,94 +104,57 @@ export default function CodeSearch() {
   }, []);
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6">
-      <div className="w-full lg:w-80 space-y-4">
-        <div>
-          <h2 className="text-2xl font-semibold text-slate-800 dark:text-white mb-1">
-            MOxE CODE SEARCH
-          </h2>
-          <p className="text-slate-600 dark:text-slate-400 text-sm">
-            Search across your Job code repositories for symbols, files, and text.
-          </p>
-        </div>
-
-        {error && (
-          <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-200 text-xs">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={performSearch} className="space-y-3">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-700 dark:text-slate-200">
-              Query
-            </label>
-            <input
-              className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100"
-              placeholder="function name, class, keyword…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-700 dark:text-slate-200">
-              Repository
-            </label>
-            <select
-              className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100"
-              value={selectedRepoId}
-              onChange={(e) => setSelectedRepoId(e.target.value)}
-            >
-              <option value="">All accessible repos</option>
-              {repos.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-700 dark:text-slate-200">
-              Path filter (optional)
-            </label>
-            <input
-              className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100"
-              placeholder="e.g. src/, utils/, README.md"
-              value={pathFilter}
-              onChange={(e) => setPathFilter(e.target.value)}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full inline-flex items-center justify-center rounded-md bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-500 text-white text-sm font-medium px-3 py-1.5"
-          >
-            {loading ? 'Searching…' : 'Search'}
-          </button>
-        </form>
-      </div>
-
-      <div className="flex-1 min-w-0 space-y-4">
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 h-full">
-          <div className="flex flex-col min-h-[260px]">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                Results {results.length > 0 && `(${results.length})`}
-              </div>
-              {loading && (
-                <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Searching…
-                </span>
-              )}
+    <JobPageContent variant="track" error={error}>
+      <JobToolBibleShell toolTitle="MOxE CODE SEARCH" toolIconMaterial="search">
+      <div className="flex flex-col gap-4">
+        <JobCard variant="track">
+          <form onSubmit={performSearch} className="space-y-3">
+            <div className="space-y-1.5">
+              <label className={JOB_MOBILE.label}>Query</label>
+              <input
+                className={JOB_MOBILE.input}
+                placeholder="function name, class, keyword…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
             </div>
-            <div className="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 overflow-auto text-xs">
+            <div className="space-y-1.5">
+              <label className={JOB_MOBILE.label}>Repository</label>
+              <select className={JOB_MOBILE.input} value={selectedRepoId} onChange={(e) => setSelectedRepoId(e.target.value)}>
+                <option value="">All accessible repos</option>
+                {repos.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className={JOB_MOBILE.label}>Path filter (optional)</label>
+              <input
+                className={JOB_MOBILE.input}
+                placeholder="e.g. src/, utils/, README.md"
+                value={pathFilter}
+                onChange={(e) => setPathFilter(e.target.value)}
+              />
+            </div>
+            <button type="submit" disabled={loading} className={JOB_MOBILE.btnPrimary}>
+              {loading ? 'Searching…' : 'Search'}
+            </button>
+          </form>
+        </JobCard>
+
+        <div className="grid grid-cols-1 gap-4">
+          <JobCard className="flex flex-col min-h-[200px] p-0 overflow-hidden">
+            <div className="px-4 py-2 border-b border-[#DFE1E6] dark:border-[#2C333A] flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-[#172B4D] dark:text-[#E6EDF3]">
+                Results {results.length > 0 && `(${results.length})`}
+              </span>
+              {loading && <span className="text-[11px] text-[#5E6C84] dark:text-[#8C9BAB]">Searching…</span>}
+            </div>
+            <div className="flex-1 max-h-[min(360px,45vh)] overflow-auto text-xs bg-[#131315]">
               {results.length === 0 && !loading && (
-                <div className="px-3 py-3 text-slate-500 dark:text-slate-400">
-                  Enter a query and press Search to see matching code.
-                </div>
+                <div className="px-3 py-3 text-[#5E6C84] dark:text-[#8C9BAB]">Enter a query and press Search to see matching code.</div>
               )}
               {results.map((r) => {
                 const isActive = selectedResult?.id === r.id;
@@ -196,17 +163,15 @@ export default function CodeSearch() {
                     key={r.id}
                     type="button"
                     onClick={() => setSelectedResult(r)}
-                    className={`w-full text-left px-3 py-2 border-b border-slate-100 dark:border-slate-800 last:border-b-0 hover:bg-slate-100 dark:hover:bg-slate-800 ${
-                      isActive
-                        ? 'bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-200'
-                        : 'text-slate-700 dark:text-slate-200'
+                    className={`w-full text-left px-3 py-2 border-b border-[#2C333A] last:border-b-0 hover:bg-[#1D2125] ${
+                      isActive ? 'bg-[#1A2E4D] text-[#2684FF]' : 'text-[#E6EDF3]'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2 mb-0.5">
                       <div className="font-medium truncate">
                         {r.repoName} · {r.branchName}
                       </div>
-                      <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                      <span className="text-[11px] text-[#5E6C84] dark:text-[#8C9BAB] shrink-0">
                         {new Date(r.commitCreatedAt).toLocaleString([], {
                           month: 'short',
                           day: '2-digit',
@@ -215,27 +180,21 @@ export default function CodeSearch() {
                         })}
                       </span>
                     </div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                      {r.path}
-                    </div>
-                    <div className="mt-1 text-[11px] text-slate-600 dark:text-slate-300 line-clamp-2">
-                      {r.commitMessage}
-                    </div>
+                    <div className="text-[11px] text-[#5E6C84] dark:text-[#8C9BAB] truncate">{r.path}</div>
+                    <div className="mt-1 text-[11px] text-[#5E6C84] dark:text-[#8C9BAB] line-clamp-2">{r.commitMessage}</div>
                   </button>
                 );
               })}
             </div>
-          </div>
+          </JobCard>
 
-          <div className="flex flex-col min-h-[260px]">
-            <div className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-2">
+          <JobCard variant="track" flush className="flex flex-col min-h-[200px] overflow-hidden">
+            <div className="px-4 py-2 border-b border-[#2C333A] text-xs font-semibold text-[#E6EDF3]">
               Preview
             </div>
-            <div className="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-900 text-xs text-slate-100 overflow-auto">
+            <div className="flex-1 min-h-[180px] bg-[#0d1117] text-xs text-slate-100 overflow-auto">
               {!selectedResult && (
-                <div className="px-3 py-3 text-slate-400">
-                  Select a result on the left to view matching code.
-                </div>
+                <div className="px-3 py-3 text-slate-400">Select a result above to view matching code.</div>
               )}
               {selectedResult && (
                 <div className="flex flex-col h-full">
@@ -245,23 +204,22 @@ export default function CodeSearch() {
                         {selectedResult.repoName} · {selectedResult.branchName}
                       </span>
                       <span className="text-slate-500">
-                        {selectedResult.author?.displayName ||
-                          selectedResult.author?.username ||
-                          'Unknown author'}
+                        {selectedResult.author?.displayName || selectedResult.author?.username || 'Unknown author'}
                       </span>
                     </div>
                     <div className="text-slate-400 truncate">{selectedResult.path}</div>
                   </div>
-                  <pre className="flex-1 px-3 py-3 whitespace-pre-wrap font-mono text-[11px]">
-                    {selectedResult.contentPreview}
-                  </pre>
+                  <pre className="flex-1 px-3 py-3 whitespace-pre-wrap font-mono text-[11px]">{selectedResult.contentPreview}</pre>
                 </div>
               )}
             </div>
-          </div>
+          </JobCard>
         </div>
+
+        <JobBibleReferenceSection toolKey="code-search" />
       </div>
-    </div>
+      </JobToolBibleShell>
+    </JobPageContent>
   );
 }
 

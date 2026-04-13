@@ -3,6 +3,7 @@
  */
 import { prisma } from '../server';
 import { AppError } from '../utils/AppError';
+import { validateUsernameFormat } from '../utils/usernameValidation';
 import { sendSms, isTwilioConfigured } from './twilio.service';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
@@ -126,7 +127,11 @@ export async function verifyCode(
   const age = (Date.now() - dateOfBirth.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
   if (age < 13) throw new AppError('You must be at least 13 to register', 400);
 
-  const existingUsername = await prisma.account.findUnique({ where: { username: registration.username.trim() } });
+  const uCheck = validateUsernameFormat(registration.username);
+  if (!uCheck.valid) throw new AppError(uCheck.message, 400);
+  const usernameNorm = uCheck.normalized;
+
+  const existingUsername = await prisma.account.findUnique({ where: { username: usernameNorm } });
   if (existingUsername) throw new AppError('Username already taken', 400);
 
   const hashedPassword = await bcrypt.hash(registration.password, 10);
@@ -146,7 +151,7 @@ export async function verifyCode(
   const account = await prisma.account.create({
     data: {
       userId: user.id,
-      username: registration.username.trim(),
+      username: usernameNorm,
       displayName: registration.displayName.trim(),
       accountType,
       subscriptionTier: 'FREE',

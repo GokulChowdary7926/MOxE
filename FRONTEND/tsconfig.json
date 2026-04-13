@@ -16,5 +16,5 @@
     "noEmit": true,
     "jsx": "react-jsx"
   },
-  "include": ["src", "components", "pages", "hooks", "store", "vite-env.d.ts"]
+  "include": ["src", "components", "pages", "hooks", "store", "utils", "vite-env.d.ts"]
 }

@@ -67,7 +67,14 @@ export default function NewReelPage() {
             onChange={onFileChange}
           />
 
-          <div className="flex justify-end mt-3">
+          <div className="flex justify-between items-center mt-3 gap-2">
+            <Link
+              to="/create/reel/record"
+              className="text-[#0095f6] text-sm font-medium"
+              data-testid="reel-open-studio-link"
+            >
+              Record in studio
+            </Link>
             <button type="button" onClick={() => navigate(-1)} className="text-[#a8a8a8] text-sm font-medium">
               Cancel
             </button>

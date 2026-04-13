@@ -29,23 +29,29 @@ export default function AccountHistory() {
         const data = await res.json().catch(() => ({}));
         if (cancelled) return;
         const list = (data.items ?? data.activities ?? []) as any[];
-        const mapped: HistoryEntry[] = list.slice(0, 20).map((x: any) => {
-          const type = (x.type || 'privacy').toLowerCase();
-          let title = 'Privacy';
-          let description = 'You made your account **private.**';
-          if (type.includes('username')) {
-            title = 'Username';
-            description = `You changed your username to **${x.username || x.newUsername || '…'}.**`;
-          } else if (type.includes('bio')) {
-            title = 'Bio';
-            description = `You changed your bio to ${x.bio ? `: ${x.bio.slice(0, 30)}…` : '…'}`;
-          } else if (x.description) {
-            description = x.description;
+        const mapped: HistoryEntry[] = list.slice(0, 50).map((x: any) => {
+          const rawType = String(x.type || 'privacy').toLowerCase();
+          const title = typeof x.title === 'string' && x.title.trim() ? x.title : rawType;
+          let description =
+            typeof x.description === 'string' && x.description.trim()
+              ? x.description
+              : 'Account update.';
+          if (rawType.includes('username') && x.metadata?.newUsername) {
+            description = `You changed your username to **${x.metadata.newUsername}**.`;
           }
           const created = x.createdAt ? new Date(x.createdAt) : new Date(0);
-          const weeks = Math.floor((Date.now() - created.getTime()) / (7 * 24 * 60 * 60 * 1000));
-          const timeAgo = weeks ? `${weeks}w` : '1w';
-          return { id: x.id || String(Math.random()), type: type.includes('username') ? 'username' : type.includes('bio') ? 'bio' : 'privacy', title, description, timeAgo };
+          const mins = Math.floor((Date.now() - created.getTime()) / 60000);
+          let timeAgo = 'now';
+          if (mins >= 60 * 24 * 7) timeAgo = `${Math.floor(mins / (60 * 24 * 7))}w`;
+          else if (mins >= 60 * 24) timeAgo = `${Math.floor(mins / (60 * 24))}d`;
+          else if (mins >= 60) timeAgo = `${Math.floor(mins / 60)}h`;
+          else if (mins >= 1) timeAgo = `${mins}m`;
+          const entryType: HistoryEntry['type'] = rawType.includes('username')
+            ? 'username'
+            : rawType.includes('bio')
+              ? 'bio'
+              : 'privacy';
+          return { id: x.id || String(Math.random()), type: entryType, title, description, timeAgo };
         });
         setItems(mapped);
       } catch {
@@ -103,11 +109,11 @@ export default function AccountHistory() {
                 ) : (
                   items.map((entry) => (
                     <li key={entry.id}>
-                      <Link to="#" className="flex items-center gap-3 px-4 py-3 active:bg-white/5">
+      <Link to="/settings/info/account-history-detail" className="flex items-center gap-3 px-4 py-3 active:bg-white/5">
                         <Icon type={entry.type} />
                         <div className="flex-1 min-w-0">
                           <p className="text-white font-medium">{entry.title}</p>
-                          <p className="text-[#a8a8a8] text-sm" dangerouslySetInnerHTML={{ __html: entry.description.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
+                          <p className="text-[#a8a8a8] text-sm">{entry.description.replace(/\*\*/g, '')}</p>
                         </div>
                         <span className="text-[#737373] text-xs flex-shrink-0">{entry.timeAgo}</span>
                         <ChevronRight className="w-4 h-4 text-[#737373]" />

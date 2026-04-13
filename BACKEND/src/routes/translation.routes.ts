@@ -7,6 +7,7 @@ import {
   translateTextForFeed,
 } from '../services/translation.service';
 import { prisma } from '../server';
+import { isProductionFreeSubscriptionsEnabled } from '../constants/tierCapabilities';
 
 const router = Router();
 
@@ -92,7 +93,7 @@ router.get('/languages', async (req, res, next) => {
       select: { subscriptionTier: true },
     });
     if (!account) return res.status(404).json({ error: 'Account not found' });
-    if (account.subscriptionTier !== 'STAR' && account.subscriptionTier !== 'THICK') {
+    if (!isProductionFreeSubscriptionsEnabled() && account.subscriptionTier !== 'STAR' && account.subscriptionTier !== 'THICK') {
       return res.status(403).json({
         error: 'Real-time translation is available on Star or Thick (paid) plans only.',
       });

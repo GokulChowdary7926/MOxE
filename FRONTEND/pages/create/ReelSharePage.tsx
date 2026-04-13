@@ -3,6 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Hash, Play, List, MessageCircle, UserPlus, MapPin, Sparkles, Eye, Share2, MoreHorizontal } from 'lucide-react';
 import { ThemedView, ThemedText } from '../../components/ui/Themed';
 import { MobileShell } from '../../components/layout/MobileShell';
+import { useCurrentAccount } from '../../hooks/useAccountCapabilities';
+import toast from 'react-hot-toast';
 
 /**
  * New reel page (after edit) – share screen. Same for all accounts.
@@ -12,6 +14,8 @@ import { MobileShell } from '../../components/layout/MobileShell';
 export default function ReelSharePage() {
   const navigate = useNavigate();
   const location = useLocation() as any;
+  const currentAccount = useCurrentAccount() as { username?: string } | null;
+  const shareOnLabel = currentAccount?.username ? `@${currentAccount.username}` : 'Not connected';
   const file = location.state?.file as File | undefined;
   const [caption, setCaption] = useState('');
   const [aiLabel, setAiLabel] = useState(false);
@@ -24,6 +28,16 @@ export default function ReelSharePage() {
   const previewUrl = URL.createObjectURL(file);
   const isVideo = file.type.startsWith('video/');
 
+  function saveDraft() {
+    toast.success('Reel draft saved');
+    navigate('/create');
+  }
+
+  function shareReel() {
+    toast.success('Reel shared');
+    navigate('/reels');
+  }
+
   return (
     <ThemedView className="min-h-screen flex flex-col bg-black">
       <MobileShell>
@@ -32,7 +46,13 @@ export default function ReelSharePage() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <span className="flex-1 text-white font-semibold text-base text-center">New reel</span>
-          <div className="w-10" />
+          <button
+            type="button"
+            onClick={shareReel}
+            className="text-[#0095f6] font-semibold text-sm"
+          >
+            Post
+          </button>
         </header>
 
         <div className="flex-1 overflow-auto pb-24">
@@ -145,10 +165,14 @@ export default function ReelSharePage() {
           </button>
 
           {/* Also share on */}
-          <button type="button" className="w-full flex items-center gap-3 px-4 py-3 border-b border-[#262626] text-white">
+          <button
+            type="button"
+            onClick={() => navigate('/create/reel/also-share')}
+            className="w-full flex items-center gap-3 px-4 py-3 border-b border-[#262626] text-white"
+          >
             <Share2 className="w-5 h-5 text-[#a8a8a8]" />
             <span className="flex-1 text-left">Also share on...</span>
-            <span className="text-[#a8a8a8] text-sm">@username ›</span>
+            <span className="text-[#a8a8a8] text-sm">{shareOnLabel} ›</span>
           </button>
 
           {/* More options */}
@@ -167,15 +191,19 @@ export default function ReelSharePage() {
         <div className="fixed bottom-0 left-0 right-0 max-w-[428px] mx-auto flex gap-3 p-4 border-t border-[#262626] bg-black safe-area-pb">
           <button
             type="button"
+            onClick={saveDraft}
             className="flex-1 py-3 rounded-lg bg-[#262626] text-white font-semibold text-sm"
+            data-testid="reel-save-draft"
           >
             Save draft
           </button>
           <button
             type="button"
+            onClick={shareReel}
             className="flex-1 py-3 rounded-lg bg-[#0095f6] text-white font-semibold text-sm"
+            data-testid="reel-share-post-footer"
           >
-            Share
+            Post
           </button>
         </div>
       </MobileShell>

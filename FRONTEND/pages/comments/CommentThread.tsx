@@ -1,86 +1,128 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { SettingsPageShell } from '../../components/layout/SettingsPageShell';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
+import { ChevronLeft } from 'lucide-react';
 import { useCurrentAccount } from '../../hooks/useAccountCapabilities';
 import { getApiBase, getToken } from '../../services/api';
-
-const API_BASE = getApiBase();
+import { SocialCommentRow } from '../../components/comments/SocialCommentRow';
+import { ThemedView } from '../../components/ui/Themed';
+import { MobileShell } from '../../components/layout/MobileShell';
+import { UI } from '../../constants/uiTheme';
 
 type Reply = {
   id: string;
   content: string;
   createdAt: string;
-  account: { id: string; username: string; displayName?: string | null };
+  account: {
+    id: string;
+    username: string;
+    displayName?: string | null;
+    profilePhoto?: string | null;
+    avatarUrl?: string | null;
+  };
 };
 
+function normalizeComment(raw: any): Reply | null {
+  if (!raw?.id || !raw?.account) return null;
+  const created =
+    typeof raw.createdAt === 'string'
+      ? raw.createdAt
+      : raw.createdAt instanceof Date
+        ? raw.createdAt.toISOString()
+        : new Date().toISOString();
+  const acc = raw.account;
+  return {
+    id: raw.id,
+    content: raw.content ?? '',
+    createdAt: created,
+    account: {
+      id: acc.id,
+      username: acc.username ?? 'user',
+      displayName: acc.displayName ?? null,
+      profilePhoto: acc.profilePhoto ?? acc.avatarUrl ?? null,
+      avatarUrl: acc.avatarUrl ?? null,
+    },
+  };
+}
+
+/**
+ * Full-screen comment thread — MOxE social shell.
+ */
 export default function CommentThread() {
   const { commentId } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation() as { state?: { focusComposer?: boolean } };
   const [root, setRoot] = useState<Reply | null>(null);
+  const [postId, setPostId] = useState<string | null>(null);
   const [replies, setReplies] = useState<Reply[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [saving, setSaving] = useState(false);
-  const [filter, setFilter] = useState<'ALL' | 'AUTHOR'>('ALL');
-  const [sort, setSort] = useState<'NEWEST' | 'OLDEST'>('NEWEST');
-  const [actingId, setActingId] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editContent, setEditContent] = useState('');
-  const { account: currentAccount } = useCurrentAccount();
-  const myId = currentAccount?.id ?? null;
+  const currentAccount = useCurrentAccount();
+  const replyInputRef = useRef<HTMLInputElement>(null);
 
-  const EDIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
-  const canEdit = (createdAt: string) =>
-    Date.now() - new Date(createdAt).getTime() < EDIT_WINDOW_MS;
-  const editMinutesLeft = (createdAt: string) => {
-    const elapsed = Date.now() - new Date(createdAt).getTime();
-    const left = Math.ceil((EDIT_WINDOW_MS - elapsed) / 60000);
-    return left > 0 ? left : 0;
-  };
+  useEffect(() => {
+    if (location.state?.focusComposer) {
+      const t = setTimeout(() => replyInputRef.current?.focus(), 300);
+      return () => clearTimeout(t);
+    }
+  }, [location.state]);
 
   useEffect(() => {
     if (!commentId) return;
-    const token = localStorage.getItem('token');
-    if (!token) {
-      setError('You must be logged in to view this thread.');
-      setLoading(false);
-      return;
-    }
+    const threadId: string = commentId;
+    const fallbackPostId = (location.state as { fromPostId?: string } | undefined)?.fromPostId;
     async function load() {
       try {
         setLoading(true);
         setError(null);
-        const res = await fetch(`${API_BASE}/posts/comments/${encodeURIComponent(commentId ?? '')}/replies`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const token = getToken();
+        const headers: HeadersInit = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+        const res = await fetch(
+          `${getApiBase()}/posts/comments/${encodeURIComponent(threadId)}/replies`,
+          { headers },
+        );
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          throw new Error(data.error || 'Failed to load comment thread.');
+          throw new Error((data as { error?: string }).error || 'Failed to load comment thread.');
         }
-        setRoot(data.comment ?? null);
-        setReplies(data.replies ?? []);
-      } catch (e: any) {
-        setError(e.message || 'Failed to load comment thread.');
+        const rawRoot = (data as { comment?: unknown }).comment;
+        const rawReplies = (data as { replies?: unknown[] }).replies;
+        const pid = (data as { postId?: string | null }).postId;
+        const nRoot = normalizeComment(rawRoot);
+        setRoot(nRoot);
+        setPostId(typeof pid === 'string' ? pid : null);
+        const list = Array.isArray(rawReplies)
+          ? rawReplies.map(normalizeComment).filter(Boolean) as Reply[]
+          : [];
+        setReplies(list);
+        if (!nRoot) {
+          setError('Comment not found.');
+        }
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Failed to load comment thread.');
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, [commentId]);
+  }, [commentId, location.state]);
 
   async function sendReply(e: React.FormEvent) {
     e.preventDefault();
     if (!commentId) return;
     const text = replyText.trim();
     if (!text) return;
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (!token) {
       setError('You must be logged in to reply.');
       return;
     }
     setSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/posts/${encodeURIComponent(root?.id || '')}/comments`, {
+      if (!postId) throw new Error('Missing post context.');
+      const res = await fetch(`${getApiBase()}/posts/${encodeURIComponent(postId)}/comments`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -90,253 +132,100 @@ export default function CommentThread() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to reply.');
+        throw new Error((data as { error?: string }).error || 'Failed to reply.');
       }
-      setReplies((prev) => [data, ...prev]);
+      const added = normalizeComment(data);
+      if (added) setReplies((prev) => [added, ...prev]);
       setReplyText('');
-    } catch (e: any) {
-      setError(e.message || 'Failed to reply.');
+      setError(null);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to reply.');
     } finally {
       setSaving(false);
     }
   }
 
-  const filteredReplies = useMemo(() => {
-    let list = [...replies];
-    if (filter === 'AUTHOR' && root) {
-      list = list.filter((r) => r.account.id === root.account.id);
-    }
-    list.sort((a, b) =>
-      sort === 'NEWEST'
-        ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-    );
-    return list;
-  }, [replies, filter, sort, root]);
+  const displayComments = useMemo(() => {
+    return root ? [root, ...replies] : replies;
+  }, [root, replies]);
 
-  async function approve(commentIdToApprove: string) {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-    setActingId(commentIdToApprove);
-    try {
-      const res = await fetch(`${API_BASE}/posts/comments/${encodeURIComponent(commentIdToApprove)}/approve`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) return;
-      setReplies((prev) => prev.filter((r) => r.id !== commentIdToApprove));
-    } catch {
-      // ignore
-    } finally {
-      setActingId(null);
-    }
-  }
-
-  async function remove(commentIdToRemove: string) {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-    setActingId(commentIdToRemove);
-    try {
-      const res = await fetch(`${API_BASE}/posts/comments/${encodeURIComponent(commentIdToRemove)}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) return;
-      setReplies((prev) => prev.filter((r) => r.id !== commentIdToRemove));
-    } catch {
-      // ignore
-    } finally {
-      setActingId(null);
-    }
-  }
-
-  async function saveEdit(commentId: string) {
-    const token = getToken();
-    if (!token || !editContent.trim()) return;
-    setActingId(commentId);
-    try {
-      const res = await fetch(`${getApiBase()}/posts/comments/${commentId}`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ content: editContent.trim() }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Edit failed.');
-      if (commentId === root?.id) {
-        setRoot((r) => (r ? { ...r, content: editContent.trim() } : null));
-      } else {
-        setReplies((prev) => prev.map((r) => (r.id === commentId ? { ...r, content: editContent.trim() } : r)));
-      }
-      setEditingId(null);
-      setEditContent('');
-    } catch (e: any) {
-      setError(e.message || 'Failed to edit comment.');
-    } finally {
-      setActingId(null);
-    }
-  }
-
-  async function blockAuthor(accountId: string) {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-    setActingId(accountId);
-    try {
-      await fetch(`${API_BASE}/privacy/block`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ accountId }),
-      });
-    } catch {
-      // ignore
-    } finally {
-      setActingId(null);
-    }
-  }
+  const totalCount = displayComments.length;
 
   return (
-    <SettingsPageShell title="Comments" backTo="/">
-      <div className="px-4 py-4 space-y-3">
-        {loading && (
-          <p className="text-[#a8a8a8] text-sm">Loading thread…</p>
+    <ThemedView className={`min-h-screen flex flex-col ${UI.bg}`}>
+      <MobileShell>
+        <header className={`${UI.header} flex-shrink-0`}>
+          <button type="button" onClick={() => navigate(-1)} className={UI.headerBack} aria-label="Back">
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+          <span className={UI.headerTitle}>
+            Comments ({totalCount} Comment{totalCount === 1 ? '' : 's'})
+          </span>
+          <div className="w-11" />
+        </header>
+
+        <div className="flex-1 min-h-0 overflow-auto px-4">
+          {loading && <p className="text-[#8e8e8e] text-sm py-8 text-center">Loading…</p>}
+          {error && !loading && !root && <p className="text-red-400 text-sm py-6 text-center">{error}</p>}
+
+          {!loading &&
+            displayComments.map((r) => (
+              <SocialCommentRow
+                key={r.id}
+                commentId={r.id}
+                content={r.content}
+                createdAt={r.createdAt}
+                account={{
+                  id: r.account.id,
+                  username: r.account.username,
+                  displayName: r.account.displayName,
+                  profilePhoto: r.account.profilePhoto ?? r.account.avatarUrl,
+                }}
+                usePseudoCounts
+                onReply={() => replyInputRef.current?.focus()}
+              />
+            ))}
+        </div>
+
+        {error && root && (
+          <p className="shrink-0 px-4 py-2 text-red-400 text-xs border-t border-[#262626] bg-black">{error}</p>
         )}
-        {error && !loading && (
-          <p className="text-red-400 text-sm">{error}</p>
-        )}
-        {!loading && !error && root && (
-          <div className="rounded-xl bg-[#262626] border border-[#363636] px-3 py-2">
-            <p className="text-white font-semibold mb-1">
-              @{root.account.username}
-              {(root.account as { isSubscriber?: boolean }).isSubscriber && (
-                <span className="ml-1 inline-flex items-center px-1 rounded text-[10px] font-medium bg-amber-500/20 text-amber-400 border border-amber-500/40" title="Subscriber">★</span>
-              )}
-              {root.account.displayName ? ` · ${root.account.displayName}` : ''}
-            </p>
-            {editingId === root.id ? (
-              <div className="space-y-2">
-                <textarea
-                  value={editContent}
-                  onChange={(e) => setEditContent(e.target.value)}
-                  className="w-full px-2 py-1.5 rounded-lg bg-[#363636] border border-[#404040] text-white text-sm min-h-[60px]"
-                  rows={2}
-                  autoFocus
-                />
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => saveEdit(root.id)} disabled={actingId === root.id} className="px-2 py-1 rounded-lg bg-[#0095f6] text-white text-xs font-medium disabled:opacity-50">Save</button>
-                  <button type="button" onClick={() => { setEditingId(null); setEditContent(''); }} className="px-2 py-1 rounded-lg bg-[#363636] text-[#a8a8a8] text-xs">Cancel</button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <p className="text-[#a8a8a8] text-sm">{root.content}</p>
-                {myId === root.account.id && canEdit(root.createdAt) && (
-                  <button type="button" onClick={() => { setEditingId(root.id); setEditContent(root.content); }} className="mt-1 text-[11px] text-[#0095f6]">
-                    Edit {editMinutesLeft(root.createdAt) > 0 ? `(${editMinutesLeft(root.createdAt)} min left)` : '(within 15 min)'}
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        )}
-        {!loading && !error && root && (
-          <form onSubmit={sendReply} className="flex gap-2 mt-2">
+
+        {currentAccount && root && postId && (
+          <form
+            onSubmit={sendReply}
+            className="shrink-0 px-4 py-3 border-t border-[#262626] bg-black flex items-center gap-2 pb-[max(12px,env(safe-area-inset-bottom))]"
+          >
             <input
+              ref={replyInputRef}
               type="text"
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
-              placeholder="Reply to this comment…"
-              className="flex-1 px-3 py-2 rounded-lg bg-[#262626] border border-[#363636] text-white placeholder:text-[#737373] text-sm"
+              placeholder="Add a comment…"
+              className="flex-1 min-h-[44px] px-4 rounded-full bg-[#262626] border border-[#363636] text-[15px] text-white placeholder:text-[#8e8e8e] outline-none focus:ring-1 focus:ring-moxe-primary"
             />
             <button
               type="submit"
               disabled={saving || !replyText.trim()}
-              className="px-3 py-2 rounded-lg bg-[#0095f6] text-white text-sm font-semibold disabled:opacity-50"
+              className="text-moxe-primary font-semibold text-[15px] px-2 py-1 disabled:opacity-40"
             >
-              {saving ? 'Replying…' : 'Reply'}
+              {saving ? '…' : 'Post'}
             </button>
           </form>
         )}
-        {!loading && !error && replies.length > 0 && (
-          <div className="space-y-2 mt-4">
-            <div className="flex items-center justify-between mb-1 text-[11px] text-[#a8a8a8]">
-              <div className="flex gap-2">
-                <select
-                  value={filter}
-                  onChange={(e) => setFilter(e.target.value as 'ALL' | 'AUTHOR')}
-                  className="bg-[#262626] border border-[#363636] rounded-lg px-2 py-1 text-white text-xs"
-                >
-                  <option value="ALL">All replies</option>
-                  <option value="AUTHOR">From post author</option>
-                </select>
-                <select
-                  value={sort}
-                  onChange={(e) => setSort(e.target.value as 'NEWEST' | 'OLDEST')}
-                  className="bg-[#262626] border border-[#363636] rounded-lg px-2 py-1 text-white text-xs"
-                >
-                  <option value="NEWEST">Newest</option>
-                  <option value="OLDEST">Oldest</option>
-                </select>
-              </div>
-              <button
-                type="button"
-                onClick={() => window.history.back()}
-                className="text-[#0095f6] text-xs font-medium"
-              >
-                Jump to post
-              </button>
-            </div>
-            {filteredReplies.map((r) => (
-              <div
-                key={r.id}
-                className="rounded-xl bg-[#262626] border border-[#363636] px-3 py-2 ml-4 space-y-1"
-              >
-                <p className="text-white font-semibold mb-0.5 text-[13px]">
-                  @{r.account.username}
-                  {(r.account as { isSubscriber?: boolean }).isSubscriber && (
-                    <span className="ml-1 inline-flex items-center px-1 rounded text-[10px] font-medium bg-amber-500/20 text-amber-400 border border-amber-500/40" title="Subscriber">★</span>
-                  )}
-                  {r.account.displayName ? ` · ${r.account.displayName}` : ''}
-                </p>
-                {editingId === r.id ? (
-                  <div className="space-y-2">
-                    <textarea
-                      value={editContent}
-                      onChange={(e) => setEditContent(e.target.value)}
-                      className="w-full px-2 py-1.5 rounded-lg bg-[#363636] border border-[#404040] text-white text-[13px] min-h-[50px]"
-                      rows={2}
-                      autoFocus
-                    />
-                    <div className="flex gap-2">
-                      <button type="button" onClick={() => saveEdit(r.id)} disabled={actingId === r.id} className="px-2 py-0.5 rounded-lg bg-[#0095f6] text-white text-[11px] font-medium disabled:opacity-50">Save</button>
-                      <button type="button" onClick={() => { setEditingId(null); setEditContent(''); }} className="px-2 py-0.5 rounded-lg bg-[#363636] text-[#a8a8a8] text-[11px]">Cancel</button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <p className="text-[#a8a8a8] text-[13px]">{r.content}</p>
-                    <div className="flex gap-2 mt-1 text-[11px] flex-wrap items-center">
-                      {myId === r.account.id && canEdit(r.createdAt) && (
-                        <button type="button" onClick={() => { setEditingId(r.id); setEditContent(r.content); }} className="px-2 py-0.5 rounded-lg bg-[#363636] text-[#0095f6] border border-[#363636] disabled:opacity-50">
-                          Edit {editMinutesLeft(r.createdAt) > 0 ? `(${editMinutesLeft(r.createdAt)}m)` : ''}
-                        </button>
-                      )}
-                      <button type="button" onClick={() => approve(r.id)} className="px-2 py-0.5 rounded-lg bg-[#363636] text-[#a8a8a8] border border-[#363636] disabled:opacity-50" disabled={actingId === r.id}>Approve</button>
-                      <button type="button" onClick={() => remove(r.id)} className="px-2 py-0.5 rounded-lg bg-[#363636] text-[#a8a8a8] border border-[#363636] disabled:opacity-50" disabled={actingId === r.id}>Delete</button>
-                      <button type="button" onClick={() => blockAuthor(r.account.id)} className="px-2 py-0.5 rounded-lg bg-[#363636] text-red-400 border border-[#363636] disabled:opacity-50" disabled={actingId === r.account.id}>Block</button>
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
+
+        {currentAccount && root && !postId && (
+          <p className="shrink-0 px-4 py-3 text-sm text-red-400 border-t border-[#262626]">Missing post context.</p>
+        )}
+
+        {!currentAccount && (
+          <div className="shrink-0 px-4 py-3 border-t border-[#262626] bg-black pb-[max(12px,env(safe-area-inset-bottom))]">
+            <Link to="/login" className="text-moxe-primary text-sm font-semibold">
+              Log in to comment
+            </Link>
           </div>
         )}
-      </div>
-    </SettingsPageShell>
+      </MobileShell>
+    </ThemedView>
   );
 }
-

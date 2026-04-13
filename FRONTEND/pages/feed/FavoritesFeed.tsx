@@ -3,15 +3,18 @@
  * E2E: GET /posts/feed/favorites, same feed UI as Home.
  */
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { ThemedView } from '../../components/ui/Themed';
 import { FeedPost } from '../../components/ui/FeedPost';
 import { getApiBase, getToken } from '../../services/api';
+import { feedAuthorFromApiItem } from '../../utils/feedAuthorFromApiItem';
 import { MobileShell } from '../../components/layout/MobileShell';
 import { ChevronLeft, Star } from 'lucide-react';
+import { fetchClientSettings } from '../../services/clientSettings';
 
 type FeedItem = {
   id: string;
+  authorAccountId?: string;
   author: { username: string; displayName?: string | null; avatarUri?: string | null };
   mediaUrls: string[];
   caption?: string | null;
@@ -24,6 +27,8 @@ type FeedItem = {
   screenshotProtection?: boolean;
   adCampaignId?: string;
   sponsorAccountId?: string;
+  allowComments?: boolean;
+  hideLikeCount?: boolean;
 };
 
 export default function FavoritesFeed() {
@@ -31,6 +36,20 @@ export default function FavoritesFeed() {
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hideEngagementCounts, setHideEngagementCounts] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchClientSettings()
+      .then((settings) => {
+        if (cancelled) return;
+        setHideEngagementCounts(!!settings.socialCounts?.hideLikeAndShareCounts);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,12 +79,14 @@ export default function FavoritesFeed() {
                 Array.isArray(p.media) && p.media.length
                   ? p.media.map((m: any) => m.url || m.uri || m.mediaUrl).filter(Boolean)
                   : [p.mediaUrl ?? p.media_uri ?? ''].filter(Boolean);
+              const authorFields = feedAuthorFromApiItem(p as Record<string, unknown>);
               return {
                 id: p.id,
+                authorAccountId: p.accountId ?? (p.author as { id?: string } | undefined)?.id,
                 author: {
-                  username: p.author?.username ?? 'unknown',
-                  displayName: p.author?.displayName ?? null,
-                  avatarUri: p.author?.avatarUrl ?? p.author?.avatarUri ?? null,
+                  username: authorFields.username,
+                  displayName: authorFields.displayName,
+                  avatarUri: authorFields.avatarUri,
                 },
                 mediaUrls: mediaArray.length ? mediaArray : [''],
                 caption: p.caption ?? null,
@@ -73,8 +94,10 @@ export default function FavoritesFeed() {
                 likeCount: p.likeCount ?? p.likesCount ?? 0,
                 commentCount: p.commentCount ?? p.commentsCount ?? 0,
                 shareCount: p.shareCount ?? p.sharesCount ?? 0,
-                isLiked: !!p.viewerHasLiked,
-                isSaved: !!p.viewerHasSaved,
+                isLiked: !!(p.isLiked ?? p.viewerHasLiked),
+                isSaved: !!(p.isSaved ?? p.viewerHasSaved),
+                allowComments: p.allowComments !== false,
+                hideLikeCount: !!p.hideLikeCount,
                 screenshotProtection: !!p.screenshotProtection,
                 adCampaignId: p.adCampaignId ?? undefined,
                 sponsorAccountId: p.accountId ?? undefined,
@@ -100,7 +123,7 @@ export default function FavoritesFeed() {
   return (
     <ThemedView className="min-h-screen flex flex-col bg-black">
       <MobileShell>
-        <header className="flex items-center h-12 px-3 border-b border-white/10 bg-black/90 safe-area-pt">
+        <header className="flex items-center h-12 px-3 border-b border-[#262626] bg-black safe-area-pt">
           <button
             type="button"
             onClick={() => navigate(-1)}
@@ -132,24 +155,27 @@ export default function FavoritesFeed() {
           )}
           {!loading &&
             items.map((p) => (
-              <article key={p.id} className="pt-0 pb-4">
-                <FeedPost
-                  id={p.id}
-                  author={{ ...p.author, displayName: p.author?.displayName ?? undefined }}
-                  location={p.locationName ?? undefined}
-                  mediaUris={p.mediaUrls}
-                  caption={p.caption ?? undefined}
-                  likeCount={p.likeCount}
-                  commentCount={p.commentCount}
-                  shareCount={p.shareCount}
-                  isLiked={p.isLiked}
-                  isSaved={p.isSaved}
-                  screenshotProtection={p.screenshotProtection}
-                  adCampaignId={p.adCampaignId}
-                  sponsorAccountId={p.sponsorAccountId}
-                  variant="dark"
-                />
-              </article>
+              <FeedPost
+                key={p.id}
+                id={p.id}
+                authorAccountId={p.authorAccountId}
+                onPostDeleted={(postId) => setItems((prev) => prev.filter((x) => x.id !== postId))}
+                author={{ ...p.author, displayName: p.author?.displayName ?? undefined }}
+                location={p.locationName ?? undefined}
+                mediaUris={p.mediaUrls}
+                caption={p.caption ?? undefined}
+                likeCount={p.likeCount}
+                commentCount={p.commentCount}
+                shareCount={p.shareCount}
+              hideEngagementCounts={hideEngagementCounts}
+                isLiked={p.isLiked}
+                isSaved={p.isSaved}
+                screenshotProtection={p.screenshotProtection}
+                adCampaignId={p.adCampaignId}
+                sponsorAccountId={p.sponsorAccountId}
+                allowComments={p.allowComments !== false}
+                hideLikeCountFromAuthor={!!p.hideLikeCount}
+              />
             ))}
         </div>
       </MobileShell>

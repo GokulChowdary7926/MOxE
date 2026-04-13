@@ -9,10 +9,25 @@ const mockNotifications = [
 
 jest.mock('../../server', () => ({
   prisma: {
+    account: {
+      findUnique: jest.fn().mockResolvedValue({
+        quietModeEnabled: false,
+        quietModeStart: null,
+        quietModeEnd: null,
+        quietModeDays: null,
+      }),
+    },
     notification: {
       findMany: jest.fn().mockResolvedValue([{ id: 'n1', recipientId: 'acc1', type: 'LIKE', content: 'liked', read: false, createdAt: new Date(), sender: null }]),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
-      create: jest.fn().mockResolvedValue({ id: 'n1' }),
+      create: jest.fn().mockResolvedValue({
+        id: 'n1',
+        type: 'LIKE',
+        content: 'liked',
+        read: false,
+        createdAt: new Date(),
+        sender: null,
+      }),
     },
   },
 }));

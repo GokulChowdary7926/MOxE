@@ -46,7 +46,14 @@ export default function TimeManagementPage() {
           </div>
 
           <h2 className="text-white font-semibold mt-8 mb-3">Manage your time</h2>
-          <div className="rounded-xl overflow-hidden border border-[#262626]">
+          <div className="rounded-xl overflow-hidden border border-[#262626] mb-4">
+            <Link
+              to="/settings/your-activity/time-spent"
+              className="flex items-center justify-between px-4 py-3 bg-[#262626] active:bg-white/5 border-b border-[#363636]"
+            >
+              <span className="text-white font-medium">Time spent</span>
+              <ChevronRight className="w-5 h-5 text-[#737373]" />
+            </Link>
             <Link
               to="/settings/your-activity/daily-limit"
               className="flex items-center justify-between px-4 py-3 bg-[#262626] active:bg-white/5"

@@ -19,12 +19,25 @@ export async function authenticate(req: Request & { user?: AuthPayload }, res: R
     const token = authHeader.slice(7);
     const decoded = jwt.verify(token, JWT_SECRET) as AuthPayload;
     let accountId = decoded.accountId;
-    if (!accountId && decoded.userId) {
-      const account = await prisma.account.findFirst({
-        where: { userId: decoded.userId },
+    if (accountId) {
+      const exists = await prisma.account.findUnique({
+        where: { id: accountId },
         select: { id: true },
       });
-      accountId = account?.id ?? decoded.userId;
+      if (!exists) {
+        throw new AppError('Unauthorized', 401);
+      }
+    }
+    if (!accountId && decoded.userId) {
+      const account = await prisma.account.findFirst({
+        where: { userId: decoded.userId, isActive: true },
+        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (!account) {
+        throw new AppError('Unauthorized', 401);
+      }
+      accountId = account.id;
     }
     req.user = { ...decoded, accountId };
     // Update lastActiveAt for activity status (fire-and-forget)
@@ -45,12 +58,21 @@ export async function optionalAuthenticate(req: Request & { user?: AuthPayload }
     const token = authHeader.slice(7);
     const decoded = jwt.verify(token, JWT_SECRET) as AuthPayload;
     let accountId = decoded.accountId;
-    if (!accountId && decoded.userId) {
-      const account = await prisma.account.findFirst({
-        where: { userId: decoded.userId },
+    if (accountId) {
+      const exists = await prisma.account.findUnique({
+        where: { id: accountId },
         select: { id: true },
       });
-      accountId = account?.id ?? decoded.userId;
+      if (!exists) return next();
+    }
+    if (!accountId && decoded.userId) {
+      const account = await prisma.account.findFirst({
+        where: { userId: decoded.userId, isActive: true },
+        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (!account) return next();
+      accountId = account.id;
     }
     req.user = { ...decoded, accountId };
     next();

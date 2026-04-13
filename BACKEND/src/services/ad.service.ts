@@ -12,6 +12,12 @@ export interface CreateCampaignInput {
   totalBudget?: number | null;
   bidCpm?: number | null;
   currency?: string;
+  destinationUrl?: string | null;
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
+  utmTerm?: string | null;
+  utmContent?: string | null;
   startDate?: Date | null;
   endDate?: Date | null;
   postId?: string | null;
@@ -25,11 +31,38 @@ export interface UpdateCampaignInput {
   totalBudget?: number | null;
   bidCpm?: number | null;
   currency?: string;
+  destinationUrl?: string | null;
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
+  utmTerm?: string | null;
+  utmContent?: string | null;
   startDate?: Date | null;
   endDate?: Date | null;
 }
 
 export class AdService {
+  private normalizeOptional(value?: string | null, max = 255): string | null {
+    if (value == null) return null;
+    const trimmed = String(value).trim();
+    if (!trimmed) return null;
+    return trimmed.slice(0, max);
+  }
+
+  private sanitizeDestinationUrl(value?: string | null): string | null {
+    const normalized = this.normalizeOptional(value, 1000);
+    if (!normalized) return null;
+    try {
+      const u = new URL(normalized);
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+        throw new AppError('destinationUrl must use http or https', 400);
+      }
+      return u.toString();
+    } catch {
+      throw new AppError('Invalid destinationUrl', 400);
+    }
+  }
+
   private async ensureCanAdvertise(accountId: string) {
     const account = await prisma.account.findUnique({
       where: { id: accountId },
@@ -68,6 +101,12 @@ export class AdService {
         totalBudget: input.totalBudget ?? null,
         bidCpm: input.bidCpm ?? null,
         currency: input.currency?.toUpperCase() || 'USD',
+        destinationUrl: this.sanitizeDestinationUrl(input.destinationUrl),
+        utmSource: this.normalizeOptional(input.utmSource, 100),
+        utmMedium: this.normalizeOptional(input.utmMedium, 100),
+        utmCampaign: this.normalizeOptional(input.utmCampaign, 150),
+        utmTerm: this.normalizeOptional(input.utmTerm, 150),
+        utmContent: this.normalizeOptional(input.utmContent, 150),
         startDate,
         endDate: input.endDate ?? null,
         postId: input.postId ?? null,
@@ -235,6 +274,12 @@ export class AdService {
         ...(input.totalBudget !== undefined && { totalBudget: input.totalBudget }),
         ...(input.bidCpm !== undefined && { bidCpm: input.bidCpm }),
         ...(input.currency != null && { currency: input.currency.toUpperCase() }),
+        ...(input.destinationUrl !== undefined && { destinationUrl: this.sanitizeDestinationUrl(input.destinationUrl) }),
+        ...(input.utmSource !== undefined && { utmSource: this.normalizeOptional(input.utmSource, 100) }),
+        ...(input.utmMedium !== undefined && { utmMedium: this.normalizeOptional(input.utmMedium, 100) }),
+        ...(input.utmCampaign !== undefined && { utmCampaign: this.normalizeOptional(input.utmCampaign, 150) }),
+        ...(input.utmTerm !== undefined && { utmTerm: this.normalizeOptional(input.utmTerm, 150) }),
+        ...(input.utmContent !== undefined && { utmContent: this.normalizeOptional(input.utmContent, 150) }),
         ...(input.startDate !== undefined && { startDate: input.startDate }),
         ...(input.endDate !== undefined && { endDate: input.endDate }),
       },
@@ -246,7 +291,19 @@ export class AdService {
    * Create a simple BOOST campaign around an existing post.
    * Used by "Boost post" / "Promote" UI for Business & Creator accounts.
    */
-  async createBoostCampaign(accountId: string, input: { postId: string; dailyBudget?: number | null; totalBudget?: number | null; durationDays?: number; currency?: string }) {
+  async createBoostCampaign(accountId: string, input: {
+    postId: string;
+    dailyBudget?: number | null;
+    totalBudget?: number | null;
+    durationDays?: number;
+    currency?: string;
+    destinationUrl?: string | null;
+    utmSource?: string | null;
+    utmMedium?: string | null;
+    utmCampaign?: string | null;
+    utmTerm?: string | null;
+    utmContent?: string | null;
+  }) {
     await this.ensureCanAdvertise(accountId);
     if (!input.postId) throw new AppError('postId is required', 400);
     const post = await prisma.post.findFirst({
@@ -272,6 +329,12 @@ export class AdService {
         dailyBudget: input.dailyBudget ?? null,
         totalBudget: input.totalBudget ?? null,
         currency: input.currency?.toUpperCase() || 'USD',
+        destinationUrl: this.sanitizeDestinationUrl(input.destinationUrl),
+        utmSource: this.normalizeOptional(input.utmSource, 100),
+        utmMedium: this.normalizeOptional(input.utmMedium, 100),
+        utmCampaign: this.normalizeOptional(input.utmCampaign, 150),
+        utmTerm: this.normalizeOptional(input.utmTerm, 150),
+        utmContent: this.normalizeOptional(input.utmContent, 150),
         startDate: now,
         endDate,
       },

@@ -84,4 +84,37 @@ router.patch('/hangout/end', authenticate, async (req, res, next) => {
   }
 });
 
+router.get('/hangout/:sessionId/status', authenticate, async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const result = await safetyService.getHangoutStatus(accountId, req.params.sessionId);
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post('/hangout/:sessionId/escalate-overdue', authenticate, async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const result = await safetyService.escalateOverdueHangout(accountId, req.params.sessionId);
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post('/hangout/escalate-overdue/all', authenticate, async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const result = await safetyService.escalateAllOverdueHangouts(accountId);
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
 export default router;

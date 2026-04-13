@@ -53,7 +53,7 @@ export default function ReelAudiencePage() {
             </button>
           </div>
           <p className="text-[#737373] text-xs px-4 py-2">
-            This doesn&apos;t affect your account privacy, which is private, or change any sharing preferences for Facebook.
+            This doesn&apos;t affect your account privacy, or change sharing preferences in other apps you&apos;ve linked.
           </p>
 
           <p className="text-white font-semibold text-sm px-4 pt-4 pb-2">Where your reel can be seen</p>

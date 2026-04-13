@@ -35,12 +35,17 @@ export default function WatchHistory() {
       setLoading(true);
       setError(null);
       try {
-        // Backend may expose GET /activity/watch-history later; until then 404 → empty list
         const res = await fetchApi('activity/watch-history');
         const data = await res.json().catch(() => ({}));
         if (cancelled) return;
-        if (res.status === 404 || !res.ok) {
+        if (res.status === 404) {
           setItems([]);
+          return;
+        }
+        if (!res.ok) {
+          setError(typeof (data as { error?: string }).error === 'string'
+            ? (data as { error: string }).error
+            : 'Failed to load watch history.');
           return;
         }
         const list = (data.items ?? data.list ?? data) as any[];

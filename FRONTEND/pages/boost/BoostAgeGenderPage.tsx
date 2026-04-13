@@ -12,8 +12,9 @@ export default function BoostAgeGenderPage() {
     <SettingsPageShell title="Age and gender" backTo="/boost/create-audience" right={<button type="button" className="text-[#0095f6] font-medium text-sm">Done</button>}>
       <div className="px-4 py-4">
         <div className="text-center mb-6">
-          <p className="text-2xl font-bold text-white">N/A</p>
+          <p className="text-2xl font-bold text-white">—</p>
           <p className="text-[#a8a8a8] text-sm flex items-center justify-center gap-1">Estimated audience size <span className="text-[#737373]">ⓘ</span></p>
+          <p className="text-[#737373] text-xs mt-1">Shown when forecasting is available.</p>
         </div>
 
         <p className="text-white font-semibold mb-2">Age</p>

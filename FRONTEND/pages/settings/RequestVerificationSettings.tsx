@@ -22,7 +22,7 @@ export default function RequestVerificationSettings() {
         <p className="text-[#a8a8a8] text-sm mb-2">
           This verification form is for accounts of notable individuals and prominent brands. If you don&apos;t fit into one of these categories, you can still subscribe to get a verified badge and more.
         </p>
-        <Link to="/settings/subscriptions" className="text-[#0095f6] text-sm font-medium">Subscribe to Meta Verified</Link>
+        <Link to="/settings/subscriptions" className="text-[#0095f6] text-sm font-medium">Subscribe to MOxE Verified</Link>
 
         <h2 className="text-white font-semibold mt-6 mb-2">Apply for MOxE verification</h2>
         <p className="text-[#a8a8a8] text-sm mb-4">Verified accounts have blue ticks next to their names to show that MOxE has confirmed their authenticity.</p>

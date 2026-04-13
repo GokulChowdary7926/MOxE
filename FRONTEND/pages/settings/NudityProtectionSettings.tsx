@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { SettingsPageShell, SettingsToggleRow } from '../../components/layout/SettingsPageShell';
 
 export default function NudityProtectionSettings() {
@@ -20,7 +21,7 @@ export default function NudityProtectionSettings() {
           </button>
         </div>
         <p className="text-[#a8a8a8] text-sm">Technology on your device blurs photos in chats if nudity is detected.</p>
-        <a href="#" className="text-[#0095f6] text-sm font-medium mt-2 inline-block">Learn more</a>
+        <Link to="/settings/info/help-nudity-protection" className="text-[#0095f6] text-sm font-medium mt-2 inline-block">Learn more</Link>
       </div>
     </SettingsPageShell>
   );

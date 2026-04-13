@@ -3,9 +3,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Phone } from 'lucide-react';
 import { ThemedView } from '../../components/ui/Themed';
 import { MobileShell } from '../../components/layout/MobileShell';
+import { useCurrentAccount } from '../../hooks/useAccountCapabilities';
 
 export default function ContactInformationPage() {
   const navigate = useNavigate();
+  const account = useCurrentAccount() as any;
+  const contactInfo = account?.user?.phoneNumber ?? account?.contactPhone ?? 'Not added';
 
   return (
     <ThemedView className="min-h-screen flex flex-col bg-black">
@@ -26,7 +29,7 @@ export default function ContactInformationPage() {
           <div className="border-t border-[#262626]">
             <Link to="/settings/account-centre/contact-information/mobile" className="flex items-center gap-3 px-4 py-3 border-b border-[#262626] text-white active:bg-white/5">
               <Phone className="w-5 h-5 text-[#a8a8a8] flex-shrink-0" />
-              <span className="flex-1 font-medium">+919488651917</span>
+              <span className="flex-1 font-medium">{contactInfo}</span>
               <ChevronRight className="w-5 h-5 text-[#737373]" />
             </Link>
           </div>

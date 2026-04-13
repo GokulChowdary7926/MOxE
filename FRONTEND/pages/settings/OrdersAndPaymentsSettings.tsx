@@ -17,7 +17,7 @@ export default function OrdersAndPaymentsSettings() {
   return (
     <SettingsPageShell title="Orders and payments" backTo="/settings/account-centre">
       <div className="p-4">
-        <Link to="/settings/orders-payments/meta-pay" className="block p-4 rounded-xl bg-[#262626] mb-6">
+        <Link to="/settings/orders-payments/moxe-pay" className="block p-4 rounded-xl bg-[#262626] mb-6">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-2xl">∞</span>
             <span className="text-white font-semibold">MOxE Pay</span>

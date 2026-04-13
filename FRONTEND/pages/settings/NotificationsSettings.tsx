@@ -10,7 +10,7 @@ const rows: { to: string; label: string }[] = [
   { to: '/settings/notifications/messages', label: 'Messages' },
   { to: '/settings/notifications/calls', label: 'Calls' },
   { to: '/settings/notifications/email', label: 'Email notifications' },
-  { to: '/settings/notifications/from-instagram', label: 'From MOxE' },
+  { to: '/settings/notifications/from-moxe', label: 'From MOxE' },
   { to: '/settings/notifications/live-reels', label: 'Live and reels' },
   { to: '/settings/notifications/birthdays', label: 'Birthdays' },
   { to: '/settings/notifications/fundraisers', label: 'Fundraisers' },

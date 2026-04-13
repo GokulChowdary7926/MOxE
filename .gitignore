@@ -33,6 +33,10 @@ BACKEND/prisma/migrations/**/migration_lock.toml
 # Local uploads (do not commit user media)
 BACKEND/uploads/
 
+# Playwright (FRONTEND UI E2E)
+FRONTEND/test-results/
+FRONTEND/playwright-report/
+
 # Optional: uncomment if you don't want to track these
 # FRONTEND/dist/
 # BACKEND/dist/

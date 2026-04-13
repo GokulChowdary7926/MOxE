@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { getApiBase } from '../../services/api';
+import { JobPageContent } from '../../components/job/JobPageContent';
+import { JobBibleReferenceSection, JobToolBibleShell } from '../../components/job/bible';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type CodeRepo = {
   id: string;
@@ -154,23 +157,10 @@ export default function Source() {
   }, [selectedBranch]);
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6">
-      <div className="w-full lg:w-72 space-y-3">
-        <div>
-          <h2 className="text-2xl font-semibold text-slate-800 dark:text-white mb-1">
-            MOxE SOURCE
-          </h2>
-          <p className="text-slate-600 dark:text-slate-400 text-sm">
-            Explore your repositories, branches, and commit history for your Job account.
-          </p>
-        </div>
-
-        {error && (
-          <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-200 text-xs">
-            {error}
-          </div>
-        )}
-
+    <JobPageContent variant="track" error={error}>
+      <JobToolBibleShell toolTitle="MOxE SOURCE" toolIconMaterial="hub">
+    <div className="flex flex-col gap-4">
+      <div className="w-full space-y-3">
         <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 max-h-[420px] overflow-auto">
           <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200">
             Repositories
@@ -188,7 +178,7 @@ export default function Source() {
                   onClick={() => setSelectedRepo(r)}
                   className={`w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 ${
                     isActive
-                      ? 'bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-200'
+                      ? 'bg-[#DEEBFF] dark:bg-[#1D2125] text-[#0052CC] dark:text-[#2684FF]'
                       : 'text-slate-700 dark:text-slate-200'
                   }`}
                 >
@@ -248,7 +238,7 @@ export default function Source() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">
@@ -275,7 +265,7 @@ export default function Source() {
                         onClick={() => selectedRepo && loadCommitDetail(selectedRepo, c.id)}
                         className={`w-full text-left px-3 py-2 border-b border-slate-100 dark:border-slate-800 last:border-b-0 hover:bg-slate-100 dark:hover:bg-slate-800 ${
                           isActive
-                            ? 'bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-200'
+                            ? 'bg-[#DEEBFF] dark:bg-[#1D2125] text-[#0052CC] dark:text-[#2684FF]'
                             : 'text-slate-700 dark:text-slate-200'
                         }`}
                       >
@@ -376,8 +366,12 @@ export default function Source() {
             Select a repository on the left to inspect its branches and commit history.
           </div>
         )}
+
+        <JobBibleReferenceSection toolKey="source" />
       </div>
     </div>
+      </JobToolBibleShell>
+    </JobPageContent>
   );
 }
 

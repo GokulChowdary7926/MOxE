@@ -36,11 +36,22 @@ export class YourAlgorithmService {
     const embedding = await prisma.userEmbedding
       .findUnique({ where: { userId } })
       .catch(() => null);
-    const topics = Array.isArray(embedding?.topics) ? embedding?.topics : [];
-    const updated = topics.map((t: any) =>
-      t.topic === topicToUpRank ? { ...t, score: Math.min((t.score || 1) * 1.5, 5) } : t,
-    );
+    const topics = Array.isArray(embedding?.topics) ? [...embedding.topics] : [];
+    let found = false;
+    const updated = topics.map((t: any) => {
+      if (t.topic === topicToUpRank) {
+        found = true;
+        return { ...t, score: Math.min((t.score || 1) * 1.5, 5) };
+      }
+      return t;
+    });
+    if (!found) updated.push({ topic: topicToUpRank, score: 1.2 });
     await this.updateUserTopics(userId, updated);
+  }
+
+  /** Clear learned topic weights (explore/feed personalization baseline). */
+  async resetSuggestedTopics(userId: string): Promise<void> {
+    await this.updateUserTopics(userId, []);
   }
 }
 

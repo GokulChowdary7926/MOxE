@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { getApiBase } from '../../services/api';
 import { JobPageContent } from '../../components/job/JobPageContent';
+import { JobBibleReferenceSection, JobToolBibleShell } from '../../components/job/bible';
+import { JOB_MOBILE } from '../../components/job/jobMobileStyles';
 
 const API_BASE = getApiBase();
 
@@ -276,137 +278,115 @@ export default function Compass() {
 
   if (loading && services.length === 0) {
     return (
-      <JobPageContent title="MOxE Compass" description="Register internal services, track ownership, and monitor health.">
-        <div className="flex items-center justify-center py-12">
-          <div className="h-16 w-full max-w-xs bg-[#F4F5F7] animate-pulse rounded" />
-        </div>
+      <JobPageContent variant="track">
+        <JobToolBibleShell toolTitle="MOxE COMPASS" toolIconMaterial="explore">
+          <div className="flex items-center justify-center py-12">
+            <div className="h-16 w-full max-w-xs animate-pulse rounded-xl bg-surface-container-high" />
+          </div>
+        </JobToolBibleShell>
       </JobPageContent>
     );
   }
 
   return (
-    <JobPageContent
-      title="MOxE Compass"
-      description="Register internal services, track ownership, and monitor health across your Job account."
-      error={error}
-    >
+    <JobPageContent variant="track" error={error}>
+      <JobToolBibleShell toolTitle="MOxE COMPASS" toolIconMaterial="explore">
     <div>
       {!selectedService && (
         <>
-          <form
-            onSubmit={handleCreateService}
-            className="mb-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 space-y-3"
-          >
+          <form onSubmit={handleCreateService} className={`mb-6 ${JOB_MOBILE.formPanel}`}>
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                Register new service
-              </h3>
+              <h3 className="text-sm font-semibold text-on-surface">Register new service</h3>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                  Name
-                </label>
+                <label className={JOB_MOBILE.formLabel}>Name</label>
                 <input
                   type="text"
                   value={serviceForm.name}
                   onChange={(e) => setServiceForm((prev) => ({ ...prev, name: e.target.value }))}
                   required
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
+                  className={JOB_MOBILE.formInput}
                   placeholder="Authentication Service"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                  Environment
-                </label>
+                <label className={JOB_MOBILE.formLabel}>Environment</label>
                 <input
                   type="text"
                   value={serviceForm.environment}
                   onChange={(e) =>
                     setServiceForm((prev) => ({ ...prev, environment: e.target.value }))
                   }
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
+                  className={JOB_MOBILE.formInput}
                   placeholder="production, staging…"
                 />
               </div>
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                  Description
-                </label>
+              <div>
+                <label className={JOB_MOBILE.formLabel}>Description</label>
                 <textarea
                   value={serviceForm.descriptionMd}
                   onChange={(e) =>
                     setServiceForm((prev) => ({ ...prev, descriptionMd: e.target.value }))
                   }
                   rows={3}
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
+                  className={JOB_MOBILE.formTextarea}
                   placeholder="Short markdown description of what this service does."
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                  API base URL
-                </label>
+                <label className={JOB_MOBILE.formLabel}>API base URL</label>
                 <input
                   type="url"
                   value={serviceForm.apiBaseUrl}
                   onChange={(e) =>
                     setServiceForm((prev) => ({ ...prev, apiBaseUrl: e.target.value }))
                   }
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
+                  className={JOB_MOBILE.formInput}
                   placeholder="https://api.example.com"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                  Health check URL
-                </label>
+                <label className={JOB_MOBILE.formLabel}>Health check URL</label>
                 <input
                   type="url"
                   value={serviceForm.healthCheckUrl}
                   onChange={(e) =>
                     setServiceForm((prev) => ({ ...prev, healthCheckUrl: e.target.value }))
                   }
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
+                  className={JOB_MOBILE.formInput}
                   placeholder="https://status.example.com/health"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                  Documentation link
-                </label>
+                <label className={JOB_MOBILE.formLabel}>Documentation link</label>
                 <input
                   type="url"
                   value={serviceForm.docLink}
                   onChange={(e) =>
                     setServiceForm((prev) => ({ ...prev, docLink: e.target.value }))
                   }
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
+                  className={JOB_MOBILE.formInput}
                   placeholder="https://docs.example.com/service"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                  Tags (comma-separated)
-                </label>
+                <label className={JOB_MOBILE.formLabel}>Tags (comma-separated)</label>
                 <input
                   type="text"
                   value={serviceForm.tags}
                   onChange={(e) => setServiceForm((prev) => ({ ...prev, tags: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
+                  className={JOB_MOBILE.formInput}
                   placeholder="api, auth, critical"
                 />
               </div>
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                  Notes
-                </label>
+              <div>
+                <label className={JOB_MOBILE.formLabel}>Notes</label>
                 <textarea
                   value={serviceForm.notes}
                   onChange={(e) => setServiceForm((prev) => ({ ...prev, notes: e.target.value }))}
                   rows={2}
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
+                  className={JOB_MOBILE.formTextarea}
                   placeholder="Any extra notes about this service, owners, SLAs, etc."
                 />
               </div>
@@ -415,7 +395,7 @@ export default function Compass() {
               <button
                 type="submit"
                 disabled={creatingService}
-                className="px-4 py-2 rounded-lg bg-indigo-600 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+                className="px-4 py-2.5 rounded-xl bg-[#0052CC] hover:bg-[#0747A6] text-sm font-medium text-white disabled:opacity-60 min-h-[44px]"
               >
                 {creatingService ? 'Registering…' : 'Register service'}
               </button>
@@ -423,7 +403,7 @@ export default function Compass() {
           </form>
 
           {services.length === 0 ? (
-            <p className="text-slate-500 text-sm">
+            <p className={JOB_MOBILE.formMuted}>
               No services registered yet. Use the form above to add your first service to Compass.
             </p>
           ) : (
@@ -433,14 +413,12 @@ export default function Compass() {
                   key={svc.id}
                   type="button"
                   onClick={() => openService(svc)}
-                  className="w-full text-left p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors"
+                  className={`w-full text-left p-4 ${JOB_MOBILE.trackCard} hover:border-primary/45 transition-colors`}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <div className="text-sm font-semibold text-slate-800 dark:text-slate-50">
-                        {svc.name}
-                      </div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      <div className="text-sm font-semibold text-on-surface">{svc.name}</div>
+                      <div className="text-xs text-on-surface-variant mt-1">
                         {svc.environment || 'production'} ·{' '}
                         {svc.apiBaseUrl ? svc.apiBaseUrl : 'No API URL configured'}
                       </div>
@@ -449,7 +427,7 @@ export default function Compass() {
                           {svc.tags.map((tag) => (
                             <span
                               key={tag}
-                              className="inline-flex px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-[10px] text-slate-600 dark:text-slate-300"
+                              className="inline-flex px-1.5 py-0.5 rounded-lg bg-surface-container-high text-[10px] text-on-surface-variant"
                             >
                               {tag}
                             </span>
@@ -462,19 +440,19 @@ export default function Compass() {
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${
                             svc.status === 'OPERATIONAL'
-                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                              ? 'bg-emerald-500/15 text-emerald-300'
                               : svc.status === 'DEGRADED'
-                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                              ? 'bg-amber-500/15 text-amber-200'
                               : svc.status === 'DOWN'
-                              ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-                              : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+                              ? 'bg-red-500/15 text-red-300'
+                              : 'bg-surface-container-high text-on-surface-variant'
                           }`}
                         >
                           {svc.status.toLowerCase()}
                         </span>
                       )}
                       {svc._count && (
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                        <div className="text-[11px] text-on-surface-variant">
                           {svc._count.dependencies} deps · {svc._count.dependents} dependents
                         </div>
                       )}
@@ -492,31 +470,27 @@ export default function Compass() {
           <button
             type="button"
             onClick={() => setSelectedService(null)}
-            className="text-sm text-indigo-600 dark:text-indigo-400 mb-3"
+            className="text-sm text-[#2684FF] font-medium mb-3 min-h-[44px] text-left"
           >
             ← Back to services
           </button>
 
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-50">
-            {selectedService.service.name}
-          </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+          <h3 className="text-lg font-semibold text-on-surface">{selectedService.service.name}</h3>
+          <p className="text-xs text-on-surface-variant mb-2">
             {selectedService.service.environment || 'production'} ·{' '}
             {selectedService.service.apiBaseUrl || 'No API URL configured'}
           </p>
 
           {selectedService.service.descriptionMd && (
-            <p className="text-sm text-slate-600 dark:text-slate-300 mb-3 whitespace-pre-line">
+            <p className="text-sm text-on-surface-variant mb-3 whitespace-pre-line">
               {selectedService.service.descriptionMd}
             </p>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
-              <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Uptime
-              </p>
-              <dl className="text-xs text-slate-600 dark:text-slate-300 space-y-0.5">
+          <div className="grid grid-cols-1 gap-4 mb-4">
+            <div className={`${JOB_MOBILE.formPanel} space-y-2`}>
+              <p className="text-xs font-semibold text-on-surface mb-1">Uptime</p>
+              <dl className="text-xs text-on-surface-variant space-y-0.5">
                 <div className="flex justify-between">
                   <dt>Last 24h</dt>
                   <dd className="font-medium">{formatUptime(selectedService.uptime.last24h)}</dd>
@@ -535,12 +509,10 @@ export default function Compass() {
                 </div>
               </dl>
             </div>
-            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
-              <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Dependencies
-              </p>
+            <div className={`${JOB_MOBILE.formPanel} space-y-2`}>
+              <p className="text-xs font-semibold text-on-surface mb-1">Dependencies</p>
               {services.length <= 1 ? (
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                <p className="text-[11px] text-on-surface-variant">
                   Add more services to Compass to configure dependencies.
                 </p>
               ) : (
@@ -557,7 +529,7 @@ export default function Compass() {
                     name="dependencyIds"
                     multiple
                     defaultValue={selectedService.service.dependencies?.map((d) => d.dependsOnId) || []}
-                    className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 text-xs text-slate-900 dark:text-slate-50 h-24"
+                    className={`${JOB_MOBILE.formSelect} h-24 text-xs min-h-0`}
                   >
                     {services
                       .filter((s) => s.id !== selectedService.service.id)
@@ -570,35 +542,33 @@ export default function Compass() {
                   <button
                     type="submit"
                     disabled={savingDependencies}
-                    className="mt-1 px-3 py-1 rounded-md bg-indigo-600 text-[11px] font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+                    className="mt-1 px-3 py-2 rounded-xl bg-[#0052CC] hover:bg-[#0747A6] text-[11px] font-medium text-white disabled:opacity-60 min-h-[40px]"
                   >
                     {savingDependencies ? 'Saving…' : 'Save dependencies'}
                   </button>
                   {selectedService.service.dependencies?.length ? (
-                    <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    <p className="mt-1 text-[11px] text-on-surface-variant">
                       Currently depends on:{' '}
                       {selectedService.service.dependencies
                         .map((d) => d.dependsOn.name)
                         .join(', ')}
                     </p>
                   ) : (
-                    <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    <p className="mt-1 text-[11px] text-on-surface-variant">
                       No dependencies configured.
                     </p>
                   )}
                 </form>
               )}
             </div>
-            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
-              <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Recent health checks
-              </p>
+            <div className={`${JOB_MOBILE.formPanel} space-y-2`}>
+              <p className="text-xs font-semibold text-on-surface mb-1">Recent health checks</p>
               {selectedService.recentChecks.length === 0 ? (
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                <p className="text-[11px] text-on-surface-variant">
                   No health checks recorded yet.
                 </p>
               ) : (
-                <ul className="space-y-0.5 max-h-28 overflow-y-auto text-[11px] text-slate-600 dark:text-slate-300">
+                <ul className="space-y-0.5 max-h-28 overflow-y-auto text-[11px] text-on-surface-variant">
                   {selectedService.recentChecks.slice(0, 8).map((check) => (
                     <li key={check.id} className="flex justify-between gap-2">
                       <span>
@@ -610,10 +580,10 @@ export default function Compass() {
                       <span
                         className={
                           check.status === 'PASS'
-                            ? 'text-emerald-600 dark:text-emerald-300'
+                            ? 'text-emerald-300'
                             : check.status === 'DEGRADED'
-                            ? 'text-amber-600 dark:text-amber-300'
-                            : 'text-red-600 dark:text-red-300'
+                            ? 'text-amber-200'
+                            : 'text-red-300'
                         }
                       >
                         {check.status.toLowerCase()}{' '}
@@ -626,38 +596,32 @@ export default function Compass() {
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
-              <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">
-                Documentation links
-              </p>
+          <div className="mt-4 grid grid-cols-1 gap-4">
+            <div className={`${JOB_MOBILE.formPanel} space-y-2`}>
+              <p className="text-xs font-semibold text-on-surface mb-2">Documentation links</p>
               {selectedService.service.docs && selectedService.service.docs.length > 0 ? (
                 <ul className="space-y-2 text-xs">
                   {selectedService.service.docs.map((doc) => (
                     <li key={doc.id} className="flex items-start justify-between gap-2">
                       <div>
-                        <p className="font-medium text-slate-800 dark:text-slate-100">
-                          {doc.title}
-                        </p>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                          Type: {doc.docType}
-                        </p>
+                        <p className="font-medium text-on-surface">{doc.title}</p>
+                        <p className="text-[11px] text-on-surface-variant">Type: {doc.docType}</p>
                       </div>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">
+                <p className="text-[11px] text-on-surface-variant mb-2">
                   No documentation linked yet.
                 </p>
               )}
-              <form onSubmit={handleAddDoc} className="mt-3 space-y-1">
+              <form onSubmit={handleAddDoc} className="mt-3 space-y-2">
                 <input
                   type="text"
                   value={docForm.pageId}
                   onChange={(e) => setDocForm((prev) => ({ ...prev, pageId: e.target.value }))}
                   placeholder="Knowledge page ID"
-                  className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 text-xs text-slate-900 dark:text-slate-50"
+                  className={`${JOB_MOBILE.formInput} text-xs min-h-[40px]`}
                 />
                 <input
                   type="text"
@@ -666,34 +630,30 @@ export default function Compass() {
                     setDocForm((prev) => ({ ...prev, docType: e.target.value.toUpperCase() }))
                   }
                   placeholder="Doc type (e.g. RUNBOOK, SPEC)"
-                  className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 text-xs text-slate-900 dark:text-slate-50"
+                  className={`${JOB_MOBILE.formInput} text-xs min-h-[40px]`}
                 />
                 <button
                   type="submit"
                   disabled={addingDocFor}
-                  className="mt-1 px-3 py-1 rounded-md bg-indigo-600 text-[11px] font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+                  className="mt-1 px-3 py-2 rounded-xl bg-[#0052CC] hover:bg-[#0747A6] text-[11px] font-medium text-white disabled:opacity-60 min-h-[40px]"
                 >
                   {addingDocFor ? 'Linking…' : 'Add documentation link'}
                 </button>
               </form>
             </div>
-            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
-              <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">
-                Dependents
-              </p>
+            <div className={`${JOB_MOBILE.formPanel} space-y-2`}>
+              <p className="text-xs font-semibold text-on-surface mb-2">Dependents</p>
               {selectedService.service.dependents && selectedService.service.dependents.length > 0 ? (
-                <ul className="space-y-1 text-xs text-slate-700 dark:text-slate-200">
+                <ul className="space-y-1 text-xs text-on-surface">
                   {selectedService.service.dependents.map((dep) => (
                     <li key={dep.id}>
                       {dep.service.name}{' '}
-                      <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                        ({dep.service.slug})
-                      </span>
+                      <span className="text-[11px] text-on-surface-variant">({dep.service.slug})</span>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                <p className="text-[11px] text-on-surface-variant">
                   No other services currently depend on this one.
                 </p>
               )}
@@ -701,7 +661,9 @@ export default function Compass() {
           </div>
         </div>
       )}
+      <JobBibleReferenceSection toolKey="compass" />
     </div>
+      </JobToolBibleShell>
     </JobPageContent>
   );
 }

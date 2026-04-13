@@ -1,4 +1,7 @@
 import React from 'react';
+import { Navigate } from 'react-router-dom';
+
+/** Legacy URL `/create/story` — canonical flow is `/stories/create`. */
 export default function CreateStory() {
-  return <div className="p-4"><h1>Create Story</h1><p>Not implemented yet.</p></div>;
+  return <Navigate to="/stories/create" replace />;
 }

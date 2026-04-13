@@ -40,6 +40,13 @@ export default function HelpSettings() {
       <div className="border-t border-[#262626]">
         <Row to="/settings/help/terms" icon={FileText} label="Terms and policies" />
         <Row to="/settings/privacy-centre" icon={Shield} label="Privacy Centre" />
+        <Row
+          to="/settings/help/legal-trust"
+          icon={Shield}
+          label="Legal & trust"
+          description="Memorialization, claims, DMCA counter-notice, LE intake"
+        />
+        <Row to="/settings/help/community-guidelines" icon={Shield} label="Community guidelines" />
       </div>
     </SettingsPageShell>
   );

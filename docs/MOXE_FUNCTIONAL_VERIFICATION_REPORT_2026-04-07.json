@@ -1,0 +1,117 @@
+{
+  "reportDate": "2026-04-07",
+  "environment": {
+    "backendBaseUrl": "http://localhost:5007",
+    "frontendBaseUrl": "http://localhost:3001",
+    "seedUsers": [
+      { "username": "playwright_e2e", "accountType": "PERSONAL" },
+      { "username": "playwright_job_e2e", "accountType": "JOB" }
+    ]
+  },
+  "summary": {
+    "playwright": { "passed": 6, "failed": 0 },
+    "coreReadApis": "pass",
+    "coreWriteApis": "pass",
+    "verdict": "READY"
+  },
+  "domains": [
+    {
+      "name": "shared_core_social",
+      "status": "working",
+      "checks": [
+        { "endpoint": "/api/auth/login", "method": "POST", "statusCode": 200, "result": "pass" },
+        { "endpoint": "/api/accounts/me", "method": "GET", "statusCode": 200, "result": "pass" },
+        { "endpoint": "/api/accounts/list", "method": "GET", "statusCode": 200, "result": "pass" },
+        { "endpoint": "/api/posts/feed", "method": "GET", "statusCode": 200, "result": "pass" },
+        { "endpoint": "/api/explore/discover?limit=5", "method": "GET", "statusCode": 200, "result": "pass" },
+        { "endpoint": "/api/stories", "method": "GET", "statusCode": 200, "result": "pass" },
+        { "endpoint": "/api/reels", "method": "GET", "statusCode": 200, "result": "pass" },
+        { "endpoint": "/api/recently-deleted", "method": "GET", "statusCode": 200, "result": "pass" }
+      ]
+    },
+    {
+      "name": "posts_mutation",
+      "status": "working",
+      "checks": [
+        { "endpoint": "/api/posts", "method": "POST", "statusCode": 201, "result": "pass" },
+        { "endpoint": "/api/posts/:postId/like", "method": "POST", "statusCode": 200, "result": "pass" },
+        { "endpoint": "/api/posts/:postId/comments", "method": "POST", "statusCode": 201, "result": "pass" },
+        { "endpoint": "/api/posts/:postId/save", "method": "POST", "statusCode": 200, "result": "pass" },
+        { "endpoint": "/api/posts/:postId/delete", "method": "POST", "statusCode": 200, "result": "pass" },
+        { "endpoint": "/api/posts/:postId/restore", "method": "POST", "statusCode": 200, "result": "pass" }
+      ]
+    },
+    {
+      "name": "messages_mutation",
+      "status": "working",
+      "checks": [
+        { "endpoint": "/api/messages/threads", "method": "GET", "statusCode": 200, "result": "pass" },
+        { "endpoint": "/api/messages", "method": "POST", "statusCode": 201, "result": "pass" },
+        { "endpoint": "/api/messages/thread-read", "method": "POST", "statusCode": 200, "result": "pass" },
+        { "endpoint": "/api/messages/:messageId?forMeOnly=true", "method": "DELETE", "statusCode": 200, "result": "pass" }
+      ]
+    },
+    {
+      "name": "privacy_follow",
+      "status": "working",
+      "checks": [
+        { "endpoint": "/api/follow", "method": "POST", "statusCode": 200, "result": "pass", "payloadShape": { "accountId": "<targetId>" } },
+        { "endpoint": "/api/follow/:accountId", "method": "DELETE", "statusCode": 200, "result": "pass" },
+        { "endpoint": "/api/privacy/block", "method": "POST", "statusCode": 200, "result": "pass", "payloadShape": { "accountId": "<targetId>" } },
+        { "endpoint": "/api/privacy/block/:accountId", "method": "DELETE", "statusCode": 200, "result": "pass" }
+      ]
+    },
+    {
+      "name": "job_tools",
+      "status": "working_with_role_gating",
+      "checks": [
+        { "endpoint": "/api/job/overview", "method": "GET", "statusCode": 200, "result": "pass", "as": "JOB" },
+        { "endpoint": "/api/job/track/projects", "method": "GET", "statusCode": 200, "result": "pass", "as": "JOB" },
+        { "endpoint": "/api/job/track/jobs", "method": "GET", "statusCode": 200, "result": "pass", "as": "JOB" },
+        { "endpoint": "/api/job/know/companies", "method": "GET", "statusCode": 200, "result": "pass", "as": "JOB" },
+        { "endpoint": "/api/job/track/projects", "method": "POST", "statusCode": 200, "result": "pass", "as": "JOB" },
+        { "endpoint": "/api/job/track/projects/:projectId", "method": "PATCH", "statusCode": 200, "result": "pass", "as": "JOB" },
+        { "endpoint": "/api/job/track/projects/:projectId", "method": "DELETE", "statusCode": 200, "result": "pass", "as": "JOB" },
+        { "endpoint": "/api/job/track/projects", "method": "GET", "statusCode": 403, "result": "expected_gating", "as": "PERSONAL" }
+      ]
+    },
+    {
+      "name": "creator_business_monetization",
+      "status": "working_with_expected_gating",
+      "checks": [
+        { "endpoint": "/api/creator/quick-replies", "method": "GET", "statusCode": 200, "result": "pass" },
+        { "endpoint": "/api/creator/content-calendar", "method": "GET", "statusCode": 200, "result": "pass" },
+        { "endpoint": "/api/creator/trending-audio", "method": "GET", "statusCode": 200, "result": "pass" },
+        { "endpoint": "/api/subscription/plans", "method": "GET", "statusCode": 200, "result": "pass" },
+        { "endpoint": "/api/ads/campaigns", "method": "GET", "statusCode": 403, "result": "expected_gating", "as": "PERSONAL" },
+        { "endpoint": "/api/commerce/products", "method": "GET", "statusCode": 403, "result": "expected_gating", "as": "PERSONAL" }
+      ]
+    },
+    {
+      "name": "safety_proximity_voice_push_translation",
+      "status": "working_with_config_and_validation_dependencies",
+      "checks": [
+        { "endpoint": "/api/proximity-alerts", "method": "GET", "statusCode": 200, "result": "pass" },
+        { "endpoint": "/api/voice/command", "method": "POST", "statusCode": 200, "result": "pass" },
+        { "endpoint": "/api/safety/sos", "method": "POST", "statusCode": 400, "result": "expected_validation", "note": "No emergency contacts configured" },
+        { "endpoint": "/api/push/subscribe", "method": "POST", "statusCode": 200, "result": "pass" },
+        { "endpoint": "/api/push/vapid-public-key", "method": "GET", "statusCode": 404, "result": "config_dependent", "note": "VAPID key not configured (run snapshot); later: 503 + code VAPID_NOT_CONFIGURED" },
+        { "endpoint": "/api/translate/languages", "method": "GET", "statusCode": 403, "result": "expected_gating", "as": "PERSONAL" },
+        { "endpoint": "/api/translate/languages", "method": "GET", "statusCode": 200, "result": "pass", "as": "JOB" }
+      ]
+    }
+  ],
+  "defectsResolvedDuringVerification": [
+    {
+      "id": "e2e-mobile-create-selector-ambiguity",
+      "file": "FRONTEND/e2e/phase4.spec.ts",
+      "change": "Use getByTestId('create-post-button') instead of ambiguous role/name selector",
+      "outcome": "Playwright suite moved to all-pass"
+    }
+  ],
+  "residualRisks": [
+    "Long-tail settings and niche route combinations are not fully exhaustive in runtime automation yet.",
+    "Some outcomes depend on environment configuration (e.g., VAPID keys) and account capability/tier setup."
+  ]
+}
+

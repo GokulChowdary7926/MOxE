@@ -28,7 +28,14 @@ export default function AuthCallback() {
       .then((me) => {
         dispatch(setCurrentAccount({ ...me.account, capabilities: me.capabilities }));
         dispatch(setCapabilities(me.capabilities ?? null));
-        const home = getHomeRouteForAccountType(me.account?.accountType);
+        const acc = me.account as Record<string, unknown> | undefined;
+        const accountType =
+          typeof acc?.accountType === 'string'
+            ? acc.accountType
+            : typeof acc?.account_type === 'string'
+              ? acc.account_type
+              : undefined;
+        const home = getHomeRouteForAccountType(accountType);
         navigate(home, { replace: true });
       })
       .catch(() => {

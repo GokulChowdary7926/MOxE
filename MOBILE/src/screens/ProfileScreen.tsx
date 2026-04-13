@@ -1,30 +1,81 @@
-import React from 'react';
-import { View, ScrollView, StyleSheet, TouchableOpacity, Text } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, ScrollView, StyleSheet, TouchableOpacity, Text, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAccount } from '../context/AccountContext';
 import { ThemedView, ThemedText, ThemedHeader, ThemedButton } from '../components/Themed';
 import { Avatar } from '../components/Avatar';
+import { apiGet } from '../config/api';
+
+type MeAccount = {
+  username?: string;
+  displayName?: string;
+  profilePhoto?: string | null;
+  bio?: string | null;
+  pronouns?: string | null;
+  location?: string | null;
+  website?: string | null;
+  postCount?: number;
+  postsCount?: number;
+  followerCount?: number;
+  followersCount?: number;
+  followingCount?: number;
+};
 
 export function ProfileScreen() {
   const { accountType } = useAccount();
   const navigation = useNavigation();
-  const rootNav = navigation.getParent() as any;
+  const rootNav = navigation.getParent() as {
+    navigate?: (name: string, params?: object) => void;
+  } | null;
   const openSettings = () => rootNav?.navigate?.('Settings');
   const openBalance = () => rootNav?.navigate?.('Balance');
   const openBusinessDashboard = () => rootNav?.navigate?.('BusinessDashboard');
   const openCreatorStudio = () => rootNav?.navigate?.('CreatorStudio');
-  const openJobHub = () => rootNav?.navigate?.('JobHub');
   const openManageHighlights = () => rootNav?.navigate?.('ManageHighlights');
+
+  const [account, setAccount] = useState<MeAccount | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const bundle = await apiGet<{ account?: MeAccount }>('accounts/me');
+      setAccount(bundle.account ?? null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not load profile.');
+      setAccount(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const postsCount = account?.postCount ?? account?.postsCount ?? 0;
+  const followersCount = account?.followerCount ?? account?.followersCount ?? 0;
+  const followingCount = account?.followingCount ?? 0;
+  const handleLine =
+    account?.username != null
+      ? `@${account.username}${account.pronouns ? ` · ${account.pronouns}` : ''}`
+      : '';
 
   return (
     <ThemedView style={styles.flex}>
       <ThemedHeader
-        title="e.johnson"
+        title={account?.username ?? 'Profile'}
         left={null}
         right={
           <View style={styles.headerRight}>
-            <TouchableOpacity><Text style={styles.headerIcon}>➕</Text></TouchableOpacity>
-            <TouchableOpacity onPress={openSettings}><Text style={styles.headerIcon}>☰</Text></TouchableOpacity>
+            <TouchableOpacity>
+              <Text style={styles.headerIcon}>➕</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={openSettings}>
+              <Text style={styles.headerIcon}>☰</Text>
+            </TouchableOpacity>
           </View>
         }
       />
@@ -33,31 +84,44 @@ export function ProfileScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        {loading ? (
+          <View style={styles.loading}>
+            <ActivityIndicator />
+          </View>
+        ) : null}
+        {error ? (
+          <ThemedText secondary style={styles.errorText}>
+            {error}
+          </ThemedText>
+        ) : null}
+
         <View style={styles.profileTop}>
-          <Avatar uri="https://picsum.photos/seed/profile/150/150" size={80} />
+          <Avatar uri={account?.profilePhoto} size={80} />
           <View style={styles.stats}>
             <View style={styles.stat}>
-              <ThemedText style={styles.statNum}>21</ThemedText>
+              <ThemedText style={styles.statNum}>{postsCount}</ThemedText>
               <ThemedText secondary>Posts</ThemedText>
             </View>
             <View style={styles.stat}>
-              <ThemedText style={styles.statNum}>563</ThemedText>
+              <ThemedText style={styles.statNum}>{followersCount}</ThemedText>
               <ThemedText secondary>Followers</ThemedText>
             </View>
             <View style={styles.stat}>
-              <ThemedText style={styles.statNum}>172</ThemedText>
+              <ThemedText style={styles.statNum}>{followingCount}</ThemedText>
               <ThemedText secondary>Following</ThemedText>
             </View>
           </View>
         </View>
-        <ThemedText style={styles.displayName}>Eliott Johnson</ThemedText>
-        <ThemedText secondary style={styles.metaHandle}>@e.johnson • she/her</ThemedText>
-        <ThemedText secondary style={styles.bio}>
-          Freelance Artist/Generalist TD. Available Now
-        </ThemedText>
-        <ThemedText secondary style={styles.meta}>United Kingdom · linktr.ee/moxe</ThemedText>
 
-        {/* Primary profile actions row – Edit Profile, Promotions, Insights */}
+        <ThemedText style={styles.displayName}>{account?.displayName ?? account?.username ?? '—'}</ThemedText>
+        {handleLine ? <ThemedText secondary style={styles.metaHandle}>{handleLine}</ThemedText> : null}
+        {account?.bio ? <ThemedText secondary style={styles.bio}>{account.bio}</ThemedText> : null}
+        {(account?.location || account?.website) ? (
+          <ThemedText secondary style={styles.meta}>
+            {[account.location, account.website].filter(Boolean).join(' · ')}
+          </ThemedText>
+        ) : null}
+
         <View style={styles.primaryActions}>
           <ThemedButton label="Edit Profile" onPress={() => {}} style={styles.primaryActionBtn} />
           <ThemedButton
@@ -74,7 +138,6 @@ export function ProfileScreen() {
           />
         </View>
 
-        {/* Secondary actions based on account type (Balance / Dashboards) */}
         <View style={styles.secondaryActions}>
           {(accountType === 'creator' || accountType === 'business') && (
             <ThemedButton
@@ -100,17 +163,8 @@ export function ProfileScreen() {
               style={styles.secondaryBtn}
             />
           )}
-          {accountType === 'job' && (
-            <ThemedButton
-              label="Job Hub"
-              onPress={openJobHub}
-              variant="secondary"
-              style={styles.secondaryBtn}
-            />
-          )}
         </View>
 
-        {/* Highlights row */}
         <View style={[styles.socialRow, { marginBottom: 8 }]}>
           <View style={styles.socialCircle}>
             <ThemedText style={styles.socialLabel}>Highlights</ThemedText>
@@ -129,37 +183,16 @@ export function ProfileScreen() {
           />
         </View>
 
-        {/* Social / link circles row */}
-        <View style={styles.socialRow}>
-          <View style={styles.socialCircle}>
-            <ThemedText style={styles.socialLabel}>New</ThemedText>
-          </View>
-          <View style={styles.socialCircle}>
-            <ThemedText style={styles.socialLabel}>Be</ThemedText>
-          </View>
-          <View style={styles.socialCircle}>
-            <ThemedText style={styles.socialLabel}>Dr</ThemedText>
-          </View>
-          <View style={styles.socialCircle}>
-            <ThemedText style={styles.socialLabel}>Pin</ThemedText>
-          </View>
-          <View style={styles.socialCircle}>
-            <ThemedText style={styles.socialLabel}>Food</ThemedText>
-          </View>
-        </View>
-
-        {/* Simple tab row + grid placeholders to mimic layout */}
         <View style={styles.tabsRow}>
           <ThemedText style={styles.tabActive}>Grid</ThemedText>
           <ThemedText secondary style={styles.tabInactive}>Tagged</ThemedText>
         </View>
-        <View style={styles.grid}>
-          <View style={styles.gridItem} />
-          <View style={styles.gridItem} />
-          <View style={styles.gridItem} />
-          <View style={styles.gridItem} />
-          <View style={styles.gridItem} />
-          <View style={styles.gridItem} />
+        <View style={styles.emptyGridMessage}>
+          <ThemedText secondary style={{ textAlign: 'center' }}>
+            {postsCount > 0
+              ? 'Open MOxE on the web to browse your full post grid.'
+              : 'No posts yet. Create from the web app or when your device supports posting.'}
+          </ThemedText>
         </View>
 
         <ThemedText secondary style={styles.accountBadge}>
@@ -173,6 +206,8 @@ export function ProfileScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { padding: 16, paddingBottom: 32 },
+  loading: { paddingVertical: 24, alignItems: 'center' },
+  errorText: { marginBottom: 12 },
   headerRight: { flexDirection: 'row', gap: 12 },
   headerIcon: { fontSize: 18, color: '#fff' },
   profileTop: {
@@ -251,16 +286,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     fontSize: 12,
   },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: -2,
-    marginBottom: 16,
-  },
-  gridItem: {
-    width: '33.333%',
-    aspectRatio: 0.8,
-    padding: 2,
+  emptyGridMessage: {
+    paddingVertical: 32,
+    paddingHorizontal: 8,
   },
   accountBadge: { fontSize: 12 },
 });

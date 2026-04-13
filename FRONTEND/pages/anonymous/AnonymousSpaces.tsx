@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { ThemedView, ThemedHeader, ThemedText, ThemedInput, ThemedButton } from '../../components/ui/Themed';
 import { safeFirstId } from '../../utils/safeAccess';
+import { getApiBase } from '../../services/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type Space = { id: string; name: string; description?: string | null };
 type SpacePost = {

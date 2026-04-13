@@ -54,7 +54,12 @@ router.get('/', authenticate, async (req, res, next) => {
       return res.json(result);
     }
     const otherId = req.query.userId as string;
-    if (!otherId) return res.status(400).json({ error: 'userId or groupId required' });
+    if (!otherId) {
+      return res.status(400).json({
+        error: 'userId or groupId required',
+        hint: 'Use GET /messages/threads for the inbox.',
+      });
+    }
     const result = await messageService.getThread(accountId, otherId, cursor, limit);
     res.json(result);
   } catch (e) {

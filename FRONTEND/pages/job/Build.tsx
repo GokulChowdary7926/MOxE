@@ -1,8 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { getApiBase } from '../../services/api';
+import { readApiError } from '../../utils/readApiError';
 import { JobPageContent } from '../../components/job/JobPageContent';
+import { JobBibleReferenceSection, JobToolBibleShell } from '../../components/job/bible';
 
 const API_BASE = getApiBase();
+
+type CodeRepo = { id: string; name: string; slug?: string };
 
 type BuildPipeline = {
   id: string;
@@ -50,6 +54,8 @@ type PipelineFormState = {
 
 export default function Build() {
   const [pipelines, setPipelines] = useState<BuildPipeline[]>([]);
+  const [repos, setRepos] = useState<CodeRepo[]>([]);
+  const [loadingRepos, setLoadingRepos] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -82,7 +88,7 @@ export default function Build() {
         headers: authHeaders,
       });
       if (!res.ok) {
-        throw new Error('Failed to load pipelines');
+        throw new Error(await readApiError(res));
       }
       const data = await res.json();
       setPipelines(Array.isArray(data) ? data : []);
@@ -101,7 +107,7 @@ export default function Build() {
         headers: authHeaders,
       });
       if (!res.ok) {
-        throw new Error('Failed to load pipeline');
+        throw new Error(await readApiError(res));
       }
       const data = (await res.json()) as PipelineDetail;
       setSelected(data);
@@ -112,6 +118,28 @@ export default function Build() {
     }
   };
 
+  const loadRepos = async () => {
+    if (!token) return;
+    setLoadingRepos(true);
+    try {
+      const res = await fetch(`${API_BASE}/job/code/repos`, { headers: authHeaders });
+      if (!res.ok) {
+        setRepos([]);
+        return;
+      }
+      const data = (await res.json()) as CodeRepo[];
+      setRepos(Array.isArray(data) ? data : []);
+      setForm((prev) => ({
+        ...prev,
+        repoId: prev.repoId || (Array.isArray(data) && data[0]?.id ? data[0].id : ''),
+      }));
+    } catch {
+      setRepos([]);
+    } finally {
+      setLoadingRepos(false);
+    }
+  };
+
   useEffect(() => {
     if (!token) {
       setLoading(false);
@@ -119,6 +147,7 @@ export default function Build() {
       return;
     }
     fetchPipelines();
+    loadRepos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -155,8 +184,7 @@ export default function Build() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || 'Failed to create pipeline');
+        throw new Error(await readApiError(res));
       }
       const created = (await res.json()) as BuildPipeline;
       setPipelines((prev) => [created, ...prev]);
@@ -199,20 +227,19 @@ export default function Build() {
 
   if (loading && pipelines.length === 0) {
     return (
-      <JobPageContent title="MOxE Build" description="Define pipelines for your code repositories and track recent runs.">
-        <div className="flex items-center justify-center py-12">
-          <div className="h-16 w-full max-w-xs bg-[#F4F5F7] animate-pulse rounded" />
-        </div>
+      <JobPageContent variant="track">
+        <JobToolBibleShell toolTitle="MOxE BUILD" toolIconMaterial="construction">
+          <div className="flex items-center justify-center py-12">
+            <div className="h-16 w-full max-w-xs animate-pulse rounded-xl bg-surface-container-high" />
+          </div>
+        </JobToolBibleShell>
       </JobPageContent>
     );
   }
 
   return (
-    <JobPageContent
-      title="MOxE Build"
-      description="Define pipelines for your code repositories and track recent runs for your Job account."
-      error={error}
-    >
+    <JobPageContent variant="track" error={error}>
+      <JobToolBibleShell toolTitle="MOxE BUILD" toolIconMaterial="construction">
     <div>
       {!selected && (
         <>
@@ -225,21 +252,38 @@ export default function Build() {
                 New pipeline
               </h3>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                  Repository ID
+                  Repository
                 </label>
-                <input
-                  type="text"
-                  value={form.repoId}
-                  onChange={(e) => setForm((prev) => ({ ...prev, repoId: e.target.value }))}
-                  required
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
-                  placeholder="Paste a Code repository id"
-                />
+                {repos.length > 0 ? (
+                  <select
+                    value={form.repoId}
+                    onChange={(e) => setForm((prev) => ({ ...prev, repoId: e.target.value }))}
+                    required
+                    className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
+                  >
+                    <option value="">Select a MOxE Code repository…</option>
+                    {repos.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                        {r.slug ? ` (${r.slug})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={form.repoId}
+                    onChange={(e) => setForm((prev) => ({ ...prev, repoId: e.target.value }))}
+                    required
+                    className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
+                    placeholder="Repository id (create a repo in MOxE Code first)"
+                  />
+                )}
                 <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                  You must own or be a collaborator on the repository.
+                  {loadingRepos ? 'Loading repositories…' : 'You must own or be a collaborator on the repository.'}
                 </p>
               </div>
               <div>
@@ -279,7 +323,7 @@ export default function Build() {
                   placeholder="Used to match webhook payloads"
                 />
               </div>
-              <div className="md:col-span-2">
+              <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
                   Triggers (JSON)
                 </label>
@@ -290,7 +334,7 @@ export default function Build() {
                   className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-slate-50 font-mono"
                 />
               </div>
-              <div className="md:col-span-2">
+              <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
                   Stages (JSON)
                 </label>
@@ -445,7 +489,9 @@ export default function Build() {
           </div>
         </div>
       )}
+      <JobBibleReferenceSection toolKey="build" />
     </div>
+      </JobToolBibleShell>
     </JobPageContent>
   );
 }

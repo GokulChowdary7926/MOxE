@@ -4,12 +4,21 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { authenticate } from '../middleware/auth';
+import { AccessService } from '../services/access.service';
 import { sendVerificationCode, verifyCode } from '../services/phoneVerification.service';
 import { EmailService } from '../services/email.service';
 import { AppError } from '../utils/AppError';
 import { prisma } from '../server';
+import { logger } from '../utils/logger';
+import {
+  normalizeUsername,
+  validateUsernameFormat,
+  suggestUsernameFromEmailLocalPart,
+  randomAlphabeticLower,
+} from '../utils/usernameValidation';
 
 const emailService = new EmailService();
+const accessService = new AccessService();
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
 function normalizePhone(phone: string): string {
@@ -97,11 +106,14 @@ router.get('/google/callback', async (req, res, next) => {
       accountId = (existing.accounts[0] as { id: string }).id;
     } else {
       const placeholderPhone = `+0google_${(googleId || email || '').replace(/\W/g, '_').slice(0, 20)}_${Date.now().toString(36)}`;
-      const usernameBase = (email?.split('@')[0] || `user_${(googleId || '').slice(0, 8)}`).replace(/\W/g, '_');
-      let uniqueUsername = usernameBase;
-      let n = 0;
+      const localPart = email?.split('@')[0] || `user${(googleId || '').replace(/[^a-z]/gi, '').slice(0, 12)}`;
+      let base = suggestUsernameFromEmailLocalPart(localPart);
+      let uniqueUsername = base;
+      let attempts = 0;
       while (await prisma.account.findUnique({ where: { username: uniqueUsername } })) {
-        uniqueUsername = `${usernameBase}_${++n}`;
+        attempts += 1;
+        const suffix = randomAlphabeticLower(Math.min(4 + attempts, 10));
+        uniqueUsername = `${base.slice(0, Math.max(3, 30 - suffix.length))}${suffix}`.slice(0, 30);
       }
       const newUser = await prisma.user.create({
         data: {
@@ -125,6 +137,13 @@ router.get('/google/callback', async (req, res, next) => {
     }
 
     const token = jwt.sign({ userId, accountId }, JWT_SECRET, { expiresIn: '7d' });
+    try {
+      await accessService.appendSessionLoginAudits(accountId);
+    } catch (err) {
+      logger.warn('Google login: org audit log skipped', {
+        err: err instanceof Error ? err.message : String(err),
+      });
+    }
     res.redirect(302, `${clientUrl}/auth/callback?token=${encodeURIComponent(token)}`);
   } catch (e) {
     next(e);
@@ -221,10 +240,10 @@ router.post('/register', rateLimit({ windowMs: 60 * 60 * 1000, max: 20 }), async
     if (!username || typeof username !== 'string' || !displayName || typeof displayName !== 'string' || !password || typeof password !== 'string') {
       throw new AppError('username, displayName and password are required', 400);
     }
-    const u = username.trim();
+    const uCheck = validateUsernameFormat(username);
+    if (!uCheck.valid) throw new AppError(uCheck.message, 400);
+    const u = uCheck.normalized;
     const d = displayName.trim();
-    if (!u || u.length < 3) throw new AppError('Username must be at least 3 characters', 400);
-    if (!/^[a-zA-Z0-9_.]+$/.test(u)) throw new AppError('Username can only contain letters, numbers, underscore and period', 400);
     if (!d || d.length < 2) throw new AppError('Display name must be at least 2 characters', 400);
     if (password.length < 6) throw new AppError('Password must be at least 6 characters', 400);
     const existing = await prisma.account.findUnique({ where: { username: u } });
@@ -269,22 +288,37 @@ router.post('/login', loginLimiter, async (req, res, next) => {
     if (!loginId || typeof loginId !== 'string' || !password || typeof password !== 'string') {
       throw new AppError('Username and password required', 400);
     }
-    const username = (loginId as string).trim();
+    const username = normalizeUsername(loginId as string);
     if (!username || !password) throw new AppError('Invalid credentials', 400);
 
     type UserWithAccount = { id: string; password: string; accounts: { id: string }[] };
-    const account = await prisma.account.findUnique({
-      where: { username, isActive: true },
-      select: { id: true, userId: true },
+    // `findUnique` only allows unique fields; `isActive` requires `findFirst`.
+    const account = await prisma.account.findFirst({
+      where: {
+        username: { equals: username, mode: 'insensitive' },
+        isActive: true,
+      },
+      select: { id: true, userId: true, isMemorialized: true },
     });
     if (!account) throw new AppError('Invalid username or password', 401);
+    if (account.isMemorialized) {
+      throw new AppError('This account has been memorialized and cannot be logged into.', 403);
+    }
     const row = await prisma.user.findUnique({
       where: { id: account.userId },
       select: { id: true, password: true, accounts: { where: { isActive: true }, take: 1, orderBy: { createdAt: 'asc' }, select: { id: true } } },
     });
     const user = row as UserWithAccount | null;
     if (!user) throw new AppError('Invalid username or password', 401);
-    const match = await bcrypt.compare(password, user.password);
+    const storedHash = user.password?.trim() ?? '';
+    if (!storedHash) throw new AppError('Invalid username or password', 401);
+    let match = false;
+    try {
+      match = await bcrypt.compare(password, storedHash);
+    } catch {
+      // Corrupt or non-bcrypt hash in DB would throw; never surface as 500.
+      match = false;
+    }
     if (!match) throw new AppError('Invalid username or password', 401);
 
     let accountId: string | null = user.accounts[0]?.id ?? null;
@@ -304,22 +338,37 @@ router.post('/login', loginLimiter, async (req, res, next) => {
       expiresIn: '7d',
     });
 
-    const refreshToken = crypto.randomBytes(40).toString('hex');
-    const refreshExpiresAt = new Date();
-    refreshExpiresAt.setDate(refreshExpiresAt.getDate() + 7);
+    let refreshToken: string | undefined;
+    try {
+      refreshToken = crypto.randomBytes(40).toString('hex');
+      const refreshExpiresAt = new Date();
+      refreshExpiresAt.setDate(refreshExpiresAt.getDate() + 7);
+      await prisma.session.create({
+        data: {
+          userId: user.id,
+          token: refreshToken,
+          expiresAt: refreshExpiresAt,
+          isActive: true,
+        },
+      });
+    } catch (e) {
+      logger.warn('Login: could not create refresh Session row (migrations or DB issue). JWT login still works.', {
+        err: e instanceof Error ? e.message : String(e),
+      });
+      refreshToken = undefined;
+    }
 
-    await prisma.session.create({
-      data: {
-        userId: user.id,
-        token: refreshToken,
-        expiresAt: refreshExpiresAt,
-        isActive: true,
-      },
-    });
+    try {
+      await accessService.appendSessionLoginAudits(finalAccountId);
+    } catch (e) {
+      logger.warn('Login: org audit log skipped', {
+        err: e instanceof Error ? e.message : String(e),
+      });
+    }
 
     res.json({
       token,
-      refreshToken,
+      ...(refreshToken ? { refreshToken } : {}),
       userId: user.id,
       accountId: finalAccountId,
       user: { id: user.id },
@@ -396,6 +445,49 @@ router.post('/switch-account', authenticate, async (req, res, next) => {
       userId,
       accountId: account.id,
     });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/** List active refresh-token sessions for the signed-in user (devices / “where you’re logged in”). */
+router.get('/sessions', authenticate, async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.userId as string | undefined;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const sessions = await prisma.session.findMany({
+      where: { userId, isActive: true, expiresAt: { gt: new Date() } },
+      orderBy: { lastActive: 'desc' },
+      select: {
+        id: true,
+        deviceName: true,
+        deviceType: true,
+        location: true,
+        ipAddress: true,
+        lastActive: true,
+        createdAt: true,
+      },
+    });
+    res.json({ sessions });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/** Revoke a session (sign out that device). */
+router.delete('/sessions/:id', authenticate, async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.userId as string | undefined;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const session = await prisma.session.findFirst({
+      where: { id: req.params.id, userId },
+    });
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    await prisma.session.update({
+      where: { id: session.id },
+      data: { isActive: false },
+    });
+    res.json({ ok: true });
   } catch (e) {
     next(e);
   }

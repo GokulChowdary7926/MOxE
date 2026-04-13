@@ -66,7 +66,7 @@ router.get('/reels', authenticate, async (req, res, next) => {
       where: { id: { in: reelIds } },
       include: {
         account: {
-          select: { id: true, username: true, displayName: true, profilePhoto: true },
+          select: { id: true, username: true, displayName: true, profilePhoto: true, verifiedBadge: true },
         },
       },
     });
@@ -117,6 +117,58 @@ router.post('/not-interested', authenticate, async (req, res, next) => {
   }
 });
 
+/** Positive feedback: uprank topics and optionally record interaction on a post. */
+router.post('/interested', authenticate, async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { targetId, targetType, topic } = req.body || {};
+
+    if (topic && typeof topic === 'string' && topic.trim()) {
+      const account = await prisma.account.findUnique({
+        where: { id: accountId },
+        select: { userId: true },
+      });
+      if (account?.userId) {
+        await yourAlgorithm.upRankTopic(account.userId, topic.trim().slice(0, 200));
+      }
+    }
+
+    if (targetId && targetType === 'POST') {
+      await prisma.feedInteraction.create({
+        data: {
+          accountId,
+          postId: targetId,
+          type: 'INTERESTED',
+          value: 1,
+        },
+      });
+    }
+
+    res.json({ success: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/** Reset stored topic preferences (“start fresh” for suggestions). */
+router.post('/reset-suggestions', authenticate, async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const account = await prisma.account.findUnique({
+      where: { id: accountId },
+      select: { userId: true },
+    });
+    if (!account?.userId) return res.status(400).json({ error: 'No user profile for account' });
+    await yourAlgorithm.resetSuggestedTopics(account.userId);
+    res.status(204).send();
+  } catch (e) {
+    next(e);
+  }
+});
+
 // Explore: cross-tool discovery using ContentFeatures + UserEmbedding
 router.get('/explore', authenticate, async (req, res, next) => {
   try {
@@ -130,7 +182,10 @@ router.get('/explore', authenticate, async (req, res, next) => {
     if (!account?.userId) return res.status(400).json({ error: 'No user profile for account' });
 
     const limit = Math.min(Number(req.query.limit) || 40, 100);
-    const ranked = await exploreRanking.getRankedItems(account.userId, limit);
+    const categoryRaw = typeof req.query.category === 'string' ? req.query.category.trim().toLowerCase() : '';
+    const category =
+      categoryRaw === 'posts' || categoryRaw === 'reels' || categoryRaw === 'jobs' ? categoryRaw : null;
+    const ranked = await exploreRanking.getRankedItems(account.userId, limit, category);
     res.json({ items: ranked });
   } catch (e) {
     next(e);

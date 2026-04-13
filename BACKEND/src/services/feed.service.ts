@@ -2,6 +2,7 @@
  * Feed algorithm: candidate set from following + self, ranked by recency + engagement.
  */
 import { prisma } from '../server';
+import { normalizeMediaJsonForApi } from '../utils/mediaUrl';
 import { AdBillingService } from './ad-billing.service';
 import { FraudService } from './fraud.service';
 import { FeedRankingService } from './ranking/feedRanking.service';
@@ -30,6 +31,13 @@ export class FeedService {
       await prisma.feedInteraction.create({
         data: { accountId, postId, type, value },
       });
+      if (type === 'VIEW') {
+        await prisma.view.upsert({
+          where: { accountId_postId: { accountId, postId } },
+          create: { accountId, postId, viewedAt: new Date() },
+          update: { viewedAt: new Date() },
+        });
+      }
     } catch {
       // best-effort; do not block feed on analytics failure
     }
@@ -55,6 +63,12 @@ export class FeedService {
     }).then((rows) => rows.filter((r) => r.expiresAt == null || r.expiresAt > new Date()).map((r) => r.blockedId));
     const allowedAccountIds = candidateAccountIds.filter((id) => !blocked.includes(id));
 
+    const snoozedAuthorIds = await prisma.feedSnooze.findMany({
+      where: { viewerId: accountId, until: { gt: new Date() } },
+      select: { snoozedId: true },
+    }).then((rows) => rows.map((r) => r.snoozedId));
+    const feedAuthorIds = allowedAccountIds.filter((id) => id === accountId || !snoozedAuthorIds.includes(id));
+
     // Creator 9.1.2: subscriber-only posts visible only to subscribers of that creator
     const subscribedCreatorIds = await prisma.subscription
       .findMany({
@@ -65,12 +79,18 @@ export class FeedService {
 
     const findManyParams: Parameters<typeof prisma.post.findMany>[0] = {
       where: {
-        accountId: { in: allowedAccountIds },
         isDeleted: false,
         isArchived: false,
-        privacy: { in: ['PUBLIC', 'FOLLOWERS_ONLY'] },
         ...(viewerIsMinor ? { isMature: false } : {}),
         AND: [
+          {
+            OR: [
+              {
+                AND: [{ accountId: { in: feedAuthorIds } }, { privacy: { in: ['PUBLIC', 'FOLLOWERS_ONLY'] } }],
+              },
+              { accountId },
+            ],
+          },
           {
             OR: [
               { isScheduled: false },
@@ -129,7 +149,7 @@ export class FeedService {
       profilePhoto: p.account.profilePhoto,
       accountType: p.account.accountType,
       verifiedBadge: p.account.verifiedBadge ?? false,
-      media: p.media,
+      media: normalizeMediaJsonForApi(p.media),
       caption: p.caption,
       location: p.location,
       likeCount: p.likes.length,
@@ -137,6 +157,8 @@ export class FeedService {
       isLiked: p.likes.some((l) => l.accountId === accountId),
       isSaved: savedPostIds.has(p.id),
       createdAt: p.createdAt,
+      allowComments: (p as { allowComments?: boolean }).allowComments !== false,
+      hideLikeCount: !!(p as { hideLikeCount?: boolean }).hideLikeCount,
       productTags: (p.ProductTag ?? []).map((t) => ({ productId: t.productId, x: t.x, y: t.y, product: t.product })),
     }));
 
@@ -162,17 +184,39 @@ export class FeedService {
     }).then((rows) => rows.filter((r) => r.expiresAt == null || r.expiresAt > new Date()).map((r) => r.blockedId));
     const allowedAccountIds = candidateAccountIds.filter((id) => !blocked.includes(id));
     const viewerIsMinor = await isMinor(accountId);
+    const subscribedCreatorIds = await prisma.subscription
+      .findMany({
+        where: { subscriberId: accountId, status: 'ACTIVE' },
+        select: { creatorId: true },
+      })
+      .then((rows) => rows.map((r) => r.creatorId));
     const findManyParams: Parameters<typeof prisma.post.findMany>[0] = {
       where: {
-        accountId: { in: allowedAccountIds },
         isDeleted: false,
         isArchived: false,
-        privacy: { in: ['PUBLIC', 'FOLLOWERS_ONLY'] },
-        OR: [
-          { isScheduled: false },
-          { isScheduled: true, scheduledFor: { lte: new Date() } },
-        ],
         ...(viewerIsMinor ? { isMature: false } : {}),
+        AND: [
+          {
+            OR: [
+              {
+                AND: [{ accountId: { in: allowedAccountIds } }, { privacy: { in: ['PUBLIC', 'FOLLOWERS_ONLY'] } }],
+              },
+              { accountId },
+            ],
+          },
+          {
+            OR: [
+              { isScheduled: false },
+              { isScheduled: true, scheduledFor: { lte: new Date() } },
+            ],
+          },
+          {
+            OR: [
+              { isSubscriberOnly: false },
+              { isSubscriberOnly: true, accountId: { in: subscribedCreatorIds } },
+            ],
+          },
+        ],
       },
       orderBy: { createdAt: 'desc' },
       take,
@@ -213,7 +257,7 @@ export class FeedService {
       profilePhoto: p.account.profilePhoto,
       accountType: p.account.accountType,
       verifiedBadge: p.account.verifiedBadge ?? false,
-      media: p.media,
+      media: normalizeMediaJsonForApi(p.media),
       caption: p.caption,
       location: p.location,
       likeCount: p.likes.length,
@@ -221,6 +265,8 @@ export class FeedService {
       isLiked: p.likes.some((l) => l.accountId === accountId),
       isSaved: savedPostIds.has(p.id),
       createdAt: p.createdAt,
+      allowComments: (p as { allowComments?: boolean }).allowComments !== false,
+      hideLikeCount: !!(p as { hideLikeCount?: boolean }).hideLikeCount,
       productTags: (p.ProductTag ?? []).map((t) => ({ productId: t.productId, x: t.x, y: t.y, product: t.product })),
     }));
     const nextCursor = items.length === take ? items[items.length - 1].id : null;
@@ -249,6 +295,8 @@ export class FeedService {
       isLiked: boolean;
       isSaved: boolean;
       createdAt: Date;
+      allowComments?: boolean;
+      hideLikeCount?: boolean;
       productTags: any[];
     }>,
   ) {
@@ -373,7 +421,7 @@ export class FeedService {
       profilePhoto: p.account.profilePhoto,
       accountType: p.account.accountType,
       verifiedBadge: p.account.verifiedBadge ?? false,
-      media: p.media,
+      media: normalizeMediaJsonForApi(p.media),
       caption: p.caption,
       location: p.location,
       likeCount: p.likes.length,
@@ -381,6 +429,8 @@ export class FeedService {
       isLiked: p.likes.some((l) => l.accountId === viewerAccountId),
       isSaved,
       createdAt: p.createdAt,
+      allowComments: (p as { allowComments?: boolean }).allowComments !== false,
+      hideLikeCount: !!(p as { hideLikeCount?: boolean }).hideLikeCount,
       productTags: (p.ProductTag ?? []).map((t) => ({
         productId: t.productId,
         x: t.x ?? 0,
@@ -388,6 +438,14 @@ export class FeedService {
         product: t.product,
       })),
       adCampaignId: best.id,
+      adDestinationUrl: best.destinationUrl ?? null,
+      adUtm: {
+        source: best.utmSource ?? null,
+        medium: best.utmMedium ?? null,
+        campaign: best.utmCampaign ?? null,
+        term: best.utmTerm ?? null,
+        content: best.utmContent ?? null,
+      },
     };
 
     const injected = [...organicItems];

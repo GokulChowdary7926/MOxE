@@ -1,14 +1,12 @@
 import { createSlice } from '@reduxjs/toolkit';
 import type { AccountCapabilities } from '../constants/accountTypes';
-
-const hasToken = typeof localStorage !== 'undefined' && !!localStorage.getItem('token');
+import { logout, logoutThunk } from './authSlice';
 
 const accountSlice = createSlice({
   name: 'account',
   initialState: {
-    currentAccount: hasToken
-      ? { id: 'dev', username: 'dev', displayName: 'Dev User', accountType: 'JOB', subscriptionTier: 'FREE' }
-      : null,
+    /** Hydrated by `fetchMe` after reload; do not use fake ids (breaks Socket/API account lookups). */
+    currentAccount: null as Record<string, unknown> | null,
     accounts: [] as any[],
     capabilities: null as AccountCapabilities | null,
   },
@@ -28,6 +26,19 @@ const accountSlice = createSlice({
       state.currentAccount = account;
       state.capabilities = account?.capabilities ?? null;
     },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(logout, (state) => {
+        state.currentAccount = null;
+        state.accounts = [];
+        state.capabilities = null;
+      })
+      .addCase(logoutThunk.fulfilled, (state) => {
+        state.currentAccount = null;
+        state.accounts = [];
+        state.capabilities = null;
+      });
   },
 });
 

@@ -1,12 +1,21 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 import { ThemedView } from '../../components/ui/Themed';
 import { MobileShell } from '../../components/layout/MobileShell';
+import { useCurrentAccount } from '../../hooks/useAccountCapabilities';
 
 export default function DateOfBirthPage() {
   const navigate = useNavigate();
-  const [dateStr, setDateStr] = useState('2005-07-07');
+  const account = useCurrentAccount() as any;
+  const initialDate = useMemo(() => {
+    const raw = account?.user?.dateOfBirth as string | undefined;
+    if (!raw) return '';
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toISOString().slice(0, 10);
+  }, [account?.user?.dateOfBirth]);
+  const [dateStr, setDateStr] = useState(initialDate);
 
   return (
     <ThemedView className="min-h-screen flex flex-col bg-black">

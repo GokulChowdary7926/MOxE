@@ -16,7 +16,6 @@ import { CommerceScreen } from '../screens/business/CommerceScreen';
 import { SellerOrdersScreen } from '../screens/business/SellerOrdersScreen';
 import { SellerProductsScreen } from '../screens/business/SellerProductsScreen';
 import { CreatorStudioScreen } from '../screens/creator/CreatorStudioScreen';
-import { JobHubScreen } from '../screens/job/JobHubScreen';
 import { ManageHighlightsScreen } from '../screens/highlights/ManageHighlightsScreen';
 import { EmergencyContactsScreen } from '../screens/safety/EmergencyContactsScreen';
 import { HangoutModeScreen } from '../screens/safety/HangoutModeScreen';
@@ -61,7 +60,6 @@ export function RootNavigator() {
       <Stack.Screen name="SellerOrders" component={SellerOrdersScreen} />
       <Stack.Screen name="SellerProducts" component={SellerProductsScreen} />
       <Stack.Screen name="CreatorStudio" component={CreatorStudioScreen} />
-      <Stack.Screen name="JobHub" component={JobHubScreen} />
       <Stack.Screen name="ManageHighlights" component={ManageHighlightsScreen} />
       <Stack.Screen name="EmergencyContacts" component={EmergencyContactsScreen} />
       <Stack.Screen name="HangoutMode" component={HangoutModeScreen} />

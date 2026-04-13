@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import { getApiBase } from '../../services/api';
+import { readApiError } from '../../utils/readApiError';
+import { JobPageContent } from '../../components/job/JobPageContent';
+import { JobBibleReferenceSection, JobToolBibleShell } from '../../components/job/bible';
+import { JOB_MOBILE } from '../../components/job/jobMobileStyles';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type WorkProject = {
   id: string;
@@ -63,12 +68,18 @@ export default function Work() {
   const fetchProjects = async () => {
     setLoading(true);
     setError(null);
+    if (!token) {
+      setError('Sign in to load work projects.');
+      setProjects([]);
+      setLoading(false);
+      return;
+    }
     try {
       const res = await fetch(`${API_BASE}/job/work/projects`, {
         headers: authHeaders,
       });
       if (!res.ok) {
-        throw new Error('Failed to load projects');
+        throw new Error(await readApiError(res));
       }
       const data = await res.json();
       setProjects(Array.isArray(data) ? data : []);
@@ -87,7 +98,7 @@ export default function Work() {
         headers: authHeaders,
       });
       if (!res.ok) {
-        throw new Error('Failed to load project');
+        throw new Error(await readApiError(res));
       }
       const data = await res.json();
       setSelectedProject(data);
@@ -126,8 +137,7 @@ export default function Work() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || 'Failed to create project');
+        throw new Error(await readApiError(res));
       }
       const created = await res.json();
       setProjects((prev) => [created, ...prev]);
@@ -162,8 +172,7 @@ export default function Work() {
         body: JSON.stringify({ projectId: selectedProject.id, name: taskListForm.name.trim() }),
       });
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || 'Failed to create list');
+        throw new Error(await readApiError(res));
       }
       const list = await res.json();
       setSelectedProject((prev) =>
@@ -198,8 +207,7 @@ export default function Work() {
         }),
       });
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || 'Failed to create task');
+        throw new Error(await readApiError(res));
       }
       const task = await res.json();
       setSelectedProject((prev) =>
@@ -224,94 +232,73 @@ export default function Work() {
 
   if (loading && projects.length === 0) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-slate-500">Loading Work…</div>
-      </div>
+      <JobPageContent variant="track" error={undefined}>
+        <JobToolBibleShell toolTitle="MOxE WORK" toolIconMaterial="work">
+          <div className="flex items-center justify-center py-12 text-sm text-on-surface-variant">Loading Work…</div>
+        </JobToolBibleShell>
+      </JobPageContent>
     );
   }
 
   return (
-    <div>
-      <h2 className="text-2xl font-semibold text-slate-800 dark:text-white mb-2">MOxE Work</h2>
-      <p className="text-slate-600 dark:text-slate-400 mb-6 text-sm">
-        Plan business projects with timelines, budgets, and task lists.
-      </p>
-
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-lg text-sm">
-          {error}
-        </div>
-      )}
+    <JobPageContent variant="track" error={error}>
+      <JobToolBibleShell toolTitle="MOxE WORK" toolIconMaterial="work">
+    <div className="space-y-4">
 
       {!selectedProject && (
         <>
-          <form
-            onSubmit={handleCreateProject}
-            className="mb-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 space-y-3"
-          >
+          <form onSubmit={handleCreateProject} className={`mb-6 ${JOB_MOBILE.formPanel}`}>
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                New project
-              </h3>
+              <h3 className="text-sm font-semibold text-on-surface">New project</h3>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                  Name
-                </label>
+                <label className={JOB_MOBILE.formLabel}>Name</label>
                 <input
                   type="text"
                   value={projectForm.name}
                   onChange={(e) => setProjectForm((prev) => ({ ...prev, name: e.target.value }))}
                   required
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
+                  className={JOB_MOBILE.formInput}
                   placeholder="Q3 Launch Plan"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                  Type
-                </label>
+                <label className={JOB_MOBILE.formLabel}>Type</label>
                 <input
                   type="text"
                   value={projectForm.projectType}
                   onChange={(e) =>
                     setProjectForm((prev) => ({ ...prev, projectType: e.target.value }))
                   }
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
+                  className={JOB_MOBILE.formInput}
                   placeholder="Marketing, Product, Operations…"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                  Start date
-                </label>
+                <label className={JOB_MOBILE.formLabel}>Start date</label>
                 <input
                   type="date"
                   value={projectForm.startDate}
                   onChange={(e) =>
                     setProjectForm((prev) => ({ ...prev, startDate: e.target.value }))
                   }
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
+                  className={JOB_MOBILE.formInput}
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                  End date
-                </label>
+                <label className={JOB_MOBILE.formLabel}>End date</label>
                 <input
                   type="date"
                   value={projectForm.endDate}
                   onChange={(e) =>
                     setProjectForm((prev) => ({ ...prev, endDate: e.target.value }))
                   }
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
+                  className={JOB_MOBILE.formInput}
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                  Budget amount
-                </label>
+                <label className={JOB_MOBILE.formLabel}>Budget amount</label>
                 <input
                   type="number"
                   min={0}
@@ -319,21 +306,19 @@ export default function Work() {
                   onChange={(e) =>
                     setProjectForm((prev) => ({ ...prev, budgetAmount: e.target.value }))
                   }
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
+                  className={JOB_MOBILE.formInput}
                   placeholder="50000"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                  Currency
-                </label>
+                <label className={JOB_MOBILE.formLabel}>Currency</label>
                 <input
                   type="text"
                   value={projectForm.budgetCurrency}
                   onChange={(e) =>
                     setProjectForm((prev) => ({ ...prev, budgetCurrency: e.target.value }))
                   }
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
+                  className={JOB_MOBILE.formInput}
                   placeholder="USD"
                 />
               </div>
@@ -342,7 +327,7 @@ export default function Work() {
               <button
                 type="submit"
                 disabled={creatingProject}
-                className="px-4 py-2 rounded-lg bg-indigo-600 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+                className="min-h-[44px] rounded-xl bg-[#0052CC] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#0747A6] disabled:opacity-60"
               >
                 {creatingProject ? 'Creating…' : 'Create project'}
               </button>
@@ -350,7 +335,7 @@ export default function Work() {
           </form>
 
           {projects.length === 0 ? (
-            <p className="text-slate-500 text-sm">
+            <p className={JOB_MOBILE.formMuted}>
               No projects yet. Use the form above to create your first Work project.
             </p>
           ) : (
@@ -360,14 +345,12 @@ export default function Work() {
                   key={p.id}
                   type="button"
                   onClick={() => openProject(p)}
-                  className="w-full text-left p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors"
+                  className={`w-full rounded-xl border border-outline-variant/20 p-4 text-left transition-colors hover:border-primary/45 ${JOB_MOBILE.trackCard}`}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <div className="text-sm font-semibold text-slate-800 dark:text-slate-50">
-                        {p.name}
-                      </div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      <div className="text-sm font-semibold text-on-surface">{p.name}</div>
+                      <div className="mt-1 text-xs text-on-surface-variant">
                         {p.projectType || 'General'}{' '}
                         {p.startDate &&
                           p.endDate &&
@@ -377,9 +360,9 @@ export default function Work() {
                       </div>
                     </div>
                     {p.budgetAmount != null && (
-                      <div className="text-xs text-slate-600 dark:text-slate-300">
+                      <div className="text-xs text-on-surface-variant">
                         Budget:{' '}
-                        <span className="font-medium">
+                        <span className="font-medium text-on-surface">
                           {p.budgetCurrency || 'USD'} {p.budgetAmount.toLocaleString()}
                         </span>
                       </div>
@@ -397,14 +380,12 @@ export default function Work() {
           <button
             type="button"
             onClick={() => setSelectedProject(null)}
-            className="text-sm text-indigo-600 dark:text-indigo-400 mb-3"
+                className="text-sm text-[#0052CC] dark:text-[#2684FF] font-medium mb-3"
           >
             ← Back to projects
           </button>
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-50">
-            {selectedProject.name}
-          </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+          <h3 className="text-lg font-semibold text-on-surface">{selectedProject.name}</h3>
+          <p className="mb-4 text-xs text-on-surface-variant">
             {selectedProject.projectType || 'General'}{' '}
             {selectedProject.startDate &&
               selectedProject.endDate &&
@@ -415,19 +396,19 @@ export default function Work() {
 
           <form
             onSubmit={handleCreateTaskList}
-            className="mb-4 flex flex-col sm:flex-row gap-2 items-stretch sm:items-center"
+            className="mb-4 flex flex-col gap-2 items-stretch"
           >
             <input
               type="text"
               value={taskListForm.name}
               onChange={(e) => setTaskListForm({ name: e.target.value })}
               placeholder="Add task list (e.g. Discovery, Delivery)"
-              className="flex-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-50"
+              className={JOB_MOBILE.formInput}
             />
             <button
               type="submit"
               disabled={savingTaskList}
-              className="px-4 py-2 rounded-lg bg-indigo-600 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+              className="px-4 py-2 rounded-lg bg-[#0052CC] hover:bg-[#0747A6] dark:bg-[#2684FF] dark:hover:bg-[#0052CC] text-sm font-medium text-white disabled:opacity-60"
             >
               {savingTaskList ? 'Adding…' : 'Add list'}
             </button>
@@ -435,35 +416,31 @@ export default function Work() {
 
           <div className="flex gap-4 overflow-x-auto pb-2">
             {(selectedProject.taskLists || []).length === 0 ? (
-              <p className="text-sm text-slate-500">No task lists yet. Create one above.</p>
+              <p className="text-sm text-on-surface-variant">No task lists yet. Create one above.</p>
             ) : (
               (selectedProject.taskLists || []).map((list) => (
                 <div
                   key={list.id}
-                  className="flex-shrink-0 w-72 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-3"
+                  className="w-72 shrink-0 rounded-xl border border-outline-variant/20 bg-surface-container-low p-3"
                 >
-                  <div className="font-medium text-slate-800 dark:text-slate-100 text-sm mb-2">
-                    {list.name}
-                  </div>
-                  <div className="space-y-2 mb-3">
+                  <div className="mb-2 text-sm font-medium text-on-surface">{list.name}</div>
+                  <div className="mb-3 space-y-2">
                     {(list.tasks || []).length === 0 ? (
-                      <p className="text-[11px] text-slate-500">No tasks yet.</p>
+                      <p className="text-[11px] text-on-surface-variant">No tasks yet.</p>
                     ) : (
                       (list.tasks || []).map((task) => (
                         <div
                           key={task.id}
-                          className="p-2 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+                          className="rounded-lg border border-outline-variant/15 bg-surface-container p-2"
                         >
-                          <div className="text-xs font-medium text-slate-800 dark:text-slate-100">
-                            {task.title}
-                          </div>
+                          <div className="text-xs font-medium text-on-surface">{task.title}</div>
                           {task.description && (
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">
+                            <p className="mt-0.5 line-clamp-2 text-[11px] text-on-surface-variant">
                               {task.description}
                             </p>
                           )}
                           {task.dueDate && (
-                            <p className="text-[11px] text-slate-500 dark:text-slate-500 mt-1">
+                            <p className="mt-1 text-[11px] text-on-surface-variant">
                               Due {new Date(task.dueDate).toLocaleDateString()}
                             </p>
                           )}
@@ -479,7 +456,7 @@ export default function Work() {
                         setTaskForm((prev) => ({ ...prev, title: e.target.value }))
                       }
                       placeholder="New task title"
-                      className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 text-xs text-slate-900 dark:text-slate-50"
+                      className={`${JOB_MOBILE.formInput} py-1.5 text-xs min-h-0`}
                     />
                     <input
                       type="text"
@@ -488,12 +465,12 @@ export default function Work() {
                         setTaskForm((prev) => ({ ...prev, description: e.target.value }))
                       }
                       placeholder="Optional description"
-                      className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 text-xs text-slate-900 dark:text-slate-50"
+                      className={`${JOB_MOBILE.formInput} py-1.5 text-xs min-h-0`}
                     />
                     <button
                       type="submit"
                       disabled={savingTaskForList === list.id}
-                      className="w-full mt-1 rounded-md bg-indigo-600 text-[11px] font-medium text-white py-1 hover:bg-indigo-700 disabled:opacity-60"
+                      className="w-full mt-1 rounded-md bg-[#0052CC] hover:bg-[#0747A6] dark:bg-[#2684FF] dark:hover:bg-[#0052CC] text-[11px] font-medium text-white py-1 disabled:opacity-60"
                     >
                       {savingTaskForList === list.id ? 'Adding…' : 'Add task'}
                     </button>
@@ -504,7 +481,10 @@ export default function Work() {
           </div>
         </div>
       )}
+      <JobBibleReferenceSection toolKey="work" />
     </div>
+      </JobToolBibleShell>
+    </JobPageContent>
   );
 }
 

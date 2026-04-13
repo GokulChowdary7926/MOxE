@@ -10,7 +10,7 @@ export default function StorySettings() {
   const [saveToArchive, setSaveToArchive] = useState(true);
   const [allowOthersToShare, setAllowOthersToShare] = useState(false);
   const [allowSharingToMessages, setAllowSharingToMessages] = useState(false);
-  const [shareToFacebook, setShareToFacebook] = useState(false);
+  const [shareToConnectedApp, setShareToConnectedApp] = useState(false);
 
   return (
     <ThemedView className="min-h-screen flex flex-col bg-black">
@@ -140,11 +140,11 @@ export default function StorySettings() {
             </div>
             <div className="flex items-center justify-between px-4 py-3 border-t border-[#262626]">
               <div>
-                <span className="text-white text-sm font-medium block">Share your story to Facebook</span>
-                <span className="text-[#a8a8a8] text-xs block mt-0.5">Automatically share your story as your Facebook story.</span>
+                <span className="text-white text-sm font-medium block">Cross-post story</span>
+                <span className="text-[#a8a8a8] text-xs block mt-0.5">When enabled, mirror this story to a connected app you&apos;ve linked in settings.</span>
               </div>
-              <button type="button" role="switch" aria-checked={shareToFacebook} onClick={() => setShareToFacebook((v) => !v)} className={`w-11 h-6 rounded-full flex-shrink-0 ${shareToFacebook ? 'bg-[#0095f6]' : 'bg-[#363636]'}`}>
-                <span className={`block w-5 h-5 rounded-full bg-white shadow mt-0.5 transition-transform ${shareToFacebook ? 'translate-x-6' : 'translate-x-0.5'}`} />
+              <button type="button" role="switch" aria-checked={shareToConnectedApp} onClick={() => setShareToConnectedApp((v) => !v)} className={`w-11 h-6 rounded-full flex-shrink-0 ${shareToConnectedApp ? 'bg-[#0095f6]' : 'bg-[#363636]'}`}>
+                <span className={`block w-5 h-5 rounded-full bg-white shadow mt-0.5 transition-transform ${shareToConnectedApp ? 'translate-x-6' : 'translate-x-0.5'}`} />
               </button>
             </div>
           </section>

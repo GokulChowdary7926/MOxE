@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getApiBase } from '../../services/api';
 import { JobPageContent } from '../../components/job/JobPageContent';
+import { JobBibleReferenceSection, JobToolBibleShell } from '../../components/job/bible';
 import { safeFirstId } from '../../utils/safeAccess';
 
 const API_BASE = getApiBase();
@@ -268,13 +269,10 @@ export default function Status() {
   const anyComponents = (selectedPage?.components || []).length > 0;
 
   return (
-    <JobPageContent
-      title="MOxE Status"
-      description="Create status pages for your services, manage components, and communicate incidents."
-      error={error}
-    >
-    <div className="flex flex-col lg:flex-row gap-6">
-      <div className="w-full lg:w-72">
+    <JobPageContent variant="track" error={error}>
+      <JobToolBibleShell toolTitle="MOxE STATUS" toolIconMaterial="monitoring">
+    <div className="flex flex-col gap-6">
+      <div className="w-full min-w-0">
         <form
           onSubmit={handleCreatePage}
           className="mb-4 p-3 rounded-xl border border-[#DFE1E6] dark:border-slate-700 bg-white dark:bg-slate-800 space-y-2 text-xs"
@@ -388,7 +386,7 @@ export default function Status() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <div className="rounded-xl border border-[#DFE1E6] dark:border-slate-700 bg-white dark:bg-slate-800 p-3 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">
@@ -646,8 +644,10 @@ export default function Status() {
             </div>
           </div>
         )}
+      <JobBibleReferenceSection toolKey="status" />
       </div>
     </div>
+      </JobToolBibleShell>
     </JobPageContent>
   );
 }

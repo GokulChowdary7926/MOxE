@@ -47,7 +47,14 @@ export default function ReelTagPeoplePage() {
   const remove = (id: string) => setSelected((prev) => prev.filter((s) => s.id !== id));
 
   const onDone = () => {
-    navigate(-1, { state: { mentionedUserIds: selected.map((s) => s.id), files: (location.state as { files?: File[] })?.files } });
+    navigate('..', {
+      relative: 'path',
+      replace: true,
+      state: {
+        mentionedUserIds: selected.map((s) => s.id),
+        files: (location.state as { files?: File[] })?.files,
+      },
+    });
   };
 
   return (

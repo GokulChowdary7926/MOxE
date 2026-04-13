@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { ThemedView } from '../ui/Themed';
 
 /**
- * Instagram-style page wrapper: optional back + title bar, consistent content area.
+ * MOxE page wrapper: optional back + title bar, consistent content area.
  * Use fullBleed for Home, Reels (no side padding). Default: padded content + pb for bottom nav.
  */
 export function PageLayout({
@@ -26,31 +26,30 @@ export function PageLayout({
 }) {
   const hasHeader = title != null || backTo != null || right != null;
   return (
-    <ThemedView className={`min-h-screen flex flex-col ${className}`}>
+    <ThemedView className={`flex flex-1 flex-col min-h-0 w-full overflow-hidden ${className}`}>
       {hasHeader && (
-        <header className="sticky top-0 z-10 flex items-center justify-between h-12 px-3 border-b border-moxe-border bg-moxe-background safe-area-pt">
-          <div className="min-w-[80px] flex justify-start">
+        <header className="sticky top-0 z-10 shrink-0 relative flex items-center justify-between h-12 px-3 border-b border-[#262626] bg-black safe-area-pt">
+          <div className="min-w-[44px] flex justify-start">
             {backTo != null ? (
               <Link
                 to={backTo}
-                className="flex items-center gap-1 text-moxe-text text-moxe-body font-medium active:opacity-70"
+                className="flex items-center justify-center w-10 h-10 -ml-1 text-white active:opacity-70"
                 aria-label="Back"
               >
                 <ChevronLeft className="w-6 h-6" />
-                <span className="sr-only md:not-sr-only">Back</span>
               </Link>
             ) : null}
           </div>
           {title != null && (
-            <span className="absolute left-1/2 -translate-x-1/2 text-moxe-body font-semibold text-moxe-text">
+            <span className="absolute left-1/2 -translate-x-1/2 text-[17px] font-semibold text-white max-w-[50%] truncate">
               {title}
             </span>
           )}
-          <div className="min-w-[80px] flex justify-end">{right ?? null}</div>
+          <div className="min-w-[44px] flex justify-end">{right ?? null}</div>
         </header>
       )}
       <div
-        className={`flex-1 overflow-auto ${fullBleed ? '' : 'px-4'} ${noBottomPad ? '' : 'pb-20'}`}
+        className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden touch-pan-y ${fullBleed ? '' : 'px-3'} ${noBottomPad ? '' : 'pb-20'}`}
       >
         {children}
       </div>
@@ -126,7 +125,7 @@ export function SettingsSection({
 }
 
 /**
- * Instagram-style settings section with radio options and optional example text (§9.3).
+ * MOxE settings section with radio options and optional example text (§9.3).
  * Use for notification/preference screens (Posts, stories and comments; Following and followers; etc.).
  */
 export function SettingsRadioSection({

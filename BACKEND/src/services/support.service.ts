@@ -9,7 +9,17 @@ export class SupportService {
     });
     if (!account) throw new AppError('Account not found', 404);
     const isPriority = account.subscriptionTier === 'STAR';
-    const category = (data.category && ['general', 'seller', 'billing'].includes(data.category)) ? data.category : 'general';
+    const allowed = new Set([
+      'general',
+      'seller',
+      'billing',
+      'memorialization',
+      'legal_counter_notice',
+      'legal_le_inquiry',
+      'claim_profile',
+      'data_transfer',
+    ]);
+    const category = data.category && allowed.has(data.category) ? data.category : 'general';
     return prisma.supportTicket.create({
       data: {
         accountId,

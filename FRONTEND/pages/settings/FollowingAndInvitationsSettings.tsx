@@ -20,6 +20,11 @@ export default function FollowingAndInvitationsSettings() {
         <span className="font-medium">Follow contacts</span>
         <ChevronRight className="w-5 h-5 text-[#737373] ml-auto" />
       </Link>
+      <Link to="/settings/contact-sync" className="flex items-center gap-3 px-4 py-3 border-b border-[#262626] text-white active:bg-white/5">
+        <User className="w-5 h-5 text-[#a8a8a8] flex-shrink-0" />
+        <span className="font-medium">Contact syncing</span>
+        <ChevronRight className="w-5 h-5 text-[#737373] ml-auto" />
+      </Link>
 
       <p className="text-[#737373] text-xs font-semibold px-4 pt-6 pb-2">Invite your friends</p>
       <div className="border-t border-[#262626]">

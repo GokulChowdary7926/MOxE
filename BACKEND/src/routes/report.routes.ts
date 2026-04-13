@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { ReportService } from '../services/report.service';
+import { prisma } from '../server';
 
 const router = Router();
 const service = new ReportService();
@@ -22,6 +23,20 @@ router.post('/', async (req, res, next) => {
   try {
     const accountId = (req as any).user?.accountId;
     if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    let useAnonymous = req.body?.anonymous === true;
+    if (!useAnonymous && req.body?.anonymous == null) {
+      const account = await prisma.account.findUnique({
+        where: { id: accountId },
+        select: { clientSettings: true },
+      });
+      const cs = (account?.clientSettings as Record<string, unknown> | null) ?? {};
+      useAnonymous = !!cs.anonymousReportingDefault;
+    }
+    if (useAnonymous) {
+      const { type, targetId, reason, description } = req.body || {};
+      const result = await service.createAnonymous({ type, targetId, reason, description });
+      return res.status(201).json(result);
+    }
     const result = await service.create(accountId, req.body);
     res.status(201).json(result);
   } catch (e) {

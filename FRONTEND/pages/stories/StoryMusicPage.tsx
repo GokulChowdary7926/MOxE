@@ -75,9 +75,8 @@ export default function StoryMusicPage() {
           <p className="text-white font-semibold text-sm mb-2">Music</p>
           <div className="space-y-2">
             {TRACKS.map((t) => (
-              <button
+              <div
                 key={t.id}
-                type="button"
                 className="w-full flex items-center gap-3 py-2 rounded-lg active:bg-white/5"
               >
                 <div className="w-12 h-12 rounded-lg bg-[#262626] flex-shrink-0" />
@@ -87,8 +86,8 @@ export default function StoryMusicPage() {
                 </div>
                 <span className="text-[#737373] text-xs flex-shrink-0">{t.reels} reels</span>
                 <span className="text-[#737373] text-xs flex-shrink-0">{t.duration}</span>
-                <button type="button" className="p-1 text-[#737373]">♡</button>
-              </button>
+                <button type="button" className="p-1 text-[#737373]" aria-label={`Favorite ${t.title}`}>♡</button>
+              </div>
             ))}
           </div>
         </div>

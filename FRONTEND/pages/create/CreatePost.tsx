@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { MapPin, Users, Settings } from 'lucide-react';
 import { useAccountCapabilities, useCurrentAccount } from '../../hooks/useAccountCapabilities';
-import { getApiBase } from '../../services/api';
+import { getApiBase, getUploadUrl } from '../../services/api';
 
 const API_BASE = getApiBase();
 
@@ -44,7 +44,9 @@ export default function CreatePost() {
   const [showMentions, setShowMentions] = useState(false);
   const [mentionedUserIds, setMentionedUserIds] = useState<string[]>([]);
   const [locationQuery, setLocationQuery] = useState('');
-  const [locationSuggestions, setLocationSuggestions] = useState<{ id: string; name: string }[]>([]);
+  const [locationSuggestions, setLocationSuggestions] = useState<
+    { id: string; name: string; displayName?: string; latitude?: number; longitude?: number }[]
+  >([]);
   const [showLocationResults, setShowLocationResults] = useState(false);
   const [placeId, setPlaceId] = useState<string | null>(null);
   const [recentLocations, setRecentLocations] = useState<string[]>([]);
@@ -229,15 +231,15 @@ export default function CreatePost() {
     };
   }, [mentionQuery]);
 
-  // Location search for composer – backed by /api/location/search
+  // Location search – real-time places via /location/search (Nominatim-backed)
   useEffect(() => {
+    const q = locationQuery.trim();
+    if (!q) {
+      setLocationSuggestions([]);
+      return;
+    }
     let cancelled = false;
-    async function fetchLocations() {
-      const q = locationQuery.trim();
-      if (!q) {
-        setLocationSuggestions([]);
-        return;
-      }
+    const timer = window.setTimeout(async () => {
       try {
         const token = localStorage.getItem('token');
         if (!token) return;
@@ -247,17 +249,21 @@ export default function CreatePost() {
         );
         const data = await res.json().catch(() => ({}));
         if (!res.ok || cancelled) return;
-        const places = (data.places ?? []) as { id: string; name: string }[];
+        const places = (data.places ?? []) as {
+          id: string;
+          name: string;
+          displayName?: string;
+          latitude?: number;
+          longitude?: number;
+        }[];
         setLocationSuggestions(places);
       } catch {
         if (!cancelled) setLocationSuggestions([]);
       }
-    }
-    if (locationQuery) {
-      fetchLocations();
-    }
+    }, 400);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [locationQuery]);
 
@@ -326,7 +332,7 @@ export default function CreatePost() {
       for (const file of files) {
         const form = new FormData();
         form.append('file', file);
-        const uploadRes = await fetch(`${API_BASE}/upload`, {
+        const uploadRes = await fetch(getUploadUrl(), {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token}`,
@@ -447,7 +453,7 @@ export default function CreatePost() {
           disabled={submitting}
           className="text-violet-400 font-semibold hover:text-violet-300 disabled:opacity-50"
         >
-          {submitting ? 'Sharing…' : 'Share'}
+          {submitting ? 'Posting…' : 'Post'}
         </button>
       </header>
 
@@ -493,7 +499,7 @@ export default function CreatePost() {
               </div>
             ) : (
               <div className="text-center text-zinc-500 w-full">
-                <div className="w-20 h-20 rounded-full bg-zinc-800 flex items-center justify-center mx-auto mb-2">
+            <div className="w-20 h-20 rounded-full bg-zinc-800 flex items-center justify-center mx-auto mb-2">
                   <span className="text-3xl">＋</span>
                 </div>
                 <p className="text-sm">Tap below to add images or videos</p>
@@ -680,7 +686,7 @@ export default function CreatePost() {
                   >
                     ✕
                   </button>
-                </div>
+            </div>
               </button>
             ))}
           </div>
@@ -779,15 +785,19 @@ export default function CreatePost() {
                     key={p.id}
                     type="button"
                     onClick={() => {
-                      setLocation(p.name);
+                      const label = p.displayName && p.displayName !== p.name ? p.displayName : p.name;
+                      setLocation(label);
                       setPlaceId(p.id);
                       setLocationQuery(p.name);
                       setShowLocationResults(false);
-                      rememberLocation(p.name);
+                      rememberLocation(label);
                     }}
                     className="w-full text-left px-3 py-1.5 hover:bg-zinc-800 text-zinc-200"
                   >
-                    {p.name}
+                    <span className="block text-zinc-100 font-medium">{p.name}</span>
+                    {p.displayName && p.displayName !== p.name ? (
+                      <span className="block text-xs text-zinc-500 line-clamp-2">{p.displayName}</span>
+                    ) : null}
                   </button>
                 ))}
               </div>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BoostLayout } from './BoostLayout';
-import { Info } from 'lucide-react';
+import { writeBoostDraft } from '../../utils/boostDraft';
 
 export default function BoostBudgetPage() {
   const navigate = useNavigate();
@@ -33,11 +33,20 @@ export default function BoostBudgetPage() {
 
         <div className="p-4 rounded-xl bg-[#262626] space-y-2">
           <p className="text-white"><span className="text-[#a8a8a8]">Ad budget:</span> ₹{total} over {duration} days</p>
-          <p className="text-white flex items-center gap-1"><span className="text-[#a8a8a8]">Estimated impressions</span> <Info className="w-4 h-4 text-[#737373]" /> 70,338 – 130,629</p>
-          <p className="text-white flex items-center gap-1"><span className="text-[#a8a8a8]">Apple service fee</span> <Info className="w-4 h-4 text-[#737373]" /> To be calculated</p>
+          <p className="text-[#a8a8a8] text-sm">Reach estimates are not shown until forecasting is connected to your ads account.</p>
+          <p className="text-white"><span className="text-[#a8a8a8]">Apple service fee:</span> calculated at purchase when applicable</p>
         </div>
 
-        <button type="button" onClick={() => navigate('/boost/review')} className="w-full py-3 rounded-lg bg-[#0095f6] text-white font-semibold mt-8">Next</button>
+        <button
+          type="button"
+          onClick={() => {
+            writeBoostDraft({ dailyBudget, durationDays: duration });
+            navigate('/boost/review');
+          }}
+          className="w-full py-3 rounded-lg bg-[#0095f6] text-white font-semibold mt-8"
+        >
+          Next
+        </button>
       </div>
     </BoostLayout>
   );

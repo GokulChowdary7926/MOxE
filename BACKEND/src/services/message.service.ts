@@ -6,12 +6,36 @@ import { prisma } from '../server';
 import { AppError } from '../utils/AppError';
 import { getIo } from '../sockets';
 import { MediaExpirationService } from './mediaExpiration.service';
+import { addAccountActivityLog } from './activity.service';
+import { shouldLimitIncomingInteraction } from './limitInteractionEnforcement.service';
+import { normalizeMessageMediaForApi, normalizeStoredMediaUrl } from '../utils/mediaUrl';
 
 const DEFAULT_LIMIT = 50;
 
 function contentMatchesHiddenWords(content: string, words: string[]): boolean {
   const lower = content.toLowerCase();
   return words.some((w) => typeof w === 'string' && w.length > 0 && lower.includes(w.toLowerCase()));
+}
+
+function contentMatchesRegex(content: string, patterns: string[]): boolean {
+  return patterns.some((p) => {
+    if (!p) return false;
+    try {
+      return new RegExp(p, 'i').test(content);
+    } catch {
+      return false;
+    }
+  });
+}
+
+function parseHiddenWordsConfig(raw: unknown): { regexPatterns: string[]; allowListAccountIds: string[] } {
+  const obj = raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? (raw as Record<string, unknown>)
+    : {};
+  return {
+    regexPatterns: Array.isArray(obj.regexPatterns) ? obj.regexPatterns.filter((x): x is string => typeof x === 'string') : [],
+    allowListAccountIds: Array.isArray(obj.allowListAccountIds) ? obj.allowListAccountIds.filter((x): x is string => typeof x === 'string') : [],
+  };
 }
 
 const MUTE_DURATION_MS: Record<string, number> = {
@@ -26,26 +50,56 @@ type ThreadItem = { otherId: string; other?: { id: string; username: string; dis
 const mediaTTLService = new MediaExpirationService();
 
 export class MessageService {
+  private async assertCanAccessMessage(accountId: string, messageId: string) {
+    const message = await prisma.message.findUnique({
+      where: { id: messageId },
+      include: { recipients: { select: { recipientId: true } } },
+    });
+    if (!message) throw new AppError('Message not found', 404);
+
+    if (message.groupId) {
+      const member = await prisma.groupMember.findUnique({
+        where: { groupId_accountId: { groupId: message.groupId, accountId } },
+      });
+      if (!member) throw new AppError('Not allowed to access this message', 403);
+      return message;
+    }
+
+    const recipientIds = message.recipients.map((r) => r.recipientId);
+    const isParticipant = message.senderId === accountId || recipientIds.includes(accountId);
+    if (!isParticipant) throw new AppError('Not allowed to access this message', 403);
+    return message;
+  }
+
   /**
    * Thread list + message requests. Requests = threads where I don't follow the other person.
    */
   async getThreads(accountId: string, labelFilter?: string): Promise<{ threads: ThreadItem[]; requests: ThreadItem[]; pinnedIds: string[] }> {
     const account = await prisma.account.findUnique({
       where: { id: accountId },
-      select: { hiddenWordsDMFilter: true, hiddenWords: true },
+      select: { hiddenWordsDMFilter: true, hiddenWords: true, clientSettings: true },
     });
     const hiddenWords = (account?.hiddenWordsDMFilter && Array.isArray(account?.hiddenWords))
       ? (account!.hiddenWords as string[])
       : [];
+    const hiddenWordsCfg = parseHiddenWordsConfig(
+      (account?.clientSettings as Record<string, unknown> | null)?.hiddenWordsConfig,
+    );
+    const hiddenRegexPatterns = account?.hiddenWordsDMFilter ? hiddenWordsCfg.regexPatterns : [];
+    const allowListAccountIds = new Set(hiddenWordsCfg.allowListAccountIds);
 
     const sent = await prisma.message.findMany({
-      where: { senderId: accountId, groupId: null },
+      where: { senderId: accountId, groupId: null, deletedBySenderAt: null },
       distinct: ['senderId'],
       orderBy: { createdAt: 'desc' },
       include: { recipients: { where: { recipientId: { not: accountId } }, include: { recipient: { select: { id: true, username: true, displayName: true, profilePhoto: true } } } } },
     });
     const received = await prisma.message.findMany({
-      where: { recipients: { some: { recipientId: accountId, isHidden: false } }, groupId: null },
+      where: {
+        recipients: { some: { recipientId: accountId, isHidden: false } },
+        groupId: null,
+        deletedByReceiverAt: null,
+      },
       orderBy: { createdAt: 'desc' },
       include: { sender: { select: { id: true, username: true, displayName: true, profilePhoto: true } }, recipients: true },
     });
@@ -59,6 +113,16 @@ export class MessageService {
         where: { followerId: accountId },
         select: { followingId: true },
       })).map((r) => r.followingId)
+    );
+
+    /** People I restricted: keep their DMs in requests (not main inbox), even if I still follow them. */
+    const restrictedByMe = new Set(
+      (
+        await prisma.restrict.findMany({
+          where: { restrictorId: accountId },
+          select: { restrictedId: true },
+        })
+      ).map((r) => r.restrictedId),
     );
 
     const pinned = await prisma.pinnedChat.findMany({
@@ -94,8 +158,16 @@ export class MessageService {
       const last = await prisma.message.findFirst({
         where: {
           OR: [
-            { senderId: accountId, recipients: { some: { recipientId: otherId } } },
-            { senderId: otherId, recipients: { some: { recipientId: accountId, isHidden: false } } },
+            {
+              senderId: accountId,
+              deletedBySenderAt: null,
+              recipients: { some: { recipientId: otherId } },
+            },
+            {
+              senderId: otherId,
+              deletedByReceiverAt: null,
+              recipients: { some: { recipientId: accountId, isHidden: false } },
+            },
           ],
         },
         orderBy: { createdAt: 'desc' },
@@ -103,7 +175,12 @@ export class MessageService {
       });
       if (!last) continue;
       const unread = await prisma.messageRecipient.count({
-        where: { recipientId: accountId, message: { senderId: otherId }, isRead: false, isHidden: false },
+        where: {
+          recipientId: accountId,
+          message: { senderId: otherId, deletedByReceiverAt: null },
+          isRead: false,
+          isHidden: false,
+        },
       });
       const other = last.senderId === accountId
         ? await prisma.account.findUnique({ where: { id: otherId }, select: { id: true, username: true, displayName: true, profilePhoto: true } })
@@ -118,11 +195,17 @@ export class MessageService {
         mutedUntil: mutedUntil ? mutedUntil.toISOString() : null,
         labels: threadLabels.length ? threadLabels : undefined,
       };
-      if (followingSet.has(otherId)) {
+      if (followingSet.has(otherId) && !restrictedByMe.has(otherId)) {
         threads.push(item);
       } else {
         // Hidden words (1.6.5): filter DM requests whose last message contains hidden words
-        if (hiddenWords.length === 0 || !contentMatchesHiddenWords(item.lastMessage, hiddenWords)) {
+        if (
+          allowListAccountIds.has(otherId)
+          || (
+            !contentMatchesHiddenWords(item.lastMessage, hiddenWords)
+            && !contentMatchesRegex(item.lastMessage, hiddenRegexPatterns)
+          )
+        ) {
           requests.push(item);
         }
       }
@@ -153,6 +236,7 @@ export class MessageService {
 
   private sanitizeViewOnce(messages: any[], accountId: string) {
     return messages.map((m) => {
+      const normalizedMedia = normalizeMessageMediaForApi(m.media);
       const isMine = m.senderId === accountId;
       const recipients = Array.isArray(m.recipients) ? m.recipients : [];
       const seenByEveryone = isMine
@@ -178,8 +262,16 @@ export class MessageService {
       where: {
         groupId: null,
         OR: [
-          { senderId: accountId, recipients: { some: { recipientId: otherId } } },
-          { senderId: otherId, recipients: { some: { recipientId: accountId, isHidden: false } } },
+          {
+            senderId: accountId,
+            deletedBySenderAt: null,
+            recipients: { some: { recipientId: otherId } },
+          },
+          {
+            senderId: otherId,
+            deletedByReceiverAt: null,
+            recipients: { some: { recipientId: accountId, isHidden: false } },
+          },
         ],
       },
       orderBy: { createdAt: 'desc' },
@@ -266,12 +358,19 @@ export class MessageService {
     const hasContent = (content?.trim()?.length ?? 0) > 0;
     const hasMedia = !!opts?.media?.url;
     if (!hasContent && !hasMedia) throw new AppError('Content or media required', 400);
+    const text = (content?.trim() ?? '').slice(0, 1000);
+    const vanishAt = opts?.isVanish ? (() => { const d = new Date(); d.setHours(d.getHours() + 24); return d; })() : null;
 
     if (hasMedia) {
-      const url = String(opts!.media!.url);
-      if (!/^https?:\/\//.test(url)) {
+      const raw = String(opts!.media!.url).trim();
+      if (/^[a-z][a-z0-9+.-]*:/i.test(raw) && !/^https?:/i.test(raw) && !raw.startsWith('data:')) {
         throw new AppError('Invalid media URL', 400);
       }
+      const url = normalizeStoredMediaUrl(raw);
+      if (!url) {
+        throw new AppError('Invalid media URL', 400);
+      }
+      opts = { ...opts, media: { ...opts!.media!, url } };
     }
 
     if (!isGroup) {
@@ -295,7 +394,12 @@ export class MessageService {
       });
       const recipientAccount = await prisma.account.findUnique({
         where: { id: recipientId },
-        include: { user: { select: { dateOfBirth: true } } },
+        select: {
+          user: { select: { dateOfBirth: true } },
+          hiddenWordsDMFilter: true,
+          hiddenWords: true,
+          clientSettings: true,
+        },
       });
       const age = (dob: Date | null) =>
         dob ? (Date.now() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000) : 999;
@@ -317,10 +421,64 @@ export class MessageService {
         if (!senderFollowsRecipient)
           throw new AppError('You can only message people you follow.', 403);
       }
-    }
 
-    const text = (content?.trim() ?? '').slice(0, 1000);
-    const vanishAt = opts?.isVanish ? (() => { const d = new Date(); d.setHours(d.getHours() + 24); return d; })() : null;
+      const recipientConfig = parseHiddenWordsConfig(
+        (recipientAccount?.clientSettings as Record<string, unknown> | null)?.hiddenWordsConfig,
+      );
+      const recipientAllowList = new Set(recipientConfig.allowListAccountIds);
+      const recipientHiddenWords = (recipientAccount?.hiddenWordsDMFilter && Array.isArray(recipientAccount.hiddenWords))
+        ? (recipientAccount.hiddenWords as string[])
+        : [];
+      const recipientRegex = recipientAccount?.hiddenWordsDMFilter ? recipientConfig.regexPatterns : [];
+      const shouldHideByFilter = !!recipientAccount?.hiddenWordsDMFilter
+        && !recipientAllowList.has(accountId)
+        && (
+          contentMatchesHiddenWords(text, recipientHiddenWords)
+          || contentMatchesRegex(text, recipientRegex)
+        );
+      const shouldHideByLimit = await shouldLimitIncomingInteraction(recipientId, accountId, 'dm');
+      const isHiddenForRecipient = shouldHideByFilter || shouldHideByLimit;
+      if (shouldHideByFilter) {
+        await addAccountActivityLog(recipientId, {
+          type: 'hidden_word_filter_dm',
+          title: 'DM filtered',
+          description: 'A DM request was hidden by your Hidden words filter.',
+          metadata: { senderId: accountId, messageType, at: new Date().toISOString() },
+        });
+      }
+
+      const message = await prisma.message.create({
+        data: {
+          senderId: accountId,
+          content: text || (messageType === 'VOICE' ? 'Voice message' : messageType === 'GIF' ? 'GIF' : 'Photo'),
+          messageType,
+          media: (opts?.media ?? undefined) as Prisma.InputJsonValue | undefined,
+          isVanish: !!opts?.isVanish,
+          vanishAt,
+          recipients: { create: [{ recipientId, isHidden: isHiddenForRecipient }] },
+        },
+        include: { sender: { select: { id: true, username: true, displayName: true, profilePhoto: true } }, recipients: true },
+      });
+      if (shouldHideByLimit) {
+        await addAccountActivityLog(recipientId, {
+          type: 'limit_interaction_dm',
+          title: 'DM hidden',
+          description: 'A message was hidden because you have Limit interactions on.',
+          metadata: { senderId: accountId, messageId: message.id, messageType, at: new Date().toISOString() },
+        });
+      }
+      if (opts?.isVanish && opts.media?.url) {
+        const deleteAt = vanishAt ?? new Date(Date.now() + 24 * 60 * 60 * 1000);
+        await mediaTTLService.schedule(message.id, opts.media.url, deleteAt);
+      }
+      const io = getIo();
+      if (io) {
+        const dm = io.of('/dm');
+        // Only notify recipient; sender already has the HTTP response.
+        dm.to(recipientId).emit('message', { message });
+      }
+      return message;
+    }
 
     if (messageType === 'POLL') {
       const options = opts?.media && Array.isArray((opts.media as any).options) ? ((opts.media as any).options as string[]) : [];
@@ -404,12 +562,31 @@ export class MessageService {
     if (!message) throw new AppError('Message not found', 404);
     const isSender = message.senderId === accountId;
     if (forMeOnly || !isSender) {
+      if (isSender) {
+        await prisma.message.update({
+          where: { id: messageId },
+          data: { deletedBySenderAt: new Date() },
+        });
+        return { ok: true, deletedForMe: true };
+      }
+      if (message.groupId) {
+        await prisma.messageRecipient.updateMany({
+          where: { messageId, recipientId: accountId },
+          data: { isHidden: true },
+        });
+        return { ok: true, deletedForMe: true };
+      }
       await prisma.messageRecipient.updateMany({
         where: { messageId, recipientId: accountId },
         data: { isHidden: true },
       });
+      await prisma.message.update({
+        where: { id: messageId },
+        data: { deletedByReceiverAt: new Date() },
+      });
       return { ok: true, deletedForMe: true };
     }
+    // Delete for everyone: hard delete immediately.
     await prisma.reaction.deleteMany({ where: { messageId } });
     await prisma.messageRecipient.deleteMany({ where: { messageId } });
     await prisma.message.delete({ where: { id: messageId } });
@@ -417,8 +594,7 @@ export class MessageService {
   }
 
   async addReaction(accountId: string, messageId: string, emoji: string) {
-    const message = await prisma.message.findUnique({ where: { id: messageId } });
-    if (!message) throw new AppError('Message not found', 404);
+    await this.assertCanAccessMessage(accountId, messageId);
     const em = (emoji || '❤').slice(0, 10);
     await prisma.reaction.upsert({
       where: { accountId_messageId: { accountId, messageId } },
@@ -433,6 +609,7 @@ export class MessageService {
   }
 
   async removeReaction(accountId: string, messageId: string) {
+    await this.assertCanAccessMessage(accountId, messageId);
     await prisma.reaction.deleteMany({
       where: { accountId, messageId },
     });

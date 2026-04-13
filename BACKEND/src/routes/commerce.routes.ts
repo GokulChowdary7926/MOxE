@@ -46,6 +46,44 @@ router.get('/webinars', async (_req, res, next) => {
   }
 });
 
+/** Public catalog (buyer marketplace feed). */
+router.get('/catalog', async (req, res, next) => {
+  try {
+    const q = typeof req.query.q === 'string' ? req.query.q : undefined;
+    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
+    const limit = Number(req.query.limit) || 24;
+    const category = typeof req.query.category === 'string' ? req.query.category : undefined;
+    const sort = typeof req.query.sort === 'string' ? req.query.sort : undefined;
+    const dealsOnly = req.query.dealsOnly === 'true';
+    const minPriceRaw = typeof req.query.minPrice === 'string' ? Number(req.query.minPrice) : undefined;
+    const maxPriceRaw = typeof req.query.maxPrice === 'string' ? Number(req.query.maxPrice) : undefined;
+    const minPrice = typeof minPriceRaw === 'number' && Number.isFinite(minPriceRaw) ? minPriceRaw : undefined;
+    const maxPrice = typeof maxPriceRaw === 'number' && Number.isFinite(maxPriceRaw) ? maxPriceRaw : undefined;
+    const result = await commerceService.listPublicCatalog({
+      q,
+      cursor,
+      limit,
+      category: (category as any) || 'all',
+      sort: (sort as any) || 'relevance',
+      dealsOnly,
+      minPrice,
+      maxPrice,
+    });
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get('/catalog/:productId', async (req, res, next) => {
+  try {
+    const item = await commerceService.getPublicCatalogProduct(req.params.productId);
+    res.json(item);
+  } catch (e) {
+    next(e);
+  }
+});
+
 /** Public: aggregate rating + count for seller. */
 router.get('/reviews/aggregate', async (req, res, next) => {
   try {
@@ -131,7 +169,7 @@ router.patch('/shop-settings', async (req, res, next) => {
   }
 });
 
-/** 2.20 Verify custom domain (CNAME check stub). */
+/** 2.20 Verify custom domain (CNAME to COMMERCE_CUSTOM_DOMAIN_CNAME_TARGET; dev mock: COMMERCE_DOMAIN_VERIFY_MOCK). */
 router.post('/custom-domain/verify', async (req, res, next) => {
   try {
     const accountId = await ensureBusinessCommerce(req);

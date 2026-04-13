@@ -43,6 +43,15 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
+      - name: Require VAPID secrets for Web Push (backend)
+        env:
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+        run: |
+          if [ -z "$VAPID_PUBLIC_KEY" ] || [ -z "$VAPID_PRIVATE_KEY" ]; then
+            echo "::error::Add repository secrets VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY before deploying the API (see docs/PUSH_NOTIFICATIONS.md)."
+            exit 1
+          fi
       - name: Trigger Render deploy
         run: |
           curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" || echo "Render hook not configured"

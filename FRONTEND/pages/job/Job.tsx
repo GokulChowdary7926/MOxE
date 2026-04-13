@@ -2,8 +2,6 @@ import React from "react";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { JobMobileLayout } from "../../components/job/JobMobileLayout";
 import { useHasJobTools } from "../../hooks/useCapabilities";
-import { useSelector } from "react-redux";
-import type { RootState } from "../../store";
 import Overview from "./Overview";
 import Track from "./Track";
 import Recruiter from "./Recruiter";
@@ -18,6 +16,7 @@ import Ai from "./Ai";
 import Strategy from "./Strategy";
 import JobAnalytics from "./Analytics";
 import JobProfileTool from "./Profile";
+import JobAccountProfilePage from "./JobAccountProfilePage";
 import Scrum from "./Scrum";
 import Integration from "./Integration";
 import Docs from "./Docs";
@@ -30,31 +29,34 @@ import Work from "./Work";
 import Compass from "./Compass";
 import Alert from "./Alert";
 import Build from "./Build";
+import { JOB_MOBILE } from "../../components/job/jobMobileStyles";
 
 export default function Job() {
   const hasJobTools = useHasJobTools();
-  const account = useSelector((s: RootState) => s.account.currentAccount);
   const navigate = useNavigate();
-
-  if (!account) {
-    return <Navigate to="/login" replace />;
-  }
 
   if (!hasJobTools) {
     return (
-      <div className="min-h-screen bg-[#1D2125] flex flex-col items-center justify-center p-8 text-center">
-        <h1 className="text-2xl font-bold text-[#E6EDF3] mb-4">Job Tools Required</h1>
-        <p className="text-[#8C9BAB] mb-6 max-w-sm">
-          You need a Job Professional subscription to access these tools.
-        </p>
-        <button
-          type="button"
-          onClick={() => navigate("/settings/subscription")}
-          className="px-6 py-3 bg-[#6554C0] text-white rounded-xl font-semibold"
-        >
-          Upgrade to Job Professional ($10/month)
-        </button>
-      </div>
+      <JobMobileLayout>
+        <div className={`${JOB_MOBILE.content} flex flex-1 flex-col items-center justify-center text-center`}>
+          <div className="w-full rounded-2xl border border-outline-variant/25 bg-surface-container p-6 shadow-2xl">
+            <p className="text-[11px] uppercase tracking-[0.14em] font-bold text-primary">MOxE TRACK</p>
+            <h1 className="font-headline mt-1 mb-3 text-2xl font-extrabold tracking-tight text-on-surface">
+              Job Tools Required
+            </h1>
+            <p className="mb-6 text-sm text-on-surface-variant">
+              You need a Job Professional subscription to access these tools.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate("/settings/subscription")}
+              className={JOB_MOBILE.btnPrimary}
+            >
+              Upgrade to Job Professional ($10/month)
+            </button>
+          </div>
+        </div>
+      </JobMobileLayout>
     );
   }
 
@@ -74,7 +76,8 @@ export default function Job() {
         <Route path="ai/*" element={<Ai />} />
         <Route path="strategy/*" element={<Strategy />} />
         <Route path="analytics/*" element={<JobAnalytics />} />
-        <Route path="profile/*" element={<JobProfileTool />} />
+        <Route path="profile/edit" element={<JobProfileTool />} />
+        <Route path="profile" element={<JobAccountProfilePage />} />
         <Route path="integrations/*" element={<Integration />} />
         <Route path="scrum/*" element={<Scrum />} />
         <Route path="teams/*" element={<Teams />} />
@@ -88,8 +91,9 @@ export default function Job() {
         <Route path="build/*" element={<Build />} />
         <Route path="compass/*" element={<Compass />} />
         <Route path="atlas/*" element={<Atlas />} />
-        <Route path="/" element={<Navigate to="/job/overview" replace />} />
-        <Route path="*" element={<Navigate to="/job/overview" replace />} />
+        <Route path="integration" element={<Navigate to="/job/integrations" replace />} />
+        <Route path="/" element={<Navigate to="/job/overview/home" replace />} />
+        <Route path="*" element={<Navigate to="/job/overview/home" replace />} />
       </Routes>
     </JobMobileLayout>
   );

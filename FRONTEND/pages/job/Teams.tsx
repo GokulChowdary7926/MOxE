@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { getApiBase } from '../../services/api';
+import { JobPageContent } from '../../components/job/JobPageContent';
+import { JobBibleReferenceSection, JobToolBibleShell } from '../../components/job/bible';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type JobTeamMember = {
   id: string;
@@ -131,26 +134,13 @@ export default function Teams() {
   const ROLE_OPTIONS = ['OWNER', 'ADMIN', 'MEMBER', 'VIEWER'];
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6">
-      <div className="w-full lg:w-80 space-y-4">
-        <div>
-          <h2 className="text-2xl font-semibold text-slate-800 dark:text-white mb-1">
-            MOxE TEAMS
-          </h2>
-          <p className="text-slate-600 dark:text-slate-400 text-sm">
-            Manage who can collaborate in your Job workspace and their roles.
-          </p>
-        </div>
-
-        {error && (
-          <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-200 text-xs">
-            {error}
-          </div>
-        )}
-
+    <JobPageContent variant="track" error={error}>
+      <JobToolBibleShell toolTitle="MOxE TEAMS" toolIconMaterial="groups_2">
+    <div className="flex flex-col gap-4">
+      <div className="w-full space-y-4">
         <form
           onSubmit={handleInvite}
-          className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 space-y-2 text-xs"
+          className="p-3 rounded-[14px] border border-[#2C333A] bg-[#161A1D] space-y-2 text-xs"
         >
           <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">
             Invite member
@@ -175,14 +165,14 @@ export default function Teams() {
           <button
             type="submit"
             disabled={inviting}
-            className="w-full mt-1 inline-flex justify-center items-center rounded-md bg-indigo-600 text-white text-xs font-medium py-1.5 hover:bg-indigo-700 disabled:opacity-50"
+            className="w-full mt-1 inline-flex justify-center items-center rounded-md bg-[#0052CC] hover:bg-[#0747A6] dark:bg-[#2684FF] dark:hover:bg-[#0052CC] text-white text-xs font-medium py-1.5 disabled:opacity-50"
           >
             {inviting ? 'Inviting…' : 'Invite'}
           </button>
         </form>
       </div>
 
-      <div className="flex-1 min-w-0">
+      <div className="w-full min-w-0">
         <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
           <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200">
             Team members
@@ -256,8 +246,11 @@ export default function Teams() {
             ))}
           </div>
         </div>
+      <JobBibleReferenceSection toolKey="teams" />
       </div>
     </div>
+      </JobToolBibleShell>
+    </JobPageContent>
   );
 }
 

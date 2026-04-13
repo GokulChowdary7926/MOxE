@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Hash, List, MessageCircle, Music, UserPlus, MapPin, Sparkles, Eye, Share2, MoreHorizontal, ChevronDown, ChevronUp } from 'lucide-react';
 import { ThemedView } from '../../components/ui/Themed';
 import { MobileShell } from '../../components/layout/MobileShell';
-import { getApiBase, getToken } from '../../services/api';
+import { getApiBase, getToken, getUploadUrl } from '../../services/api';
 import { useCurrentAccount, useAccountCapabilities } from '../../hooks/useAccountCapabilities';
 
 /**
@@ -83,12 +83,11 @@ export default function PostSharePage() {
     }
     setSubmitting(true);
     try {
-      const base = getApiBase();
       const uploadedUrls: string[] = [];
       for (const file of files ?? []) {
         const form = new FormData();
         form.append('file', file);
-        const res = await fetch(`${base}/upload`, {
+        const res = await fetch(getUploadUrl(), {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
           body: form,
@@ -131,7 +130,7 @@ export default function PostSharePage() {
       if (isBusiness && selectedProductIds.length > 0) {
         body.productTags = selectedProductIds.map((productId) => ({ productId, x: 50, y: 50 }));
       }
-      const res = await fetch(`${base}/posts`, {
+      const res = await fetch(`${getApiBase()}/posts`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -154,7 +153,14 @@ export default function PostSharePage() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <span className="flex-1 text-white font-semibold text-base text-center">New post</span>
-          <div className="w-10" />
+          <button
+            type="button"
+            onClick={handleShare}
+            disabled={submitting}
+            className="text-[#0095f6] font-semibold text-sm disabled:opacity-50"
+          >
+            {submitting ? 'Posting…' : 'Post'}
+          </button>
         </header>
 
         <div className="flex-1 overflow-auto pb-24">
@@ -178,6 +184,7 @@ export default function PostSharePage() {
           <div className="px-4 mb-3">
             <input
               type="text"
+              data-testid="post-share-caption"
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
               placeholder="Add a caption..."
@@ -351,7 +358,11 @@ export default function PostSharePage() {
           </button>
 
           {/* Also share on */}
-          <button type="button" className="w-full flex items-center gap-3 px-4 py-3 border-b border-[#262626] text-white">
+          <button
+            type="button"
+            onClick={() => navigate('/create/post/also-share')}
+            className="w-full flex items-center gap-3 px-4 py-3 border-b border-[#262626] text-white"
+          >
             <Share2 className="w-5 h-5 text-[#a8a8a8]" />
             <span className="flex-1 text-left">Also share on...</span>
             <span className="text-[#a8a8a8] text-sm">Off ›</span>
@@ -420,11 +431,12 @@ export default function PostSharePage() {
         <div className="fixed bottom-0 left-0 right-0 max-w-[428px] mx-auto p-4 border-t border-[#262626] bg-black safe-area-pb">
           <button
             type="button"
+            data-testid="post-share-submit"
             onClick={handleShare}
             disabled={submitting}
             className="w-full py-3 rounded-lg bg-[#0095f6] text-white font-semibold text-sm disabled:opacity-50"
           >
-            {submitting ? 'Sharing…' : 'Share'}
+            {submitting ? 'Posting…' : 'Post'}
           </button>
         </div>
       </MobileShell>

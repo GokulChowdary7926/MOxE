@@ -22,6 +22,9 @@ describe('ExploreService', () => {
     mockPrisma.follow.findMany.mockResolvedValue([]);
     mockPrisma.account.findMany.mockResolvedValue([{ id: 'acc1', username: 'u1', displayName: 'User 1', profilePhoto: null, searchVisibility: 'EVERYONE' }]);
     mockPrisma.post.findMany.mockResolvedValue([]);
+    mockPrisma.block.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
   });
 
   it('getTrendingHashtags returns array (run 12 times)', async () => {
@@ -34,6 +37,9 @@ describe('ExploreService', () => {
 
   it('search returns users, hashtags, posts (run 12 times)', async () => {
     for (let i = 0; i < RUNS; i++) {
+      mockPrisma.block.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
       const result = await service.search('acc1', 'test', 'all');
       expect(result).toHaveProperty('users');
       expect(result).toHaveProperty('hashtags');
@@ -48,5 +54,20 @@ describe('ExploreService', () => {
       expect(result.hashtags).toEqual([]);
       expect(result.posts).toEqual([]);
     }
+  });
+
+  it('search excludes blocked accounts from both directions', async () => {
+    mockPrisma.block.findMany.mockReset();
+    mockPrisma.block.findMany
+      .mockResolvedValueOnce([{ blockedId: 'acc2', expiresAt: null }])
+      .mockResolvedValueOnce([{ blockerId: 'acc3', expiresAt: null }]);
+    await service.search('acc1', 'test', 'users');
+    expect(mockPrisma.account.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: { notIn: expect.arrayContaining(['acc2', 'acc3']) },
+        }),
+      }),
+    );
   });
 });

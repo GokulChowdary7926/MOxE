@@ -1,27 +1,61 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PageLayout } from '../../components/layout/PageLayout';
 import { ThemedText } from '../../components/ui/Themed';
 import { EmptyState } from '../../components/ui/EmptyState';
-import { mockUsers } from '../../mocks/users';
-import type { MockUser } from '../../mocks/users';
+import { fetchApi, fetchApiJson } from '../../services/api';
+import { readApiError } from '../../utils/readApiError';
 
-const INITIAL_BLOCKED_IDS = ['u2', 'u3'];
+type BlockedRow = {
+  id: string;
+  username: string;
+  displayName: string;
+  profilePhoto: string | null;
+  expiresAt?: string | null;
+};
 
 export default function BlockedList() {
-  const [ids, setIds] = useState<string[]>(INITIAL_BLOCKED_IDS);
-  const list = ids
-    .map((id) => mockUsers.find((u) => u.id === id))
-    .filter(Boolean) as MockUser[];
+  const [list, setList] = useState<BlockedRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  function unblock(id: string) {
-    setIds((prev) => prev.filter((x) => x !== id));
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const rows = await fetchApiJson<BlockedRow[]>('privacy/blocked');
+      setList(Array.isArray(rows) ? rows : []);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Could not load blocked accounts.');
+      setList([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function unblock(id: string) {
+    setError(null);
+    try {
+      const res = await fetchApi(`privacy/block/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(await readApiError(res));
+      setList((prev) => prev.filter((x) => x.id !== id));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Could not unblock.');
+    }
   }
 
   return (
     <PageLayout title="Blocked accounts" backTo="/settings/safety">
       <div className="py-4">
-        {list.length === 0 ? (
+        {loading ? (
+          <p className="text-moxe-textSecondary text-sm text-center py-12">Loading…</p>
+        ) : error ? (
+          <p className="text-red-400 text-sm text-center py-8">{error}</p>
+        ) : list.length === 0 ? (
           <EmptyState
             title="No blocked accounts"
             message="When you block someone, they'll appear here. You can unblock them anytime."
@@ -29,18 +63,12 @@ export default function BlockedList() {
         ) : (
           <div className="rounded-xl bg-moxe-surface border border-moxe-border overflow-hidden divide-y divide-moxe-border">
             {list.map((user) => (
-              <div
-                key={user.id}
-                className="flex items-center gap-3 py-3 px-4"
-              >
-                <Link
-                  to={`/profile/${user.username}`}
-                  className="flex items-center gap-3 min-w-0 flex-1 active:opacity-80"
-                >
+              <div key={user.id} className="flex items-center gap-3 py-3 px-4">
+                <Link to={`/profile/${user.username}`} className="flex items-center gap-3 min-w-0 flex-1 active:opacity-80">
                   <img
-                    src={user.avatarUrl}
+                    src={user.profilePhoto || '/logo.png'}
                     alt=""
-                    className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                    className="w-10 h-10 rounded-full object-cover flex-shrink-0 bg-moxe-background"
                   />
                   <div className="min-w-0">
                     <ThemedText className="text-moxe-body font-semibold text-moxe-text truncate">
@@ -53,7 +81,7 @@ export default function BlockedList() {
                 </Link>
                 <button
                   type="button"
-                  onClick={() => unblock(user.id)}
+                  onClick={() => void unblock(user.id)}
                   className="py-2 px-4 rounded-lg border border-moxe-border text-moxe-body font-semibold text-moxe-text hover:bg-moxe-surface/80 active:opacity-80 flex-shrink-0"
                   aria-label={`Unblock ${user.username}`}
                 >

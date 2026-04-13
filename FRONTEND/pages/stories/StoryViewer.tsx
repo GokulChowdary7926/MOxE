@@ -1,11 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ThemedView, ThemedText, ThemedButton } from '../../components/ui/Themed';
 import { Avatar } from '../../components/ui/Avatar';
 import { getSocket } from '../../services/socket';
-import { getApiBase } from '../../services/api';
+import { getApiBase, getAuthHeaders } from '../../services/api';
 import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
-import { Heart, X, Star, Users, Bookmark, AtSign, MoreVertical } from 'lucide-react';
+import { SocialCommentsSheet, SocialCommentsEmpty } from '../../components/comments/SocialCommentsSheet';
+import { SocialCommentRow } from '../../components/comments/SocialCommentRow';
+import { Heart, X, Star, Users, Bookmark, AtSign, MoreVertical, MessageCircle } from 'lucide-react';
+import { useIsOwnProfile } from '../../hooks/useIsOwnProfile';
+import toast from 'react-hot-toast';
 
 const API_BASE = getApiBase();
 
@@ -17,11 +21,22 @@ type StoryItem = {
   isLiked?: boolean;
   stickers?: any[] | null;
   screenshotProtection?: boolean;
+  replyCount?: number;
+  /** When false, viewers cannot reply, vote on polls, or use interactive stickers tied to replies. */
+  allowReplies?: boolean;
+};
+
+type StoryReplyRow = {
+  id: string;
+  content: string;
+  createdAt: string;
+  account?: { username: string; displayName?: string | null; profilePhoto?: string | null };
 };
 
 export default function StoryViewer() {
   const { username } = useParams();
   const navigate = useNavigate();
+  const isOwnStoryTray = useIsOwnProfile();
   const [stories, setStories] = useState<StoryItem[]>([]);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -42,13 +57,38 @@ export default function StoryViewer() {
   const [likesLoading, setLikesLoading] = useState(false);
   const [likesError, setLikesError] = useState<string | null>(null);
   const [showViewersSheet, setShowViewersSheet] = useState(false);
+  const [viewers, setViewers] = useState<
+    { id: string; username: string; displayName?: string | null; profilePhoto?: string | null; viewedAt: string }[]
+  >([]);
+  const [viewersLoading, setViewersLoading] = useState(false);
+  const [viewersError, setViewersError] = useState<string | null>(null);
   const [showHighlightSheet, setShowHighlightSheet] = useState(false);
   const [showMentionSheet, setShowMentionSheet] = useState(false);
+  const [mentions, setMentions] = useState<
+    { id: string; username: string; displayName?: string | null; profilePhoto?: string | null }[]
+  >([]);
+  const [mentionsLoading, setMentionsLoading] = useState(false);
+  const [mentionsError, setMentionsError] = useState<string | null>(null);
   const [showMoreSheet, setShowMoreSheet] = useState(false);
+  const [showCommentsSheet, setShowCommentsSheet] = useState(false);
+  const storyCommentFooterRef = useRef<HTMLDivElement>(null);
   const [isCloseFriends, setIsCloseFriends] = useState(false);
   const [storyOwnerAvatar] = useState<string | null>(null);
   const [audioLabel] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
+  const [storyComments, setStoryComments] = useState<StoryReplyRow[]>([]);
+  const [replyText, setReplyText] = useState('');
+  const [replySending, setReplySending] = useState(false);
+  const [replyError, setReplyError] = useState<string | null>(null);
+  const [ownerStoryQuestions, setOwnerStoryQuestions] = useState<
+    { id: string; question: string; accountId: string; answerStoryId: string | null }[]
+  >([]);
+  const [ownerQuestionsLoading, setOwnerQuestionsLoading] = useState(false);
+  const [highlights, setHighlights] = useState<Array<{ id: string; name: string; coverImage?: string | null }>>([]);
+  const [highlightsLoading, setHighlightsLoading] = useState(false);
+  const [highlightActionBusyId, setHighlightActionBusyId] = useState<string | null>(null);
+  const [highlightError, setHighlightError] = useState<string | null>(null);
+  const activeStoryId = stories[index]?.id;
 
   useEffect(() => {
     let cancelled = false;
@@ -80,6 +120,8 @@ export default function StoryViewer() {
             isLiked: s.viewerHasLiked ?? false,
             stickers: s.stickers ?? [],
             screenshotProtection: !!s.screenshotProtection,
+            replyCount: typeof s.replyCount === 'number' ? s.replyCount : undefined,
+            allowReplies: s.allowReplies !== false,
           })),
         );
         setStories(items);
@@ -94,6 +136,226 @@ export default function StoryViewer() {
       cancelled = true;
     };
   }, [username, retryKey]);
+
+  useEffect(() => {
+    const sid = stories[index]?.id;
+    if (!showCommentsSheet || !sid) {
+      setStoryComments([]);
+      return;
+    }
+    let cancelled = false;
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setStoryComments([]);
+      return;
+    }
+    fetch(`${API_BASE}/stories/${encodeURIComponent(sid)}/replies`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { items?: StoryReplyRow[] } | null) => {
+        if (!cancelled && data?.items) setStoryComments(data.items);
+        else if (!cancelled) setStoryComments([]);
+      })
+      .catch(() => {
+        if (!cancelled) setStoryComments([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showCommentsSheet, index, activeStoryId]);
+
+  useEffect(() => {
+    setReplyText('');
+    setReplyError(null);
+  }, [index, activeStoryId]);
+
+  useEffect(() => {
+    const sid = activeStoryId;
+    if (!isOwnStoryTray || !sid) {
+      setOwnerStoryQuestions([]);
+      return;
+    }
+    const stickers = (stories.find((x) => x.id === sid)?.stickers as any[]) || [];
+    const hasQuestions = stickers.some((s) => s && typeof s === 'object' && (s as any).type === 'questions');
+    if (!hasQuestions) {
+      setOwnerStoryQuestions([]);
+      return;
+    }
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    let cancelled = false;
+    setOwnerQuestionsLoading(true);
+    fetch(`${API_BASE}/stories/${encodeURIComponent(sid)}/questions`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error((data as { error?: string }).error || 'Failed to load questions');
+        return data as { questions?: typeof ownerStoryQuestions };
+      })
+      .then((data) => {
+        if (!cancelled) setOwnerStoryQuestions(data.questions ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setOwnerStoryQuestions([]);
+      })
+      .finally(() => {
+        if (!cancelled) setOwnerQuestionsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOwnStoryTray, index, activeStoryId, stories]);
+
+  useEffect(() => {
+    if (!showViewersSheet || !isOwnStoryTray) {
+      setViewers([]);
+      setViewersError(null);
+      return;
+    }
+    const sid = stories[index]?.id;
+    if (!sid) return;
+    let cancelled = false;
+    setViewersLoading(true);
+    setViewersError(null);
+    fetch(`${API_BASE}/stories/${encodeURIComponent(sid)}/viewers`, { headers: getAuthHeaders() })
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error((data as { error?: string }).error || 'Failed to load viewers.');
+        return data as { items?: typeof viewers };
+      })
+      .then((data) => {
+        if (cancelled) return;
+        const items = (data.items ?? []) as typeof viewers;
+        setViewers(items);
+      })
+      .catch((e: Error) => {
+        if (!cancelled) setViewersError(e.message || 'Failed to load viewers.');
+      })
+      .finally(() => {
+        if (!cancelled) setViewersLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showViewersSheet, isOwnStoryTray, index, stories]);
+
+  useEffect(() => {
+    if (!showHighlightSheet || !isOwnStoryTray) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    let cancelled = false;
+    setHighlightsLoading(true);
+    setHighlightError(null);
+    fetch(`${API_BASE}/highlights`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error((data as { error?: string }).error || 'Failed to load highlights.');
+        return data as { highlights?: Array<{ id: string; name: string; coverImage?: string | null }> };
+      })
+      .then((data) => {
+        if (!cancelled) setHighlights(Array.isArray(data.highlights) ? data.highlights : []);
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setHighlightError(e instanceof Error ? e.message : 'Failed to load highlights.');
+      })
+      .finally(() => {
+        if (!cancelled) setHighlightsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showHighlightSheet, isOwnStoryTray]);
+
+  async function addCurrentStoryToHighlight(highlightId: string) {
+    const currentStory = stories[index];
+    if (!currentStory) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    setHighlightActionBusyId(highlightId);
+    setHighlightError(null);
+    try {
+      const res = await fetch(`${API_BASE}/highlights/${encodeURIComponent(highlightId)}/items`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ storyId: currentStory.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as { error?: string }).error || 'Failed to add to highlight.');
+      toast.success('Added to highlight.');
+      setShowHighlightSheet(false);
+    } catch (e: unknown) {
+      setHighlightError(e instanceof Error ? e.message : 'Failed to add to highlight.');
+    } finally {
+      setHighlightActionBusyId(null);
+    }
+  }
+
+  async function createHighlightAndAddCurrentStory() {
+    const currentStory = stories[index];
+    if (!currentStory) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    setHighlightActionBusyId('create');
+    setHighlightError(null);
+    try {
+      const createRes = await fetch(`${API_BASE}/highlights`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: 'New highlight', archivedStoryIds: [] }),
+      });
+      const createData = await createRes.json().catch(() => ({}));
+      if (!createRes.ok) throw new Error((createData as { error?: string }).error || 'Failed to create highlight.');
+      const id = (createData as { id?: string }).id;
+      if (!id) throw new Error('Highlight created, but no id returned.');
+      await addCurrentStoryToHighlight(id);
+      setHighlights((prev) => [{ id, name: 'New highlight', coverImage: currentStory.mediaUrl }, ...prev]);
+    } catch (e: unknown) {
+      setHighlightError(e instanceof Error ? e.message : 'Failed to create highlight.');
+    } finally {
+      setHighlightActionBusyId(null);
+    }
+  }
+
+  useEffect(() => {
+    if (!showMentionSheet || !isOwnStoryTray) {
+      setMentions([]);
+      setMentionsError(null);
+      return;
+    }
+    const sid = stories[index]?.id;
+    if (!sid) return;
+    let cancelled = false;
+    setMentionsLoading(true);
+    setMentionsError(null);
+    fetch(`${API_BASE}/stories/${encodeURIComponent(sid)}/mentions`, { headers: getAuthHeaders() })
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error((data as { error?: string }).error || 'Failed to load mentions.');
+        return data as { items?: typeof mentions };
+      })
+      .then((data) => {
+        if (cancelled) return;
+        const items = (data.items ?? []) as typeof mentions;
+        setMentions(items);
+      })
+      .catch((e: Error) => {
+        if (!cancelled) setMentionsError(e.message || 'Failed to load mentions.');
+      })
+      .finally(() => {
+        if (!cancelled) setMentionsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showMentionSheet, isOwnStoryTray, index, stories]);
 
   // Subscribe to lightweight poll / emoji updates via Socket.IO (if available)
   useEffect(() => {
@@ -143,7 +405,7 @@ export default function StoryViewer() {
     }).catch(() => {});
   }, [index, stories]);
 
-  // Auto‑advance current story after a short duration (Instagram‑style)
+  // Auto‑advance current story after a short duration (MOxE stories)
   useEffect(() => {
     if (!stories[index]) return undefined;
     const timer = setTimeout(() => {
@@ -189,7 +451,7 @@ export default function StoryViewer() {
     setPollLoading(true);
     setPollError(null);
     try {
-      await fetch(`${API_BASE}/stories/${current.id}/poll-vote`, {
+      const voteRes = await fetch(`${API_BASE}/stories/${current.id}/poll-vote`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -197,6 +459,10 @@ export default function StoryViewer() {
         },
         body: JSON.stringify({ stickerIndex: pollIndex, optionIndex }),
       });
+      const voteData = await voteRes.json().catch(() => ({}));
+      if (!voteRes.ok) {
+        throw new Error((voteData as { error?: string }).error || 'Failed to vote on poll.');
+      }
       const res = await fetch(`${API_BASE}/stories/${current.id}/poll-results`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -246,6 +512,46 @@ export default function StoryViewer() {
       setQuestionToShare(text);
     } catch (e: any) {
       setQuestionStatus(e.message || 'Failed to send question.');
+    }
+  }
+
+  async function submitStoryReply() {
+    const cur = stories[index];
+    if (!cur) return;
+    const msg = replyText.trim();
+    if (!msg) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    setReplySending(true);
+    setReplyError(null);
+    try {
+      const res = await fetch(`${API_BASE}/stories/${encodeURIComponent(cur.id)}/replies`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: msg }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error((data as { error?: string }).error || 'Could not send reply.');
+      }
+      setReplyText('');
+      const listRes = await fetch(`${API_BASE}/stories/${encodeURIComponent(cur.id)}/replies`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const listData = await listRes.json().catch(() => ({}));
+      if (listRes.ok && Array.isArray((listData as { items?: StoryReplyRow[] }).items)) {
+        setStoryComments((listData as { items: StoryReplyRow[] }).items);
+      }
+      setStories((prev) =>
+        prev.map((s) => (s.id === cur.id ? { ...s, replyCount: (s.replyCount ?? 0) + 1 } : s)),
+      );
+    } catch (e: unknown) {
+      setReplyError(e instanceof Error ? e.message : 'Could not send reply.');
+    } finally {
+      setReplySending(false);
     }
   }
 
@@ -506,6 +812,14 @@ export default function StoryViewer() {
               >
                 View likes
               </button>
+              <button
+                type="button"
+                onClick={() => setShowCommentsSheet(true)}
+                className="absolute top-3 right-36 bg-black/40 rounded-full p-2 text-white"
+                aria-label="Story comments"
+              >
+                <MessageCircle className="w-5 h-5" strokeWidth={1.75} />
+              </button>
               {showLikeBurst && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <span className="text-5xl animate-ping-fast">❤️</span>
@@ -516,33 +830,39 @@ export default function StoryViewer() {
                   <ThemedText className="text-moxe-body mb-1">
                     {pollSticker.question || 'Poll'}
                   </ThemedText>
-                  <div className="space-y-1">
-                    {pollSticker.options.map((opt: string, idx: number) => {
-                      const selected = pollResults?.userVote === idx;
-                      const total =
-                        pollResults?.optionCounts?.reduce((a, b) => a + b, 0) ?? 0;
-                      const count = pollResults?.optionCounts?.[idx] ?? 0;
-                      const pct = total > 0 ? Math.round((count / total) * 100) : 0;
-                      return (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => votePoll(idx)}
-                          disabled={pollLoading}
-                          className={`w-full flex items-center justify-between px-3 py-1.5 rounded-full ${
-                            selected ? 'bg-moxe-primary text-white' : 'bg-black/40 text-moxe-body'
-                          } text-left`}
-                        >
-                          <span>{opt}</span>
-                          {total > 0 && (
-                            <span className="text-[10px] text-moxe-textSecondary">
-                              {pct}%
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {!isOwnStoryTray && current.allowReplies === false ? (
+                    <ThemedText className="text-[10px] text-moxe-caption">
+                      Poll votes are off when replies are off for this story.
+                    </ThemedText>
+                  ) : (
+                    <div className="space-y-1">
+                      {pollSticker.options.map((opt: string, idx: number) => {
+                        const selected = pollResults?.userVote === idx;
+                        const total =
+                          pollResults?.optionCounts?.reduce((a, b) => a + b, 0) ?? 0;
+                        const count = pollResults?.optionCounts?.[idx] ?? 0;
+                        const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => votePoll(idx)}
+                            disabled={pollLoading}
+                            className={`w-full flex items-center justify-between px-3 py-1.5 rounded-full ${
+                              selected ? 'bg-moxe-primary text-white' : 'bg-black/40 text-moxe-body'
+                            } text-left`}
+                          >
+                            <span>{opt}</span>
+                            {total > 0 && (
+                              <span className="text-[10px] text-moxe-textSecondary">
+                                {pct}%
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                   {pollError && (
                     <ThemedText className="text-[10px] text-moxe-danger mt-1">
                       {pollError}
@@ -551,42 +871,93 @@ export default function StoryViewer() {
                 </div>
               )}
 
-              {questionsSticker && (
+              {questionsSticker && isOwnStoryTray && (
+                <div className="absolute bottom-4 left-4 right-4 bg-black/55 rounded-moxe-md px-3 py-2 text-xs space-y-2 max-h-[40vh] overflow-y-auto">
+                  <ThemedText className="text-moxe-body mb-1">
+                    {questionsSticker.prompt || 'Questions'}
+                  </ThemedText>
+                  {ownerQuestionsLoading && (
+                    <ThemedText className="text-[10px] text-moxe-caption">Loading questions…</ThemedText>
+                  )}
+                  {!ownerQuestionsLoading &&
+                    ownerStoryQuestions.filter((q) => !q.answerStoryId).length === 0 && (
+                      <ThemedText className="text-[10px] text-moxe-caption">
+                        No new questions yet.
+                      </ThemedText>
+                    )}
+                  {!ownerQuestionsLoading &&
+                    ownerStoryQuestions
+                      .filter((q) => !q.answerStoryId)
+                      .slice(0, 8)
+                      .map((q) => (
+                        <div
+                          key={q.id}
+                          className="rounded-moxe-md bg-black/35 px-2 py-1.5 flex flex-col gap-1 border border-white/10"
+                        >
+                          <ThemedText className="text-[11px] text-moxe-body line-clamp-3">{q.question}</ThemedText>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              navigate('/stories/create', {
+                                state: {
+                                  prefillQuestionAnswer: q.question,
+                                  linkQuestionContext: { sourceStoryId: current.id, questionId: q.id },
+                                },
+                              })
+                            }
+                            className="text-[11px] text-moxe-primary text-left"
+                          >
+                            Answer in new story
+                          </button>
+                        </div>
+                      ))}
+                </div>
+              )}
+
+              {questionsSticker && !isOwnStoryTray && (
                 <div className="absolute bottom-4 left-4 right-4 bg-black/55 rounded-moxe-md px-3 py-2 text-xs space-y-1">
                   <ThemedText className="text-moxe-body mb-1">
                     {questionsSticker.prompt || 'Ask me a question'}
                   </ThemedText>
-                  <input
-                    type="text"
-                    value={questionText}
-                    onChange={(e) => setQuestionText(e.target.value)}
-                    placeholder="Type your question…"
-                    className="w-full px-2 py-1 rounded-full bg-black/40 border border-white/20 text-[11px] text-white placeholder:text-moxe-textSecondary"
-                  />
-                  <button
-                    type="button"
-                    onClick={submitQuestion}
-                    className="mt-1 text-[11px] text-moxe-primary"
-                  >
-                    Send
-                  </button>
-                  {questionToShare && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        navigate('/create/story', {
-                          state: { prefillQuestionAnswer: questionToShare },
-                        } as any)
-                      }
-                      className="mt-1 text-[11px] text-moxe-primary underline"
-                    >
-                      Share answer as story
-                    </button>
-                  )}
-                  {questionStatus && (
+                  {current.allowReplies === false ? (
                     <ThemedText className="text-[10px] text-moxe-caption">
-                      {questionStatus}
+                      Questions are off for this story.
                     </ThemedText>
+                  ) : (
+                    <>
+                      <input
+                        type="text"
+                        value={questionText}
+                        onChange={(e) => setQuestionText(e.target.value)}
+                        placeholder="Type your question…"
+                        className="w-full px-2 py-1 rounded-full bg-black/40 border border-white/20 text-[11px] text-white placeholder:text-moxe-textSecondary"
+                      />
+                      <button
+                        type="button"
+                        onClick={submitQuestion}
+                        className="mt-1 text-[11px] text-moxe-primary"
+                      >
+                        Send
+                      </button>
+                      {questionToShare && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigate('/stories/create', {
+                              state: { prefillQuestionAnswer: questionToShare },
+                            })
+                          }
+                          className="mt-1 text-[11px] text-moxe-primary underline"
+                        >
+                          Share to your story
+                        </button>
+                      )}
+                      {questionStatus && (
+                        <ThemedText className="text-[10px] text-moxe-caption">
+                          {questionStatus}
+                        </ThemedText>
+                      )}
+                    </>
                   )}
                 </div>
               )}
@@ -594,25 +965,33 @@ export default function StoryViewer() {
               {emojiSticker && (
                 <div className="absolute top-16 left-1/2 -translate-x-1/2 bg-black/55 rounded-moxe-md px-3 py-2 text-xs flex flex-col items-center gap-1 min-w-[200px]">
                   <span className="text-lg">{emojiSticker.emoji || '💜'}</span>
-                  <input
-                    type="range"
-                    min={1}
-                    max={10}
-                    value={emojiValue}
-                    onChange={(e) => setEmojiValue(Number(e.target.value) || 5)}
-                    className="w-full"
-                  />
-                  <button
-                    type="button"
-                    onClick={sendEmojiRating}
-                    className="text-[11px] text-moxe-primary"
-                  >
-                    Send rating
-                  </button>
-                  {emojiStatus && (
-                    <ThemedText className="text-[10px] text-moxe-caption">
-                      {emojiStatus}
+                  {!isOwnStoryTray && current.allowReplies === false ? (
+                    <ThemedText className="text-[10px] text-moxe-caption text-center">
+                      This sticker is unavailable (replies off).
                     </ThemedText>
+                  ) : (
+                    <>
+                      <input
+                        type="range"
+                        min={1}
+                        max={10}
+                        value={emojiValue}
+                        onChange={(e) => setEmojiValue(Number(e.target.value) || 5)}
+                        className="w-full"
+                      />
+                      <button
+                        type="button"
+                        onClick={sendEmojiRating}
+                        className="text-[11px] text-moxe-primary"
+                      >
+                        Send rating
+                      </button>
+                      {emojiStatus && (
+                        <ThemedText className="text-[10px] text-moxe-caption">
+                          {emojiStatus}
+                        </ThemedText>
+                      )}
+                    </>
                   )}
                 </div>
               )}
@@ -671,37 +1050,41 @@ export default function StoryViewer() {
           )}
         </div>
 
-        {/* Bottom bar: Activity, Highlight, Mention, More – same for all accounts */}
+        {/* Bottom bar: owner gets Activity / Highlight / Mention / More; others get More only (report/block). */}
         {current && (
           <div className="flex items-center justify-around px-4 py-3 border-t border-white/10 bg-black/50 safe-area-pb">
-            <button
-              type="button"
-              onClick={() => setShowViewersSheet(true)}
-              className="flex flex-col items-center gap-0.5 text-white"
-            >
-              <Users className="w-6 h-6" />
-              <span className="text-[10px]">Activity</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowHighlightSheet(true)}
-              className="flex flex-col items-center gap-0.5 text-white"
-            >
-              <Bookmark className="w-6 h-6" />
-              <span className="text-[10px]">Highlight</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowMentionSheet(true)}
-              className="flex flex-col items-center gap-0.5 text-white"
-            >
-              <AtSign className="w-6 h-6" />
-              <span className="text-[10px]">Mention</span>
-            </button>
+            {isOwnStoryTray && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowViewersSheet(true)}
+                  className="flex flex-col items-center gap-0.5 text-white"
+                >
+                  <Users className="w-6 h-6" />
+                  <span className="text-[10px]">Activity</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowHighlightSheet(true)}
+                  className="flex flex-col items-center gap-0.5 text-white"
+                >
+                  <Bookmark className="w-6 h-6" />
+                  <span className="text-[10px]">Highlight</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowMentionSheet(true)}
+                  className="flex flex-col items-center gap-0.5 text-white"
+                >
+                  <AtSign className="w-6 h-6" />
+                  <span className="text-[10px]">Mention</span>
+                </button>
+              </>
+            )}
             <button
               type="button"
               onClick={() => setShowMoreSheet(true)}
-              className="flex flex-col items-center gap-0.5 text-white"
+              className={`flex flex-col items-center gap-0.5 text-white ${!isOwnStoryTray ? 'flex-1 max-w-[120px]' : ''}`}
             >
               <MoreVertical className="w-6 h-6" />
               <span className="text-[10px]">More</span>
@@ -769,19 +1152,139 @@ export default function StoryViewer() {
         </div>
       )}
 
-      {/* More menu (Story settings in story): Delete, Archive, Highlight, Save, Edit AI label, Story settings, Cancel */}
+      {showCommentsSheet && current && (() => {
+        const storyCommentsList = storyComments;
+        const totalReplies = Math.max(storyCommentsList.length, current.replyCount ?? 0);
+        const canPostReply = isOwnStoryTray || current.allowReplies !== false;
+        return (
+          <SocialCommentsSheet
+            open={showCommentsSheet}
+            onClose={() => setShowCommentsSheet(false)}
+            totalCount={totalReplies}
+            footer={
+              <div
+                ref={storyCommentFooterRef}
+                className="border-t border-[#262626] bg-[#121212] px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))] space-y-2"
+              >
+                {canPostReply ? (
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="text"
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          submitStoryReply();
+                        }
+                      }}
+                      placeholder="Message…"
+                      className="flex-1 min-w-0 rounded-full bg-[#262626] border border-[#363636] px-3 py-2 text-[13px] text-white placeholder:text-[#737373]"
+                      disabled={replySending}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => submitStoryReply()}
+                      disabled={replySending || !replyText.trim()}
+                      className="shrink-0 text-[13px] font-semibold text-moxe-primary disabled:opacity-40"
+                    >
+                      {replySending ? '…' : 'Send'}
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-center text-[13px] text-[#8e8e8e]">
+                    Replies are turned off for this story.
+                  </p>
+                )}
+                {replyError && (
+                  <p className="text-center text-[11px] text-red-400">{replyError}</p>
+                )}
+              </div>
+            }
+          >
+            {storyCommentsList.length === 0 ? (
+              <SocialCommentsEmpty />
+            ) : (
+              storyCommentsList.map((c) => (
+                <SocialCommentRow
+                  key={c.id}
+                  commentId={c.id}
+                  content={c.content}
+                  createdAt={c.createdAt}
+                  account={{
+                    username: c.account?.username ?? 'user',
+                    displayName: c.account?.displayName ?? null,
+                    profilePhoto: c.account?.profilePhoto ?? null,
+                  }}
+                  usePseudoCounts
+                  onReply={() =>
+                    storyCommentFooterRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                  }
+                />
+              ))
+            )}
+          </SocialCommentsSheet>
+        );
+      })()}
+
+      {/* More: owner — delete/archive/settings; viewer — report/block only (OWNERSHIP_AND_VIEWER_PATTERNS). */}
       {showMoreSheet && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center" onClick={() => setShowMoreSheet(false)}>
           <div className="w-full max-w-[428px] bg-[#1c1c1e] rounded-t-2xl border-t border-[#262626] pb-8 safe-area-pb" onClick={(e) => e.stopPropagation()}>
             <div className="pt-2 pb-1">
               <div className="w-8 h-0.5 rounded-full bg-white/30 mx-auto" />
             </div>
-            <button type="button" className="w-full py-3.5 text-red-500 font-semibold text-sm">Delete story</button>
-            <button type="button" className="w-full py-3.5 text-white font-semibold text-sm">Archive</button>
-            <button type="button" className="w-full py-3.5 text-white font-semibold text-sm" onClick={() => { setShowMoreSheet(false); setShowHighlightSheet(true); }}>Highlight</button>
-            <button type="button" className="w-full py-3.5 text-white font-semibold text-sm">Save...</button>
-            <button type="button" className="w-full py-3.5 text-white font-semibold text-sm">Edit AI label</button>
-            <button type="button" className="w-full py-3.5 text-white font-semibold text-sm" onClick={() => { setShowMoreSheet(false); navigate('/settings/story'); }}>Story settings</button>
+            {isOwnStoryTray ? (
+              <>
+                <button type="button" className="w-full py-3.5 text-red-500 font-semibold text-sm">Delete story</button>
+                <button type="button" className="w-full py-3.5 text-white font-semibold text-sm">Archive</button>
+                <button
+                  type="button"
+                  className="w-full py-3.5 text-white font-semibold text-sm"
+                  onClick={() => {
+                    setShowMoreSheet(false);
+                    setShowHighlightSheet(true);
+                  }}
+                >
+                  Highlight
+                </button>
+                <button type="button" className="w-full py-3.5 text-white font-semibold text-sm">Save...</button>
+                <button type="button" className="w-full py-3.5 text-white font-semibold text-sm">Edit AI label</button>
+                <button
+                  type="button"
+                  className="w-full py-3.5 text-white font-semibold text-sm"
+                  onClick={() => {
+                    setShowMoreSheet(false);
+                    navigate('/settings/story');
+                  }}
+                >
+                  Story settings
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="w-full py-3.5 text-red-500 font-semibold text-sm"
+                  onClick={() => {
+                    setShowMoreSheet(false);
+                    toast.success('Thanks — we will review this story.');
+                  }}
+                >
+                  Report
+                </button>
+                <button
+                  type="button"
+                  className="w-full py-3.5 text-white font-semibold text-sm"
+                  onClick={() => {
+                    setShowMoreSheet(false);
+                    toast('Block is available from this user’s profile.');
+                  }}
+                >
+                  Block @{username ?? 'user'}
+                </button>
+              </>
+            )}
             <div className="border-t border-[#262626] mt-2 pt-2">
               <button type="button" className="w-full py-3.5 text-white font-semibold text-sm" onClick={() => setShowMoreSheet(false)}>Cancel</button>
             </div>
@@ -798,50 +1301,155 @@ export default function StoryViewer() {
             </div>
             <div className="flex items-center justify-between px-4 py-3">
               <span className="text-white font-semibold text-base">Add to highlights</span>
-              <button type="button" className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white text-xl font-light">+</button>
+              <button
+                type="button"
+                onClick={() => void createHighlightAndAddCurrentStory()}
+                disabled={highlightActionBusyId === 'create'}
+                className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white text-xl font-light disabled:opacity-50"
+              >
+                {highlightActionBusyId === 'create' ? '…' : '+'}
+              </button>
             </div>
             <div className="flex gap-3 overflow-x-auto px-4 pb-4 no-scrollbar">
-              {['Wheels', 'PICS'].map((label, i) => (
-                <button key={i} type="button" className="flex-shrink-0 w-20 h-24 rounded-lg bg-black flex flex-col items-center justify-center gap-1">
-                  <span className="text-white text-sm font-medium">{label}</span>
-                  <span className="text-white/60 text-xs">*</span>
-                </button>
-              ))}
+              {highlightsLoading && (
+                <span className="text-[#a8a8a8] text-sm">Loading highlights…</span>
+              )}
+              {!highlightsLoading && highlights.length === 0 && (
+                <span className="text-[#a8a8a8] text-sm">No highlights yet. Tap + to create one.</span>
+              )}
+              {!highlightsLoading &&
+                highlights.map((h) => (
+                  <button
+                    key={h.id}
+                    type="button"
+                    onClick={() => void addCurrentStoryToHighlight(h.id)}
+                    disabled={highlightActionBusyId === h.id}
+                    className="flex-shrink-0 w-20 h-24 rounded-lg bg-black flex flex-col items-center justify-center gap-1 disabled:opacity-60"
+                  >
+                    {h.coverImage ? (
+                      // eslint-disable-next-line jsx-a11y/alt-text
+                      <img src={ensureAbsoluteMediaUrl(h.coverImage)} className="w-full h-14 rounded-t-lg object-cover" />
+                    ) : (
+                      <span className="text-white/60 text-xs pt-2">No cover</span>
+                    )}
+                    <span className="text-white text-sm font-medium truncate px-1 w-full text-center">{h.name}</span>
+                  </button>
+                ))}
             </div>
+            {highlightError && (
+              <p className="px-4 pb-2 text-red-400 text-xs">{highlightError}</p>
+            )}
           </div>
         </div>
       )}
 
-      {/* Story viewers list placeholder – full page can be /stories/:username/viewers */}
+      {/* Story viewers (owner): accounts with a non-anonymous StoryView row */}
       {showViewersSheet && (
         <div className="fixed inset-0 z-50 bg-black flex flex-col" onClick={() => setShowViewersSheet(false)}>
-          <div className="flex items-center justify-between px-4 py-3 border-b border-[#262626]" onClick={(e) => e.stopPropagation()}>
-            <span className="text-[#a8a8a8]">Settings</span>
-            <button type="button" className="p-2 text-white" onClick={() => setShowViewersSheet(false)}><X className="w-5 h-5" /></button>
-          </div>
-          <div className="flex-1 overflow-auto px-4 py-4">
-            <p className="text-white font-semibold mb-2">Who viewed this story</p>
-            <ThemedText secondary className="text-sm">Viewers will appear here.</ThemedText>
+          <div className="flex flex-col flex-1 min-h-0" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#262626] shrink-0">
+              <span className="text-white font-semibold">Who viewed this story</span>
+              <button type="button" className="p-2 text-white" onClick={() => setShowViewersSheet(false)} aria-label="Close">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto px-4 py-4 space-y-2">
+              {viewersLoading && (
+                <ThemedText secondary className="text-sm">Loading…</ThemedText>
+              )}
+              {viewersError && !viewersLoading && (
+                <ThemedText className="text-sm text-moxe-danger">{viewersError}</ThemedText>
+              )}
+              {!viewersLoading && !viewersError && viewers.length === 0 && (
+                <ThemedText secondary className="text-sm">
+                  No logged-in viewers yet. Anonymous views are not listed here.
+                </ThemedText>
+              )}
+              {!viewersLoading &&
+                !viewersError &&
+                viewers.map((v) => (
+                  <button
+                    key={v.id}
+                    type="button"
+                    className="w-full flex items-center gap-3 py-2 text-left rounded-lg hover:bg-white/5 px-1"
+                    onClick={() => {
+                      setShowViewersSheet(false);
+                      navigate(`/profile/${encodeURIComponent(v.username)}`);
+                    }}
+                  >
+                    <Avatar uri={v.profilePhoto} size={40} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-medium text-sm truncate">@{v.username}</p>
+                      {v.displayName ? (
+                        <p className="text-[#a8a8a8] text-xs truncate">{v.displayName}</p>
+                      ) : null}
+                    </div>
+                    <span className="text-[#737373] text-xs shrink-0">
+                      {new Date(v.viewedAt).toLocaleString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  </button>
+                ))}
+            </div>
           </div>
         </div>
       )}
 
-      {/* Story mention sheet placeholder */}
+      {/* Mentions on this story (owner): DB + mention stickers */}
       {showMentionSheet && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center" onClick={() => setShowMentionSheet(false)}>
-          <div className="w-full max-w-[428px] max-h-[80vh] bg-[#202020] rounded-t-2xl border-t border-[#262626] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="pt-2 pb-1">
+          <div
+            className="w-full max-w-[428px] max-h-[80vh] bg-[#202020] rounded-t-2xl border-t border-[#262626] flex flex-col min-h-0"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="pt-2 pb-1 shrink-0">
               <div className="w-8 h-0.5 rounded-full bg-white/30 mx-auto" />
             </div>
-            <input type="text" placeholder="Search" className="mx-4 mt-2 mb-3 px-4 py-2.5 rounded-lg bg-[#363636] text-white placeholder:text-[#737373] text-sm" />
-            <div className="flex-1 overflow-auto px-4 pb-4">
-              <ThemedText secondary className="text-sm">Search for people to mention.</ThemedText>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#262626] shrink-0">
+              <span className="text-white font-semibold text-base">Mentions</span>
+              <button type="button" className="p-2 text-white" onClick={() => setShowMentionSheet(false)} aria-label="Close">
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <div className="flex items-center justify-between px-4 py-3 border-t border-[#262626]">
-              <label className="text-white text-sm flex-1">Allow people you mention to add this to their story</label>
-              <button type="button" role="switch" className="w-11 h-6 rounded-full bg-[#363636]" />
+            <div className="flex-1 overflow-auto px-4 py-3 space-y-2 min-h-0">
+              {mentionsLoading && (
+                <ThemedText secondary className="text-sm">Loading…</ThemedText>
+              )}
+              {mentionsError && !mentionsLoading && (
+                <ThemedText className="text-sm text-moxe-danger">{mentionsError}</ThemedText>
+              )}
+              {!mentionsLoading && !mentionsError && mentions.length === 0 && (
+                <ThemedText secondary className="text-sm">
+                  No one is mentioned on this story. Mention stickers can be added when creating a story (payload: type
+                  &quot;mention&quot; with accountId or accountIds).
+                </ThemedText>
+              )}
+              {!mentionsLoading &&
+                !mentionsError &&
+                mentions.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    className="w-full flex items-center gap-3 py-2 text-left rounded-lg hover:bg-white/5 px-1"
+                    onClick={() => {
+                      setShowMentionSheet(false);
+                      navigate(`/profile/${encodeURIComponent(m.username)}`);
+                    }}
+                  >
+                    <Avatar uri={m.profilePhoto} size={40} />
+                    <div className="min-w-0">
+                      <p className="text-white font-medium text-sm truncate">@{m.username}</p>
+                      {m.displayName ? (
+                        <p className="text-[#a8a8a8] text-xs truncate">{m.displayName}</p>
+                      ) : null}
+                    </div>
+                  </button>
+                ))}
             </div>
-            <button type="button" className="mx-4 mb-4 py-3 rounded-lg bg-[#0095f6] text-white font-semibold text-sm">Mention</button>
           </div>
         </div>
       )}

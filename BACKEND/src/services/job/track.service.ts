@@ -39,6 +39,27 @@ export class TrackService {
     return app;
   }
 
+  /** Job seeker updates their application stage (Kanban / pipeline UI). */
+  async updateApplicationStatus(accountId: string, applicationId: string, status: string) {
+    const allowed = ['APPLIED', 'SCREENING', 'INTERVIEW', 'OFFER', 'REJECTED', 'WITHDRAWN'];
+    const next = (status || '').toUpperCase();
+    if (!allowed.includes(next)) {
+      throw new AppError(`Invalid status. Use one of: ${allowed.join(', ')}`, 400);
+    }
+    const existing = await prisma.jobApplication.findFirst({
+      where: { id: applicationId, accountId },
+    });
+    if (!existing) throw new AppError('Application not found', 404);
+    return prisma.jobApplication.update({
+      where: { id: applicationId },
+      data: { status: next },
+      include: {
+        jobPosting: true,
+        pipelineStage: true,
+      },
+    });
+  }
+
   async apply(accountId: string, jobPostingId: string, data: { coverLetter?: string; resumeUrl?: string }) {
     const existing = await prisma.jobApplication.findUnique({
       where: { accountId_jobPostingId: { accountId, jobPostingId } },

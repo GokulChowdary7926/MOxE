@@ -4,12 +4,27 @@
 import { prisma } from '../server';
 import { AppError } from '../utils/AppError';
 import { ProximityService } from './proximity.service';
+import { AnalyticsService } from './analytics.service';
+
+const nearbyAnalytics = new AnalyticsService();
 
 const MAX_RADIUS_M = 50_000;
 const DEFAULT_RADIUS_M = 5000;
 const LOCATION_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24h
 const TAG_GEOCODE_LIMIT = 40;
 const geocodeCache = new Map<string, { lat: number; lng: number } | null>();
+
+/** Nominatim usage policy: avoid bursty requests from the app server. */
+let nominatimNextAllowedAt = 0;
+const NOMINATIM_MIN_INTERVAL_MS = 1100;
+
+type NominatimSearchRow = {
+  place_id?: number;
+  lat?: string;
+  lon?: string;
+  display_name?: string;
+  name?: string;
+};
 
 /** Nearby messaging daily limits (reset at local server midnight). */
 export const NEARBY_TEXT_MESSAGES_FREE_PER_DAY = 10;
@@ -112,32 +127,91 @@ export class LocationService {
   }
 
   /**
-   * Lightweight location search for the composer:
-   * - For now we reuse distinct post.location values as "places".
-   * - Later this can be swapped to an external provider (Google, Mapbox, etc.).
+   * Real-time place search via OpenStreetMap Nominatim (lat/lng for map + composer).
+   * Optional `bias` prefers results near the user's current map position.
    */
-  async searchPlaces(query: string, limit = 10) {
+  async searchPlaces(
+    query: string,
+    limit = 10,
+    bias?: { latitude: number; longitude: number },
+  ): Promise<
+    { id: string; name: string; displayName: string; latitude: number; longitude: number }[]
+  > {
     const term = query.trim();
     if (!term) return [];
 
-    const rows = await prisma.post.findMany({
-      where: {
-        location: {
-          contains: term,
-          mode: 'insensitive',
-        },
-      },
-      distinct: ['location'],
-      take: Math.min(limit, 20),
-      select: { location: true },
+    const take = Math.min(Math.max(1, limit), 20);
+    const now = Date.now();
+    if (now < nominatimNextAllowedAt) {
+      await new Promise((r) => setTimeout(r, nominatimNextAllowedAt - now));
+    }
+    nominatimNextAllowedAt = Date.now() + NOMINATIM_MIN_INTERVAL_MS;
+
+    const params = new URLSearchParams({
+      format: 'json',
+      q: term,
+      limit: String(take),
+      addressdetails: '0',
+      extratags: '0',
+      namedetails: '0',
     });
 
-    return rows
-      .filter((r) => !!r.location)
-      .map((r, idx) => ({
-        id: String(idx), // simple client id; can be replaced with real placeId later
-        name: r.location as string,
-      }));
+    if (bias) {
+      const d = 0.35;
+      const west = bias.longitude - d;
+      const east = bias.longitude + d;
+      const north = bias.latitude + d;
+      const south = bias.latitude - d;
+      params.set('viewbox', `${west},${north},${east},${south}`);
+      params.set('bounded', '0');
+    }
+
+    const url = `https://nominatim.openstreetmap.org/search?${params.toString()}`;
+    try {
+      const res = await fetch(url, {
+        headers: {
+          Accept: 'application/json',
+          'Accept-Language': 'en',
+          'User-Agent': 'MOxE/1.0 (contact: https://github.com)',
+        },
+      });
+      if (!res.ok) return [];
+      const data = (await res.json().catch(() => [])) as NominatimSearchRow[];
+      if (!Array.isArray(data)) return [];
+
+      return data
+        .map((row, i) => {
+          const lat = Number(row.lat);
+          const lng = Number(row.lon);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+          const displayName = String(row.display_name || '').trim() || term;
+          const shortName = String(row.name || '').trim() || displayName.split(',')[0]?.trim() || term;
+          const id = row.place_id != null ? `osm:${row.place_id}` : `osm-i:${i}:${lat.toFixed(4)},${lng.toFixed(4)}`;
+          return { id, name: shortName, displayName, latitude: lat, longitude: lng };
+        })
+        .filter((x): x is NonNullable<typeof x> => x != null);
+    } catch {
+      return [];
+    }
+  }
+
+  /** Public posts whose free-text location field matches (for location detail + search). */
+  async getPostsByLocationSubstring(query: string, limit = 30) {
+    const term = query.trim();
+    if (!term) return [];
+    const take = Math.min(Math.max(1, limit), 50);
+    return prisma.post.findMany({
+      where: {
+        isDeleted: false,
+        privacy: 'PUBLIC',
+        location: { contains: term, mode: 'insensitive' },
+      },
+      orderBy: { createdAt: 'desc' },
+      take,
+      include: {
+        account: { select: { id: true, username: true, displayName: true, profilePhoto: true } },
+      },
+    });
   }
 
   async getPreferences(accountId: string) {
@@ -366,6 +440,9 @@ export class LocationService {
           nearbyPostResetAt: needReset ? midnight : acc.nearbyPostResetAt,
         },
       });
+      void nearbyAnalytics
+        .recordEvent(accountId, 'nearby_message_sent', { kind: 'text', channel: 'nearby' })
+        .catch(() => {});
       return { ok: true, textUsed: nextText, mediaUsed: needReset ? 0 : mediaCount };
     }
 
@@ -384,6 +461,9 @@ export class LocationService {
         nearbyPostResetAt: needReset ? midnight : acc.nearbyPostResetAt,
       },
     });
+    void nearbyAnalytics
+      .recordEvent(accountId, 'nearby_message_sent', { kind: 'media', channel: 'nearby' })
+      .catch(() => {});
     return { ok: true, textUsed: needReset ? 0 : textCount, mediaUsed: nextMedia };
   }
 
@@ -432,6 +512,38 @@ export class LocationService {
       freeLimitToday: NEARBY_PHOTO_POSTS_FREE_PER_DAY,
       overLimitChargePerPost: 0.5,
       chargesThisMonth: chargesThisMonth * 0.5,
+    };
+  }
+
+  /** Aggregated Nearby map & messaging metrics from AnalyticsEvent + usage (last `days` days). */
+  async getNearbyAnalyticsSummary(accountId: string, days = 7) {
+    const usage = await this.getNearbyPostUsage(accountId);
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+    since.setHours(0, 0, 0, 0);
+
+    const [sentCount, impressionCount] = await Promise.all([
+      prisma.analyticsEvent.count({
+        where: {
+          accountId,
+          eventType: 'nearby_message_sent',
+          timestamp: { gte: since },
+        },
+      }),
+      prisma.analyticsEvent.count({
+        where: {
+          accountId,
+          eventType: 'nearby_message_impression',
+          timestamp: { gte: since },
+        },
+      }),
+    ]);
+
+    return {
+      periodDays: days,
+      usage,
+      nearbyMessagesSent: sentCount,
+      nearbyImpressions: impressionCount,
     };
   }
 }

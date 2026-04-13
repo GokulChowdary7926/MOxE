@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronDown, MoreVertical, Play } from 'lucide-react';
 import { ThemedView } from '../../components/ui/Themed';
 import { MobileShell } from '../../components/layout/MobileShell';
 import { UI } from '../../constants/uiTheme';
 
 export default function TaggedPage() {
+  const navigate = useNavigate();
   const [items] = useState<{ id: string; thumbUrl: string; isVideo?: boolean }[]>([]);
 
   return (
@@ -16,7 +17,12 @@ export default function TaggedPage() {
             <ChevronLeft className="w-6 h-6" />
           </Link>
           <span className={UI.headerTitle}>Tagged</span>
-          <button type="button" className="p-2 -m-2 text-white" aria-label="More">
+          <button
+            type="button"
+            className="p-2 -m-2 text-white"
+            aria-label="More"
+            onClick={() => navigate('/activity/tagged/more')}
+          >
             <MoreVertical className="w-5 h-5" />
           </button>
         </header>

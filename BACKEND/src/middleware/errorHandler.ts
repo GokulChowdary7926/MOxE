@@ -16,5 +16,17 @@ export function errorHandler(
   if (process.env.SENTRY_DSN) {
     Sentry.captureException(err);
   }
-  return res.status(500).json({ error: 'Internal server error' });
+  const isDev = process.env.NODE_ENV !== 'production';
+  const body: Record<string, string | undefined> = { error: 'Internal server error' };
+  if (isDev && err instanceof Error && err.message) {
+    // Helps local debugging (Safari Network tab / Redux). Never expose this detail in production.
+    body.message = err.message;
+    if (err.stack) {
+      body.stack = err.stack
+        .split('\n')
+        .slice(0, 12)
+        .join('\n');
+    }
+  }
+  return res.status(500).json(body);
 }

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useAccountCapabilities } from '../../hooks/useAccountCapabilities';
 import { Link } from 'react-router-dom';
+import { getApiBase } from '../../services/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type InsightsPayload = {
   metrics: {
@@ -24,6 +25,14 @@ type InsightsPayload = {
   accountOverview: { followers: number; posts: number; rating: number };
   topPosts: { id: string; title: string; reach: string; engagement: string; date: string }[];
   demographics: { age: { range: string; pct: number }[]; locations: { city: string; pct: number }[] };
+  creatorInsights?: {
+    reelViews: number;
+    reelViewsChange: number;
+    playsSource: { source: string; count: number }[];
+    audioPerformance: { audio: string; views: number; reels: number }[];
+    contentComparison: { id: string; title: string; views: number; engagement: number; score: number }[];
+    reelRetentionPreview: { second: number; viewers: number }[];
+  };
 };
 
 export default function Analytics() {
@@ -101,17 +110,17 @@ export default function Analytics() {
       {!loading && !error && payload && (
         <div className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-              <h2 className="font-medium text-slate-800 dark:text-white">Reach</h2>
+        <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+          <h2 className="font-medium text-slate-800 dark:text-white">Reach</h2>
               <p className="text-2xl font-semibold text-slate-900 dark:text-white mt-1">
                 {payload.metrics.reach}
               </p>
               <p className="text-sm text-slate-500 mt-0.5">
                 {changeStr(payload.metrics.reachChange)} vs previous period
               </p>
-            </div>
-            <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-              <h2 className="font-medium text-slate-800 dark:text-white">Engagement</h2>
+        </div>
+        <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+          <h2 className="font-medium text-slate-800 dark:text-white">Engagement</h2>
               <p className="text-2xl font-semibold text-slate-900 dark:text-white mt-1">
                 {payload.metrics.engagement}
               </p>
@@ -167,6 +176,94 @@ export default function Analytics() {
                 ))}
               </ul>
             </div>
+          )}
+          {payload.creatorInsights && (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <h2 className="font-medium text-slate-800 dark:text-white">Reel views</h2>
+                  <p className="text-2xl font-semibold text-slate-900 dark:text-white mt-1">
+                    {payload.creatorInsights.reelViews}
+                  </p>
+                  <p className="text-sm text-slate-500 mt-0.5">
+                    {changeStr(payload.creatorInsights.reelViewsChange)} vs previous period
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <h2 className="font-medium text-slate-800 dark:text-white mb-3">Plays source</h2>
+                  {payload.creatorInsights.playsSource.length === 0 ? (
+                    <p className="text-sm text-slate-500">No source data yet.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {payload.creatorInsights.playsSource.map((row) => (
+                        <li key={row.source} className="flex items-center justify-between text-sm">
+                          <span className="text-slate-700 dark:text-slate-300 capitalize">{row.source}</span>
+                          <span className="font-medium text-slate-900 dark:text-white">{row.count}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <h2 className="font-medium text-slate-800 dark:text-white mb-3">Audio performance</h2>
+                  {payload.creatorInsights.audioPerformance.length === 0 ? (
+                    <p className="text-sm text-slate-500">No audio data yet.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {payload.creatorInsights.audioPerformance.map((row) => (
+                        <li key={row.audio} className="flex items-center justify-between text-sm gap-3">
+                          <span className="text-slate-700 dark:text-slate-300 truncate">{row.audio}</span>
+                          <span className="font-medium text-slate-900 dark:text-white whitespace-nowrap">
+                            {row.views} views · {row.reels} reels
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+
+              <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                <h2 className="font-medium text-slate-800 dark:text-white mb-3">Content comparison</h2>
+                {payload.creatorInsights.contentComparison.length === 0 ? (
+                  <p className="text-sm text-slate-500">No reel comparison data yet.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {payload.creatorInsights.contentComparison.map((row) => (
+                      <li key={row.id} className="flex items-center justify-between gap-3 text-sm">
+                        <span className="text-slate-700 dark:text-slate-300 truncate">{row.title}</span>
+                        <span className="text-slate-900 dark:text-white whitespace-nowrap">
+                          {row.views} views · {row.engagement} eng · score {row.score}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                <h2 className="font-medium text-slate-800 dark:text-white mb-3">Retention preview</h2>
+                {payload.creatorInsights.reelRetentionPreview.length === 0 ? (
+                  <p className="text-sm text-slate-500">No retention samples yet.</p>
+                ) : (
+                  <div className="grid grid-cols-5 gap-2">
+                    {payload.creatorInsights.reelRetentionPreview.slice(0, 20).map((p) => (
+                      <div
+                        key={`${p.second}-${p.viewers}`}
+                        className="rounded-md border border-slate-200 dark:border-slate-700 p-2 text-center"
+                      >
+                        <p className="text-[11px] text-slate-500">{p.second}s</p>
+                        <p className="text-sm font-medium text-slate-900 dark:text-white">{p.viewers}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </div>
       )}

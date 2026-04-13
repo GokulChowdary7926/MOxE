@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   ScrollView,
+  FlatList,
   StyleSheet,
   TouchableOpacity,
   TextInput,
@@ -201,13 +202,14 @@ export function MessagesScreen() {
         <View style={styles.conversation}>
           {activePeerId ? (
             <>
-              <ScrollView
+              <FlatList
                 style={styles.messagesList}
                 contentContainerStyle={{ padding: 12 }}
                 inverted
-              >
-                {[...messages].reverse().map((m) => (
-                  <View key={m.id} style={styles.messageBubble}>
+                data={[...messages].reverse()}
+                keyExtractor={(m) => m.id}
+                renderItem={({ item: m }) => (
+                  <View style={styles.messageBubble}>
                     <ThemedText style={styles.messageText}>
                       {m.messageType === 'GIF'
                         ? '[GIF]'
@@ -216,8 +218,8 @@ export function MessagesScreen() {
                         : m.content}
                     </ThemedText>
                   </View>
-                ))}
-              </ScrollView>
+                )}
+              />
               <View style={styles.composer}>
                 <TouchableOpacity
                   style={[styles.micButton, recording && styles.micButtonRecording]}

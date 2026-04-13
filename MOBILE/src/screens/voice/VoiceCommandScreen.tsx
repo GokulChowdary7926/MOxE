@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, Alert, TouchableOpacity, Text } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../../navigation/types';
 import { ThemedView, ThemedText, ThemedHeader, ThemedButton, ThemedInput } from '../../components/Themed';
 import { parseVoiceIntent } from '../../services/voiceIntent';
 import {
@@ -9,21 +11,21 @@ import {
 } from 'expo-speech-recognition';
 
 export function VoiceCommandScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
   const [recognizing, setRecognizing] = useState(false);
 
   useSpeechRecognitionEvent('start', () => setRecognizing(true));
   useSpeechRecognitionEvent('end', () => setRecognizing(false));
-  useSpeechRecognitionEvent('result', (event) => {
+  useSpeechRecognitionEvent('result', (event: { results?: { transcript?: string }[] }) => {
     const transcript = event?.results?.[0]?.transcript ?? '';
     if (!transcript) return;
     setText(transcript);
     // Immediately run intent on final result
     runIntent(transcript);
   });
-  useSpeechRecognitionEvent('error', (event) => {
+  useSpeechRecognitionEvent('error', (event: { error?: string; message?: string }) => {
     console.log('Speech recognition error:', event.error, event.message);
   });
 
@@ -41,10 +43,10 @@ export function VoiceCommandScreen() {
       switch (intent.intent) {
         case 'NAVIGATE':
           const dest = (intent.target || '').toLowerCase();
-          if (dest === 'messages') navigation.navigate('Main' as never, { screen: 'Messages' } as never);
-          else if (dest === 'profile') navigation.navigate('Main' as never, { screen: 'Profile' } as never);
-          else if (dest === 'map') navigation.navigate('Main' as never, { screen: 'Map' } as never);
-          else if (dest === 'home') navigation.navigate('Main' as never, { screen: 'Feed' } as never);
+          if (dest === 'messages') navigation.navigate('Main', { screen: 'Messages' });
+          else if (dest === 'profile') navigation.navigate('Main', { screen: 'Profile' });
+          else if (dest === 'map') navigation.navigate('Main', { screen: 'Map' });
+          else if (dest === 'home') navigation.navigate('Main', { screen: 'Feed' });
           else Alert.alert('Navigate', `Would go to: ${dest}`);
           break;
         case 'CREATE_STORY':

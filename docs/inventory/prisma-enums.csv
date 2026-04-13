@@ -1,0 +1,8 @@
+enum
+AccountType
+SubscriptionTier
+NoteType
+NoteStatus
+ContentType
+PrivacyLevel
+SearchVisibility

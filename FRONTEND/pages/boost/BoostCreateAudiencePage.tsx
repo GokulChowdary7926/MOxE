@@ -1,18 +1,34 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { SettingsPageShell } from '../../components/layout/SettingsPageShell';
+import { writeBoostDraft } from '../../utils/boostDraft';
 
 export default function BoostCreateAudiencePage() {
   const navigate = useNavigate();
   const [advantagePlus, setAdvantagePlus] = useState(false);
   const [audienceName, setAudienceName] = useState('');
 
+  const finishAudience = () => {
+    const name = audienceName.trim();
+    writeBoostDraft({ audienceName: name || undefined });
+    navigate('/boost/budget');
+  };
+
   return (
-    <SettingsPageShell title="Create audience" backTo="/boost/audience" right={<button type="button" className="text-[#0095f6] font-medium text-sm">Done</button>}>
+    <SettingsPageShell
+      title="Create audience"
+      backTo="/boost/audience"
+      right={
+        <button type="button" onClick={finishAudience} className="text-[#0095f6] font-medium text-sm">
+          Done
+        </button>
+      }
+    >
       <div className="px-4 py-4">
         <div className="text-center mb-6">
-          <p className="text-2xl font-bold text-white">N/A</p>
+          <p className="text-2xl font-bold text-white">—</p>
           <p className="text-[#a8a8a8] text-sm flex items-center justify-center gap-1">Estimated audience size <span className="text-[#737373]">ⓘ</span></p>
+          <p className="text-[#737373] text-xs mt-2">Sizing appears when forecasting is available for your account.</p>
         </div>
 
         <div className="mb-4">
@@ -46,6 +62,14 @@ export default function BoostCreateAudiencePage() {
           <p className="text-white font-medium">Audience suggestions</p>
           <p className="text-[#a8a8a8] text-sm">When your suggestions are accurate, they can help find your audience faster.</p>
         </div>
+
+        <button
+          type="button"
+          onClick={finishAudience}
+          className="w-full py-3 rounded-lg bg-[#0095f6] text-white font-semibold text-center mt-8"
+        >
+          Continue to budget
+        </button>
       </div>
     </SettingsPageShell>
   );

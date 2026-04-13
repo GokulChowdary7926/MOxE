@@ -6,7 +6,8 @@ import { ChevronRight } from 'lucide-react';
 const POLICIES = [
   { label: 'Terms of use', path: '#' },
   { label: 'Privacy policy', path: '/settings/privacy-centre' },
-  { label: 'Community guidelines', path: '#' },
+  { label: 'Community guidelines', path: '/settings/help/community-guidelines' },
+  { label: 'Open source licenses', path: '/settings/help/open-source-licenses' },
 ];
 
 export default function HelpTermsPage() {

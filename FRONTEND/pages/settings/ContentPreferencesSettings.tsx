@@ -19,6 +19,10 @@ export default function ContentPreferencesSettings() {
           <span className="font-medium">Not interested</span>
           <ChevronRight className="w-5 h-5 text-[#737373]" />
         </Link>
+        <Link to="/settings/content-preferences/interested" className="flex items-center justify-between px-4 py-3 border-b border-[#262626] text-white active:bg-white/5">
+          <span className="font-medium">Interested</span>
+          <ChevronRight className="w-5 h-5 text-[#737373]" />
+        </Link>
       </div>
     </SettingsPageShell>
   );

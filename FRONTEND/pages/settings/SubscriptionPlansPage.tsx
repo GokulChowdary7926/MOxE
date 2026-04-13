@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import type { RootState } from '../../store';
+import type { AppDispatch, RootState } from '../../store';
 import { fetchMe } from '../../store/authSlice';
 import { setCurrentAccount } from '../../store/accountSlice';
 import { getApiBase, getToken } from '../../services/api';
@@ -219,7 +219,7 @@ function PlanCard({
 }
 
 export default function SubscriptionPlansPage() {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
   const currentAccount = useSelector((s: RootState) => s.account.currentAccount) as {
     id?: string;

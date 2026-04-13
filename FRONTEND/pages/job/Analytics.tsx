@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { getApiBase, getToken } from '../../services/api';
+import { JobDesignBiblePanel, JobToolBibleShell } from '../../components/job/bible';
+import { JobCard } from '../../components/job/JobPageContent';
+import { JOB_MOBILE } from '../../components/job/jobMobileStyles';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
-
-type JobAnalyticsPayload = {
+type JobInsights = {
   metrics: {
     totalApplications: number;
     applicationsInRange: number;
@@ -10,140 +13,131 @@ type JobAnalyticsPayload = {
     trackProjects: number;
     flowCards: number;
   };
-  range: {
-    days: number;
-    since: string;
-  };
+  range: { days: number; since: string };
 };
 
-function useAuthHeaders(): Record<string, string> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  const headers: Record<string, string> = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
-  return headers;
-}
-
-export default function JobAnalytics() {
-  const [payload, setPayload] = useState<JobAnalyticsPayload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [range, setRange] = useState<'7d' | '30d'>('7d');
-
-  const headers = useAuthHeaders();
-
-  useEffect(() => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    if (!token) {
-      setLoading(false);
-      setError('Not logged in');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    fetch(`${API_BASE}/job/analytics/insights?range=${range}`, {
-      headers,
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error('Failed to load job analytics');
-        return r.json();
-      })
-      .then((data) => {
-        setPayload(data);
-      })
-      .catch((e) => {
-        setError(e?.message ?? 'Failed to load job analytics');
-        setPayload(null);
-      })
-      .finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range]);
-
-  const changeStr = (n: number) => {
-    if (n === 0) return 'No change';
-    return n > 0 ? `+${n}% vs previous` : `${n}% vs previous`;
-  };
-
+function Metric({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string | number;
+  hint?: string;
+}) {
   return (
-    <div className="max-w-4xl mx-auto p-4 space-y-4">
-      <div>
-        <h2 className="text-2xl font-semibold text-slate-800 dark:text-white mb-1">
-          MOxE ANALYTICS (Job)
-        </h2>
-        <p className="text-slate-600 dark:text-slate-400 text-sm">
-          High‑level insights for your Job workspace: applications and work activity.
-        </p>
-      </div>
-
-      <div className="flex gap-2 mb-2">
-        {(['7d', '30d'] as const).map((r) => (
-          <button
-            key={r}
-            type="button"
-            onClick={() => setRange(r)}
-            className={`px-3 py-1.5 rounded-full border text-sm ${
-              range === r
-                ? 'bg-indigo-600 border-indigo-600 text-white'
-                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
-            }`}
-          >
-            {r === '7d' ? 'Last 7 days' : 'Last 30 days'}
-          </button>
-        ))}
-      </div>
-
-      {loading && <p className="text-slate-500">Loading…</p>}
-      {error && <p className="text-red-500 text-sm">{error}</p>}
-
-      {!loading && !error && payload && (
-        <div className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-              <h3 className="font-medium text-slate-800 dark:text-white text-sm">
-                Total applications
-              </h3>
-              <p className="text-2xl font-semibold text-slate-900 dark:text-white mt-1">
-                {payload.metrics.totalApplications}
-              </p>
-            </div>
-            <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-              <h3 className="font-medium text-slate-800 dark:text-white text-sm">
-                Applications in this range
-              </h3>
-              <p className="text-2xl font-semibold text-slate-900 dark:text-white mt-1">
-                {payload.metrics.applicationsInRange}
-              </p>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {changeStr(payload.metrics.applicationsChange)}
-              </p>
-            </div>
-            <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-              <h3 className="font-medium text-slate-800 dark:text-white text-sm">
-                Track projects
-              </h3>
-              <p className="text-2xl font-semibold text-slate-900 dark:text-white mt-1">
-                {payload.metrics.trackProjects}
-              </p>
-            </div>
-            <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-              <h3 className="font-medium text-slate-800 dark:text-white text-sm">Flow cards</h3>
-              <p className="text-2xl font-semibold text-slate-900 dark:text-white mt-1">
-                {payload.metrics.flowCards}
-              </p>
-            </div>
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Window: last {payload.range.days} days (since{' '}
-            {new Date(payload.range.since).toLocaleDateString([], {
-              month: 'short',
-              day: '2-digit',
-              year: 'numeric',
-            })}
-            ).
-          </p>
-        </div>
-      )}
+    <div className="rounded-xl border border-[#DFE1E6] bg-[#F4F5F7] p-4 dark:border-[#2C333A] dark:bg-[#161A1D]">
+      <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-[#5E6C84] dark:text-[#8C9BAB]">
+        {label}
+      </p>
+      <p className="text-2xl font-black tabular-nums text-[#172B4D] dark:text-[#E6EDF3]">{value}</p>
+      {hint ? <p className="mt-1 text-xs text-[#5E6C84] dark:text-[#8C9BAB]">{hint}</p> : null}
     </div>
   );
 }
 
+export default function JobAnalytics() {
+  const [data, setData] = useState<JobInsights | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const token = getToken();
+
+  useEffect(() => {
+    if (!token) {
+      setLoading(false);
+      setError('Sign in to view Job analytics.');
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`${getApiBase()}/job/analytics/insights?range=7d`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error((body as { error?: string }).error || 'Failed to load insights');
+        if (!cancelled) setData(body as JobInsights);
+      } catch (e: unknown) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load insights');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  const m = data?.metrics;
+
+  return (
+    <JobToolBibleShell toolTitle="MOxE ANALYTICS" toolIconMaterial="bar_chart">
+      <div className="space-y-6 pb-4 font-body text-on-background">
+        <section className="rounded-xl border border-outline-variant/15 bg-surface-container p-5 border-l-4 border-l-[#0052CC]">
+          <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[#0052CC]">Insights</p>
+          <h1 className="mb-2 font-headline text-xl font-black tracking-tight text-on-surface">Job analytics</h1>
+          <p className="max-w-prose text-sm leading-relaxed text-on-surface-variant">
+            Live counts from your MOxE Job workspace — applications, Track projects, and Flow cards — for the current
+            range.
+          </p>
+          {data?.range ? (
+            <p className="mt-2 text-xs text-on-surface-variant">
+              Range: last {data.range.days} days (since {new Date(data.range.since).toLocaleDateString()})
+            </p>
+          ) : null}
+        </section>
+
+        {error ? (
+          <div className={`${JOB_MOBILE.error}`} role="alert">
+            {error}
+          </div>
+        ) : null}
+
+        {loading && !m ? (
+          <div className="space-y-3 py-2" aria-busy="true">
+            <div className="h-24 animate-pulse rounded-xl bg-surface-container-high/40" />
+            <div className="h-24 animate-pulse rounded-xl bg-surface-container-high/35" />
+          </div>
+        ) : m ? (
+          <div className="grid grid-cols-1 gap-3">
+            <Metric
+              label="Applications (all time)"
+              value={m.totalApplications}
+              hint={
+                m.applicationsChange === 0 && m.applicationsInRange === 0
+                  ? `None in the last ${data?.range.days ?? 7} days`
+                  : `${m.applicationsInRange} in range · ${m.applicationsChange >= 0 ? '+' : ''}${m.applicationsChange}% vs prior window`
+              }
+            />
+            <Metric label="Track projects" value={m.trackProjects} hint="MOxE Track" />
+            <Metric label="Flow cards" value={m.flowCards} hint="Across your Flow boards" />
+          </div>
+        ) : null}
+
+        <JobCard variant="track">
+          <p className={`${JOB_MOBILE.trackBody} mb-3`}>
+            Open related tools to change what shows up here — Track for applications, Flow for delivery cards.
+          </p>
+          <div className="flex flex-col gap-2">
+            <Link
+              to="/job/track/applications"
+              className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-[#0052CC] px-4 py-2.5 text-center text-sm font-bold text-white"
+            >
+              Open Track
+            </Link>
+            <Link
+              to="/job/flow"
+              className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-[#DFE1E6] bg-[#F4F5F7] px-4 py-2.5 text-center text-sm font-bold text-[#172B4D] dark:border-[#2C333A] dark:bg-[#161A1D] dark:text-[#E6EDF3]"
+            >
+              Open Flow
+            </Link>
+          </div>
+        </JobCard>
+
+        <JobDesignBiblePanel toolKey="analytics" showHero={false} />
+      </div>
+    </JobToolBibleShell>
+  );
+}

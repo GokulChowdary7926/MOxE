@@ -9,8 +9,9 @@ import { Avatar } from '../../components/ui/Avatar';
 export default function MobileNumberPage() {
   const navigate = useNavigate();
   const account = useCurrentAccount() as any;
-  const username = account?.username ?? 'user';
+  const username = account?.username ?? 'account';
   const profilePhoto = account?.profilePhoto;
+  const contactInfo = account?.user?.phoneNumber ?? account?.contactPhone ?? 'Not added';
 
   return (
     <ThemedView className="min-h-screen flex flex-col bg-black">
@@ -24,7 +25,7 @@ export default function MobileNumberPage() {
         </header>
 
         <div className="flex-1 overflow-auto pb-20">
-          <p className="text-white font-semibold text-2xl px-4 pt-6 pb-2">+919488651917</p>
+          <p className="text-white font-semibold text-2xl px-4 pt-6 pb-2">{contactInfo}</p>
           <p className="text-[#a8a8a8] text-sm px-4 pb-4">
             You added this number to these accounts. <span className="text-[#0095f6]">Who can see your number.</span>
           </p>

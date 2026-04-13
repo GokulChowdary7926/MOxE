@@ -10,7 +10,7 @@ type EmptyStateProps = {
 };
 
 /**
- * EmptyState – Instagram-style centered empty state.
+ * EmptyState – MOxE centered empty state.
  * Use for empty feeds, notifications, saved, etc.
  */
 export function EmptyState({ icon, title, message, actionLabel, onActionClick }: EmptyStateProps) {

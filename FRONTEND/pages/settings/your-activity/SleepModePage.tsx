@@ -50,11 +50,11 @@ export default function SleepModePage() {
           </div>
 
           <div className="border-t border-[#262626] pt-4">
-            <Link to="#" className="flex items-center justify-between py-3">
+            <Link to="/settings/info/sleep-mode-start-time" className="flex items-center justify-between py-3">
               <span className="text-white">Start time</span>
               <span className="text-[#a8a8a8] flex items-center">{startTime} <ChevronRight className="w-4 h-4 ml-1" /></span>
             </Link>
-            <Link to="#" className="flex items-center justify-between py-3 border-t border-[#262626]">
+            <Link to="/settings/info/sleep-mode-end-time" className="flex items-center justify-between py-3 border-t border-[#262626]">
               <span className="text-white">End time</span>
               <span className="text-[#a8a8a8] flex items-center">{endTime} <ChevronRight className="w-4 h-4 ml-1" /></span>
             </Link>

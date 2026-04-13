@@ -9,8 +9,13 @@ import { Avatar } from '../../components/ui/Avatar';
 export default function ProfilesAndPersonalDetails() {
   const navigate = useNavigate();
   const account = useCurrentAccount() as any;
-  const username = account?.username ?? 'user';
+  const username = account?.username ?? 'account';
   const profilePhoto = account?.profilePhoto;
+  const contactInfo = account?.user?.phoneNumber ?? account?.contactPhone ?? 'Not added';
+  const dobRaw = account?.user?.dateOfBirth as string | undefined;
+  const dobDisplay = dobRaw
+    ? new Date(dobRaw).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+    : 'Not added';
 
   return (
     <ThemedView className="min-h-screen flex flex-col bg-black">
@@ -43,12 +48,12 @@ export default function ProfilesAndPersonalDetails() {
           <div className="border-t border-[#262626]">
             <Link to="/settings/account-centre/contact-information" className="flex items-center gap-3 px-4 py-3 border-b border-[#262626] text-white active:bg-white/5">
               <span className="flex-1 font-medium">Contact info</span>
-              <span className="text-[#a8a8a8] text-sm">+919488651917</span>
+              <span className="text-[#a8a8a8] text-sm">{contactInfo}</span>
               <ChevronRight className="w-5 h-5 text-[#737373]" />
             </Link>
             <Link to="/settings/account-centre/date-of-birth" className="flex items-center gap-3 px-4 py-3 border-b border-[#262626] text-white active:bg-white/5">
               <span className="flex-1 font-medium">Date of birth</span>
-              <span className="text-[#a8a8a8] text-sm">7 July 2005</span>
+              <span className="text-[#a8a8a8] text-sm">{dobDisplay}</span>
               <ChevronRight className="w-5 h-5 text-[#737373]" />
             </Link>
           </div>

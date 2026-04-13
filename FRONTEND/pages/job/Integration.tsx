@@ -1,6 +1,9 @@
-import React, { useEffect, useState } from 'react';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { apiFetch } from '../../services/api';
+import { JobCard } from '../../components/job/JobPageContent';
+import { JOB_MOBILE } from '../../components/job/jobMobileStyles';
+import { JobDesignBiblePanel, JobToolBibleShell } from '../../components/job/bible';
 
 type IntegrationStatus = 'CONNECTED' | 'DISCONNECTED';
 
@@ -13,130 +16,151 @@ type JobIntegration = {
   connectedAt: string | null;
 };
 
-function useAuthHeaders(): Record<string, string> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  return headers;
-}
-
 export default function Integration() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [items, setItems] = useState<JobIntegration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [banner, setBanner] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
   const [busyProvider, setBusyProvider] = useState<string | null>(null);
 
-  const headers = useAuthHeaders();
-
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/job/integrations`, { headers });
-      if (!res.ok) throw new Error('Failed to load integrations');
-      const data = (await res.json()) as JobIntegration[];
+      const data = await apiFetch<JobIntegration[]>('job/integrations');
       setItems(Array.isArray(data) ? data : []);
-    } catch (e: any) {
-      setError(e?.message || 'Failed to load integrations');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to load integrations');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [load]);
 
-  const handleToggle = async (integration: JobIntegration) => {
+  /** OAuth return: strip query params and show result. */
+  useEffect(() => {
+    const q = new URLSearchParams(location.search);
+    const ok = q.get('integration_success');
+    const fail = q.get('integration_error');
+    if (!ok && !fail) return;
+
+    if (ok) {
+      setBanner({ kind: 'success', text: 'Integration connected successfully.' });
+    }
+    if (fail) {
+      setBanner({ kind: 'error', text: fail });
+    }
+    q.delete('integration_success');
+    q.delete('integration_error');
+    const next = q.toString();
+    navigate({ pathname: location.pathname, search: next ? `?${next}` : '' }, { replace: true });
+    void load();
+  }, [location.search, location.pathname, navigate, load]);
+
+  const startOAuth = async (integration: JobIntegration) => {
     setBusyProvider(integration.provider);
     setError(null);
     try {
-      const path =
-        integration.status === 'CONNECTED'
-          ? `${API_BASE}/job/integrations/${integration.provider}/disconnect`
-          : `${API_BASE}/job/integrations/${integration.provider}/connect`;
-      const res = await fetch(path, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({}),
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || 'Failed to update integration');
+      const { authUrl } = await apiFetch<{ authUrl: string }>(
+        `job/integrations/${encodeURIComponent(integration.provider)}/auth`,
+        { method: 'POST', body: {} },
+      );
+      if (authUrl && typeof window !== 'undefined') {
+        window.location.assign(authUrl);
       }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to start OAuth');
+    } finally {
+      setBusyProvider(null);
+    }
+  };
+
+  const revoke = async (integration: JobIntegration) => {
+    setBusyProvider(integration.provider);
+    setError(null);
+    try {
+      await apiFetch(`job/integrations/${encodeURIComponent(integration.provider)}`, {
+        method: 'DELETE',
+      });
       await load();
-    } catch (e: any) {
-      setError(e?.message || 'Failed to update integration');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to disconnect');
     } finally {
       setBusyProvider(null);
     }
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6">
-      <div className="w-full lg:w-80 space-y-3">
-        <div>
-          <h2 className="text-2xl font-semibold text-slate-800 dark:text-white mb-1">
-            MOxE INTEGRATION
-          </h2>
-          <p className="text-slate-600 dark:text-slate-400 text-sm">
-            Connect your Job workspace to code, issue tracking, docs, and chat tools.
-          </p>
-        </div>
-
-        {error && (
-          <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-200 text-xs">
+    <JobToolBibleShell toolTitle="MOxE INTEGRATION" toolIconMaterial="sync_alt">
+      <div className="flex flex-col gap-4">
+        {banner ? (
+          <div
+            className={
+              banner.kind === 'success'
+                ? 'rounded-lg px-3 py-2 text-sm bg-[#E3FCEF] dark:bg-green-900/25 text-[#006644] dark:text-green-300'
+                : JOB_MOBILE.error
+            }
+            role="status"
+          >
+            {banner.text}
+            <button
+              type="button"
+              className="ml-2 underline text-xs opacity-90"
+              onClick={() => setBanner(null)}
+            >
+              Dismiss
+            </button>
+          </div>
+        ) : null}
+        {error ? (
+          <div className={JOB_MOBILE.error} role="alert">
             {error}
           </div>
-        )}
-
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 text-xs space-y-1.5">
-          <p className="text-slate-600 dark:text-slate-300">
-            These toggles record integration preferences for your Job account. Actual OAuth / token
-            flows should be wired later to the respective providers.
+        ) : null}
+        <JobCard>
+          <p className="text-xs text-[#5E6C84] dark:text-[#8C9BAB]">
+            Connect a provider with OAuth. You will be redirected to approve access, then returned here. Disconnect
+            revokes stored tokens on the MOxE server. Each provider needs OAuth client credentials in the MOxE API
+            environment — see BACKEND <code className="text-[11px]">.env.example</code> (INTEGRATION_* / SLACK_* /
+            ATLASSIAN_*).
           </p>
-        </div>
-      </div>
-
-      <div className="flex-1 min-w-0">
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
+        </JobCard>
+        <JobCard variant="track" flush className="overflow-hidden">
           {loading && items.length === 0 && (
-            <div className="px-2 py-3 text-sm text-slate-500 dark:text-slate-400">
-              Loading integrations…
-            </div>
+            <div className="px-4 py-3 text-sm text-[#5E6C84] dark:text-[#8C9BAB]">Loading integrations…</div>
           )}
           {!loading && items.length === 0 && (
-            <div className="px-2 py-3 text-sm text-slate-500 dark:text-slate-400">
-              No integrations available.
-            </div>
+            <div className="px-4 py-3 text-sm text-[#5E6C84] dark:text-[#8C9BAB]">No integrations available.</div>
           )}
-          <div className="divide-y divide-slate-100 dark:divide-slate-700">
+          <div className="divide-y divide-[#2C333A]">
             {items.map((i) => {
               const connected = i.status === 'CONNECTED';
               const isBusy = busyProvider === i.provider;
               return (
                 <div
                   key={i.provider}
-                  className="flex items-center justify-between gap-3 py-3"
+                  className={`flex flex-col gap-3 justify-between ${JOB_MOBILE.touchPadding}`}
                 >
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                      <span className="text-sm font-semibold text-[#172B4D] dark:text-[#E6EDF3]">
                         {i.displayName}
                       </span>
                       {connected && (
-                        <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 px-2 py-0.5 text-[10px] font-medium">
+                        <span className="inline-flex items-center rounded-full bg-[#E3FCEF] dark:bg-green-900/30 text-[#006644] dark:text-green-300 px-2 py-0.5 text-[10px] font-medium">
                           Connected
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-400">
-                      {i.description}
-                    </p>
+                    <p className="text-xs text-[#5E6C84] dark:text-[#8C9BAB]">{i.description}</p>
                     {i.connectedAt && (
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        Since{' '}
+                      <p className="text-[11px] text-[#5E6C84] dark:text-[#8C9BAB] mt-0.5">
+                        Last updated{' '}
                         {new Date(i.connectedAt).toLocaleDateString([], {
                           month: 'short',
                           day: '2-digit',
@@ -148,22 +172,23 @@ export default function Integration() {
                   <button
                     type="button"
                     disabled={isBusy}
-                    onClick={() => handleToggle(i)}
-                    className={`inline-flex items-center justify-center rounded-md px-3 py-1.5 text-xs font-medium ${
+                    onClick={() => (connected ? revoke(i) : startOAuth(i))}
+                    className={
                       connected
-                        ? 'bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600'
-                        : 'bg-indigo-600 text-white hover:bg-indigo-700'
-                    }`}
+                        ? `${JOB_MOBILE.btnSecondary} shrink-0 text-xs`
+                        : `${JOB_MOBILE.btnPrimary} shrink-0 text-xs w-auto min-w-[100px]`
+                    }
                   >
-                    {isBusy ? 'Saving…' : connected ? 'Disconnect' : 'Connect'}
+                    {isBusy ? 'Working…' : connected ? 'Disconnect' : 'Connect'}
                   </button>
                 </div>
               );
             })}
           </div>
-        </div>
+        </JobCard>
+
+        <JobDesignBiblePanel toolKey="integration" showHero={false} />
       </div>
-    </div>
+    </JobToolBibleShell>
   );
 }
-

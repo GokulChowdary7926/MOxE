@@ -6,7 +6,13 @@ const router = Router();
 
 router.get('/vapid-public-key', (_req, res) => {
   const key = pushService.getVapidPublicKey();
-  if (!key) return res.status(404).json({ error: 'VAPID public key not configured' });
+  if (!key) {
+    return res.status(503).json({
+      error: 'VAPID keys not configured',
+      code: 'VAPID_NOT_CONFIGURED',
+      hint: 'Set VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY in the server environment (e.g. npx web-push generate-vapid-keys), then restart the API.',
+    });
+  }
   res.json({ publicKey: key });
 });
 

@@ -142,6 +142,9 @@ model Account {
   isPrivate        Boolean          @default(false)
   isActive         Boolean          @default(true)
   deactivatedAt    DateTime?
+  /// Account memorialization (login blocked; profile may still be visible per product rules).
+  isMemorialized   Boolean          @default(false)
+  memorializedAt   DateTime?
   verifiedBadge    Boolean          @default(false)
   verifiedAt       DateTime?
   createdAt        DateTime         @default(now())
@@ -218,6 +221,8 @@ model Account {
   giftsEnabled         Boolean @default(false)
   payoutMethod         Json?
   storageBytesUsed     Int      @default(0) // 1GB free, 5GB paid (4.2)
+  // Fine-grained settings UI (notification sub-screens, time limits, language) — see GET/PATCH /accounts/me/client-settings
+  clientSettings       Json?
 
   // Relations
   user                       User               @relation(fields: [userId], references: [id])
@@ -237,6 +242,8 @@ model Account {
   blockedByUsers             Block[]            @relation("blocked")
   mutedUsers                 Mute[]             @relation("muter")
   mutedByUsers               Mute[]             @relation("muted")
+  feedSnoozes                FeedSnooze[]       @relation("FeedSnoozeViewer")
+  feedSnoozedBy              FeedSnooze[]       @relation("FeedSnoozeTarget")
   restrictedUsers            Restrict[]         @relation("restrictor")
   restrictedByUsers          Restrict[]         @relation("restricted")
   limitInteractionSetting    LimitInteractionSetting?
@@ -248,6 +255,7 @@ model Account {
   groupMembers               GroupMember[]
   groupAdmins                GroupAdmin[]
   tags                       Tag[]
+  tagsCreated                Tag[]     @relation("TagsCreatedByAccount")
   mentions                   Mention[]
   reactions                  Reaction[]
   comments                   Comment[]
@@ -289,6 +297,9 @@ model Account {
   adAudiences                AdAudience[]
   adFraudSignals             AdFraudSignal[]
   adFraudBlocks              AdFraudBlock[]
+  contentAnalytics           ContentAnalytics[]
+  campaigns                  Campaign[]                @relation("campaign_brand")
+  campaignApplications       Application[]             @relation("campaign_creator")
   // Ads billing (credits / invoices / limits)
   adBilling                  AdBillingAccount?
 
@@ -307,6 +318,7 @@ model Account {
 
   // MOxE ACCESS (organizations / directory)
   orgMemberships           OrgUser[]
+  orgAuditActions          OrgAuditLog[]        @relation("OrgAuditActor")
   orgInvitesSent           OrgInvitation[]      @relation("OrgInvitationSender")
   orgInvitesReceived       OrgInvitation[]      @relation("OrgInvitationRecipient")
   workProjectMemberships   WorkProjectMember[]
@@ -358,6 +370,9 @@ model Account {
   Highlight            Highlight[]
   LiveViewer           LiveViewer[]
   LiveComment          LiveComment[]
+  LiveQuestion         LiveQuestion[]    @relation("LiveQuestionAsker")
+  LiveModeratorMember  LiveModerator[]   @relation("LiveModeratorMember")
+  LiveModeratorAssigner LiveModerator[]  @relation("LiveModeratorAssigner")
   LiveBadge            LiveBadge[]
   LiveGift             LiveGift[]
   MessageRecipient     MessageRecipient[]
@@ -433,10 +448,38 @@ model Account {
   jobIntegrations              JobIntegration[]
   jobTeams                     JobTeam[]
   savedJobSearches            SavedJobSearch[]
+  uploadedAssets              UploadedAsset[]
+  /// Your Activity: daily MOxE screen time (heartbeat-based, capped server-side).
+  screenTimeDaily             ScreenTimeDaily[]
+  recentSearchEntries         RecentSearchEntry[]
+  linkOpenEntries             LinkOpen[]
+  accountActivityLogs         AccountActivityLog[]
+  memorializationRequests     MemorializationRequest[] @relation("memorialization_requester")
+  profileClaimRequests        ProfileClaimRequest[]    @relation("profile_claim_requester")
+  legalRequestLogs            LegalRequestLog[]
 
   @@unique([userId, username])
   @@index([username])
   @@index([accountType])
+}
+
+/// Files stored via POST /upload, /upload/multiple, /upload/track (local disk or S3). Rows stay until DELETE /upload/:id.
+model UploadedAsset {
+  id               String   @id @default(cuid())
+  accountId        String
+  storageKey       String   @unique
+  publicUrl        String   @db.Text
+  originalFileName String
+  mimeType         String
+  sizeBytes        Int
+  purpose          String   @default("general") // general | track | batch
+  /// Where the blob is stored — used when user deletes to remove from disk or S3.
+  storageBackend   String   @default("local") // local | s3
+  createdAt        DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, createdAt])
 }
 
 model Link {
@@ -600,6 +643,21 @@ model Mute {
   @@unique([muterId, mutedId])
 }
 
+/// Temporary feed snooze: hide account posts from home feed until `until` (distinct from mute).
+model FeedSnooze {
+  id        String   @id @default(cuid())
+  viewerId  String
+  snoozedId String
+  until     DateTime
+  createdAt DateTime @default(now())
+
+  viewer  Account @relation("FeedSnoozeViewer", fields: [viewerId], references: [id], onDelete: Cascade)
+  snoozed Account @relation("FeedSnoozeTarget", fields: [snoozedId], references: [id], onDelete: Cascade)
+
+  @@unique([viewerId, snoozedId])
+  @@index([viewerId, until])
+}
+
 model Restrict {
   id           String   @id @default(cuid())
   restrictorId String
@@ -710,6 +768,8 @@ model Story {
   subscriberTierKeys     Json?
   isScheduled            Boolean      @default(false) // Guide 11.4.2
   scheduledFor           DateTime?
+  deletedAt              DateTime?    @map("deleted_at")
+  deletedBy              String?      @map("deleted_by")
   createdAt              DateTime     @default(now())
 
   // Relations
@@ -870,6 +930,8 @@ model Highlight {
   name       String
   coverImage String
   order      Int      @default(0)
+  deletedAt  DateTime? @map("deleted_at")
+  deletedBy  String?   @map("deleted_by")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -931,6 +993,8 @@ model Reel {
   comments      Int          @default(0)
   shares        Int          @default(0)
   saves         Int          @default(0)
+  deletedAt     DateTime?    @map("deleted_at")
+  deletedBy     String?      @map("deleted_by")
   createdAt     DateTime     @default(now())
 
   account      Account       @relation(fields: [accountId], references: [id])
@@ -983,6 +1047,7 @@ model ReelView {
 
   @@unique([accountId, reelId])
   @@index([reelId])
+  @@index([accountId, viewedAt])
 }
 
 model Live {
@@ -1002,12 +1067,21 @@ model Live {
   badgesEnabled    Boolean      @default(true)
   giftsEnabled     Boolean      @default(true)
   recording        String? // URL to recording
+  /// Optional fundraiser overlay for the live (title, external URL, goal for display).
+  fundraiserTitle       String?  @db.VarChar(200)
+  fundraiserUrl         String?  @db.VarChar(500)
+  fundraiserGoalAmount  Float?
+  fundraiserCurrency    String?  @default("USD") @db.VarChar(10)
+  deletedAt        DateTime?    @map("deleted_at")
+  deletedBy        String?      @map("deleted_by")
 
   account      Account       @relation(fields: [accountId], references: [id])
   liveViewers  LiveViewer[]
   liveComments LiveComment[]
   liveBadges   LiveBadge[]
   liveGifts    LiveGift[]
+  liveQuestions LiveQuestion[]
+  liveModerators LiveModerator[]
   liveProducts LiveProduct[]
   View         View[]
 
@@ -1051,6 +1125,36 @@ model LiveComment {
 
   live      Live    @relation(fields: [liveId], references: [id])
   commenter Account @relation(fields: [commenterId], references: [id])
+}
+
+model LiveQuestion {
+  id        String   @id @default(cuid())
+  liveId    String
+  askerId   String
+  text      String   @db.VarChar(500)
+  pinned    Boolean  @default(false)
+  answered  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  live  Live    @relation(fields: [liveId], references: [id], onDelete: Cascade)
+  asker Account @relation("LiveQuestionAsker", fields: [askerId], references: [id], onDelete: Cascade)
+
+  @@index([liveId, createdAt])
+}
+
+model LiveModerator {
+  id           String   @id @default(cuid())
+  liveId       String
+  moderatorId  String
+  assignedById String
+  createdAt    DateTime @default(now())
+
+  live       Live    @relation(fields: [liveId], references: [id], onDelete: Cascade)
+  moderator  Account @relation("LiveModeratorMember", fields: [moderatorId], references: [id], onDelete: Cascade)
+  assignedBy Account @relation("LiveModeratorAssigner", fields: [assignedById], references: [id], onDelete: Cascade)
+
+  @@unique([liveId, moderatorId])
+  @@index([liveId])
 }
 
 model LiveBadge {
@@ -1110,6 +1214,8 @@ model Comment {
   isPinned  Boolean  @default(false)
   isHidden  Boolean  @default(false)
   likes     Int      @default(0)
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1146,6 +1252,7 @@ model View {
   @@unique([accountId, storyId])
   @@unique([accountId, reelId])
   @@unique([accountId, liveId])
+  @@index([accountId, viewedAt])
 }
 
 model Share {
@@ -1165,19 +1272,24 @@ model Share {
 }
 
 model Tag {
-  id        String   @id @default(cuid())
-  accountId String
-  postId    String?
-  storyId   String?
-  reelId    String?
-  x         Float? // Position on media
-  y         Float?
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  accountId  String
+  postId     String?
+  storyId    String?
+  reelId     String?
+  x          Float? // Position on media
+  y          Float?
+  /// When false, tag is pending until the tagged person approves (manualTagApproval in client settings).
+  approved   Boolean  @default(true)
+  /// Post/story author who added this tag (optional for legacy rows).
+  taggedById String?
+  createdAt  DateTime @default(now())
 
-  account Account @relation(fields: [accountId], references: [id])
-  post    Post?   @relation(fields: [postId], references: [id])
-  story   Story?  @relation(fields: [storyId], references: [id])
-  reel    Reel?   @relation(fields: [reelId], references: [id])
+  account Account  @relation(fields: [accountId], references: [id])
+  tagger  Account? @relation("TagsCreatedByAccount", fields: [taggedById], references: [id])
+  post    Post?    @relation(fields: [postId], references: [id])
+  story   Story?   @relation(fields: [storyId], references: [id])
+  reel    Reel?    @relation(fields: [reelId], references: [id])
 
   @@unique([accountId, postId])
   @@unique([accountId, storyId])
@@ -1236,6 +1348,8 @@ model Collection {
   coverImage String?
   order      Int      @default(0)
   shareToken String?  @unique
+  deletedAt  DateTime? @map("deleted_at")
+  deletedBy  String?   @map("deleted_by")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -1243,6 +1357,60 @@ model Collection {
   savedPosts SavedPost[]
 
   @@unique([accountId, name])
+}
+
+// ==================== YOUR ACTIVITY (time, search, links, account history log) ====================
+
+model ScreenTimeDaily {
+  id        String   @id @default(cuid())
+  accountId String
+  day       DateTime @db.Date
+  seconds   Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, day])
+  @@index([accountId])
+}
+
+model RecentSearchEntry {
+  id        String   @id @default(cuid())
+  accountId String
+  type      String   @db.VarChar(20) // user | hashtag | place | query | audio
+  term      String   @db.VarChar(200)
+  refId     String?  @db.VarChar(64)
+  createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, createdAt])
+}
+
+model LinkOpen {
+  id        String   @id @default(cuid())
+  accountId String
+  url       String   @db.VarChar(2048)
+  title     String?  @db.VarChar(500)
+  openedAt  DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, openedAt])
+}
+
+model AccountActivityLog {
+  id          String   @id @default(cuid())
+  accountId   String
+  type        String   @db.VarChar(50)
+  title       String?  @db.VarChar(200)
+  description String?  @db.Text
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, createdAt])
 }
 
 // ==================== MESSAGING ====================
@@ -1257,6 +1425,10 @@ model Message {
   vanishAt    DateTime?
   readAt      DateTime?
   deliveredAt DateTime?
+  deletedBySenderAt   DateTime? @map("deleted_by_sender_at")
+  deletedByReceiverAt DateTime? @map("deleted_by_receiver_at")
+  deletedAt           DateTime? @map("deleted_at")
+  deletedBy           String?   @map("deleted_by")
   createdAt   DateTime  @default(now())
 
   // For group messages
@@ -1605,6 +1777,8 @@ model Note {
   publishAt      DateTime
   expiresAt      DateTime
   status         NoteStatus       @default(ACTIVE)
+  deletedAt      DateTime?        @map("deleted_at")
+  deletedBy      String?          @map("deleted_by")
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
@@ -1741,6 +1915,8 @@ model AnonymousPost {
   accountId String   // author, for moderation only; not shown in API
   content   String   @db.Text
   mediaUrl  String?
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -2074,7 +2250,7 @@ model Order {
   buyerId         String?   // null for guest checkout
   sellerId        String
   total           Float
-  status          String    @default("PENDING") // PENDING, PAID, SHIPPED, DELIVERED, CANCELLED
+  status          String    @default("PENDING") // PENDING, PAID, SHIPPED, DELIVERED, CANCELLED, REFUNDED
   liveId          String?   // set when order placed during Live Shopping
   paymentMethod   String?
   paymentId       String?
@@ -2092,6 +2268,7 @@ model Order {
   returnTrackingNumber String?
   returnReceivedAt DateTime?
   refundedAt      DateTime?
+  stripeRefundId  String?   // Stripe refund id when paid via PaymentIntent
   couponCode      String?   // discount code applied at checkout (Guide 3.5.4)
   discountAmount  Float?   // amount discounted (so total = subtotal - discountAmount)
 
@@ -2482,6 +2659,82 @@ model AnalyticsEvent {
   @@index([timestamp])
 }
 
+model ContentAnalytics {
+  id           String   @id @default(cuid())
+  contentId    String   @map("content_id")
+  contentType  String   @map("content_type") // 'post', 'reel', 'story'
+  ownerId      String   @map("owner_id")
+  views        Int      @default(0)
+  likes        Int      @default(0)
+  comments     Int      @default(0)
+  shares       Int      @default(0)
+  saves        Int      @default(0)
+  reach        Int      @default(0)
+  impressions  Int      @default(0)
+  playsSource  Json?    @map("plays_source")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  owner Account @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@unique([contentId, contentType])
+  @@index([ownerId])
+  @@index([contentType])
+  @@map("content_analytics")
+}
+
+model ReelRetention {
+  id         String   @id @default(cuid())
+  reelId     String   @map("reel_id")
+  ownerId    String   @map("owner_id")
+  second     Int
+  viewers    Int      @default(0)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([reelId, second])
+  @@index([ownerId, reelId])
+  @@map("reel_retention")
+}
+
+model Campaign {
+  id           String   @id @default(cuid())
+  brandId      String   @map("brand_id")
+  title        String
+  description  String?
+  budget       Int
+  compensation Int
+  requirements Json?
+  category     String
+  startDate    DateTime @map("start_date")
+  endDate      DateTime @map("end_date")
+  status       String   @default("active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  brand        Account       @relation("campaign_brand", fields: [brandId], references: [id], onDelete: Cascade)
+  applications Application[]
+
+  @@index([brandId, status])
+  @@map("campaigns")
+}
+
+model Application {
+  id          String   @id @default(cuid())
+  campaignId  String   @map("campaign_id")
+  creatorId   String   @map("creator_id")
+  message     String?
+  status      String   @default("pending")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  creator     Account  @relation("campaign_creator", fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, creatorId])
+  @@index([creatorId, status])
+  @@map("applications")
+}
+
 model ScreenshotLog {
   id          String   @id @default(cuid())
   contentId   String
@@ -2492,6 +2745,57 @@ model ScreenshotLog {
 
   @@index([ownerId])
   @@index([contentId])
+}
+
+/// Friend/family request to memorialize another user’s account (admin review).
+model MemorializationRequest {
+  id                 String   @id @default(cuid())
+  requesterAccountId String
+  requester          Account  @relation("memorialization_requester", fields: [requesterAccountId], references: [id], onDelete: Cascade)
+  subjectUsername    String   @db.VarChar(100)
+  relationship       String   @db.VarChar(200)
+  details            String   @db.Text
+  status             String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  reviewedAt        DateTime?
+  staffNote          String?  @db.Text
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([requesterAccountId])
+  @@index([subjectUsername])
+  @@index([status])
+}
+
+/// Request to claim an inactive or brand username (admin review; no auto-transfer in v1).
+model ProfileClaimRequest {
+  id                 String   @id @default(cuid())
+  requesterAccountId String
+  requester          Account  @relation("profile_claim_requester", fields: [requesterAccountId], references: [id], onDelete: Cascade)
+  targetUsername     String   @db.VarChar(100)
+  justification      String   @db.Text
+  status             String   @default("PENDING")
+  reviewedAt         DateTime?
+  staffNote          String?  @db.Text
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([requesterAccountId])
+  @@index([targetUsername])
+  @@index([status])
+}
+
+/// Audit log for DMCA counter-notices, law-enforcement inquiries, etc.
+model LegalRequestLog {
+  id        String   @id @default(cuid())
+  accountId String?
+  account   Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  type      String   @db.VarChar(40) // COUNTER_NOTIFICATION, LE_INQUIRY, SUBPOENA_NOTICE, TRANSFER_REQUEST
+  payload   Json
+  createdAt DateTime @default(now())
+
+  @@index([accountId])
+  @@index([type])
+  @@index([createdAt])
 }
 
 model SupportTicket {
@@ -3633,8 +3937,27 @@ model Org {
   invitations OrgInvitation[]
   ssoConfigs  OrgSsoConfig[]
   mfaPolicies OrgMfaPolicy[]
+  auditLogs   OrgAuditLog[]
 
   @@unique([name])
+}
+
+model OrgAuditLog {
+  id             String   @id @default(cuid())
+  orgId          String
+  actorAccountId String
+  action         String   @db.VarChar(80)
+  summary        String?  @db.VarChar(500)
+  targetType     String?  @db.VarChar(80)
+  targetId       String?  @db.VarChar(80)
+  meta           Json?
+  createdAt      DateTime @default(now())
+
+  org   Org     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  actor Account @relation("OrgAuditActor", fields: [actorAccountId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, createdAt])
+  @@index([actorAccountId])
 }
 
 model OrgDepartment {
@@ -4378,6 +4701,12 @@ model AdCampaign {
   spent        Float    @default(0)
   bidCpm       Float?   // optional bid in currency units per 1000 impressions
   currency     String   @db.VarChar(10) @default("USD")
+  destinationUrl String? @db.VarChar(1000)
+  utmSource    String?  @db.VarChar(100)
+  utmMedium    String?  @db.VarChar(100)
+  utmCampaign  String?  @db.VarChar(150)
+  utmTerm      String?  @db.VarChar(150)
+  utmContent   String?  @db.VarChar(150)
   startDate    DateTime?
   endDate      DateTime?
   createdAt    DateTime @default(now())

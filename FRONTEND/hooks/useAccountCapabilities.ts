@@ -3,8 +3,6 @@ import type { RootState } from '../store';
 import type { AccountCapabilities } from '../constants/accountTypes';
 import { DEFAULT_CAPABILITIES } from '../constants/accountTypes';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
-
 /**
  * Returns capabilities from Redux if we stored them after /accounts/me or /accounts/capabilities.
  * Otherwise returns defaults based on currentAccount.accountType and subscriptionTier.

@@ -73,7 +73,7 @@ export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   JOB: 'Job',
 };
 
-/** Home route after login/signup by account type. Personal = feed, Business = dashboard, Creator = studio, Job = job hub. */
+/** Home route after login/signup by account type. Personal = feed, Business = dashboard, Creator = studio, Job = job tools. */
 export function getHomeRouteForAccountType(accountType: string | null | undefined): string {
   const t = (accountType || '').toUpperCase();
   if (t === 'JOB') return '/job';

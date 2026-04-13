@@ -11,18 +11,58 @@ const mockPosts = [
     caption: 'Hi',
     location: null,
     createdAt: new Date(),
-    account: { username: 'u1', displayName: 'User 1', profilePhoto: null },
+    account: {
+      username: 'u1',
+      displayName: 'User 1',
+      profilePhoto: null,
+      accountType: 'PERSONAL',
+      verifiedBadge: false,
+    },
     likes: [{ accountId: 'acc2' }],
     comments: [{ id: 'c1' }],
+    ProductTag: [],
   },
 ];
 
 jest.mock('../../server', () => ({
   prisma: {
+    account: {
+      findUnique: jest.fn().mockResolvedValue({
+        user: { dateOfBirth: new Date('1990-01-01') },
+      }),
+    },
     follow: { findMany: jest.fn().mockResolvedValue([{ followingId: 'acc2' }]) },
     block: { findMany: jest.fn().mockResolvedValue([]) },
-    post: { findMany: jest.fn().mockResolvedValue([{ id: 'p1', accountId: 'acc1', media: [], caption: 'Hi', location: null, createdAt: new Date(), account: { username: 'u1', displayName: 'User 1', profilePhoto: null }, likes: [{ accountId: 'acc2' }], comments: [{ id: 'c1' }] }]) },
+    feedSnooze: { findMany: jest.fn().mockResolvedValue([]) },
+    subscription: { findMany: jest.fn().mockResolvedValue([]) },
+    post: {
+      findMany: jest.fn().mockResolvedValue([
+        {
+          id: 'p1',
+          accountId: 'acc1',
+          media: [],
+          caption: 'Hi',
+          location: null,
+          createdAt: new Date(),
+          account: {
+            username: 'u1',
+            displayName: 'User 1',
+            profilePhoto: null,
+            accountType: 'PERSONAL',
+            verifiedBadge: false,
+          },
+          likes: [{ accountId: 'acc2' }],
+          comments: [{ id: 'c1' }],
+          ProductTag: [],
+        },
+      ]),
+    },
     savedPost: { findMany: jest.fn().mockResolvedValue([]) },
+    feedInteraction: {
+      create: jest.fn().mockResolvedValue({}),
+      groupBy: jest.fn().mockResolvedValue([]),
+    },
+    adCampaign: { findMany: jest.fn().mockResolvedValue([]) },
   },
 }));
 
@@ -34,10 +74,17 @@ describe('FeedService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockPrisma.account.findUnique.mockResolvedValue({
+      user: { dateOfBirth: new Date('1990-01-01') },
+    });
     mockPrisma.follow.findMany.mockResolvedValue([{ followingId: 'acc2' }]);
     mockPrisma.block.findMany.mockResolvedValue([]);
+    mockPrisma.feedSnooze.findMany.mockResolvedValue([]);
+    mockPrisma.subscription.findMany.mockResolvedValue([]);
     mockPrisma.post.findMany.mockResolvedValue(mockPosts);
     mockPrisma.savedPost.findMany.mockResolvedValue([]);
+    mockPrisma.feedInteraction.groupBy.mockResolvedValue([]);
+    mockPrisma.adCampaign.findMany.mockResolvedValue([]);
   });
 
   describe('getFeed', () => {

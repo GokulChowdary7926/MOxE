@@ -13,6 +13,10 @@ export default function LiveStart() {
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [title, setTitle] = useState('Live');
+  const [fundraiserTitle, setFundraiserTitle] = useState('');
+  const [fundraiserUrl, setFundraiserUrl] = useState('');
+  const [fundraiserGoal, setFundraiserGoal] = useState('');
+  const [fundraiserCurrency, setFundraiserCurrency] = useState('USD');
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -48,13 +52,20 @@ export default function LiveStart() {
     setStarting(true);
     setError(null);
     try {
+      const createBody: Record<string, unknown> = { title: title.trim() || 'Live' };
+      if (fundraiserTitle.trim() || fundraiserUrl.trim() || fundraiserGoal.trim()) {
+        createBody.fundraiserTitle = fundraiserTitle.trim() || null;
+        createBody.fundraiserUrl = fundraiserUrl.trim() || null;
+        createBody.fundraiserGoalAmount = fundraiserGoal.trim() === '' ? null : Number(fundraiserGoal);
+        createBody.fundraiserCurrency = fundraiserCurrency.trim() || 'USD';
+      }
       const createRes = await fetch(`${API_BASE}/live`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ title: title.trim() || 'Live' }),
+        body: JSON.stringify(createBody),
       });
       const createData = await createRes.json().catch(() => ({}));
       if (!createRes.ok) throw new Error(createData.error || 'Failed to create live');
@@ -120,6 +131,42 @@ export default function LiveStart() {
             placeholder="Live"
             className="w-full px-3 py-2.5 rounded-lg bg-moxe-surface border border-moxe-border text-moxe-text placeholder-moxe-textSecondary text-sm"
           />
+        </div>
+
+        <div className="space-y-2 rounded-xl border border-moxe-border p-3">
+          <ThemedText className="text-sm font-semibold text-moxe-body">Fundraiser (optional)</ThemedText>
+          <input
+            type="text"
+            value={fundraiserTitle}
+            onChange={(e) => setFundraiserTitle(e.target.value)}
+            placeholder="Cause title"
+            className="w-full px-3 py-2 rounded-lg bg-moxe-surface border border-moxe-border text-moxe-text text-sm"
+          />
+          <input
+            type="url"
+            value={fundraiserUrl}
+            onChange={(e) => setFundraiserUrl(e.target.value)}
+            placeholder="https://… donation or info link"
+            className="w-full px-3 py-2 rounded-lg bg-moxe-surface border border-moxe-border text-moxe-text text-sm"
+          />
+          <div className="flex gap-2">
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={fundraiserGoal}
+              onChange={(e) => setFundraiserGoal(e.target.value)}
+              placeholder="Goal amount"
+              className="flex-1 px-3 py-2 rounded-lg bg-moxe-surface border border-moxe-border text-moxe-text text-sm"
+            />
+            <input
+              type="text"
+              value={fundraiserCurrency}
+              onChange={(e) => setFundraiserCurrency(e.target.value)}
+              placeholder="USD"
+              className="w-20 px-3 py-2 rounded-lg bg-moxe-surface border border-moxe-border text-moxe-text text-sm"
+            />
+          </div>
         </div>
 
         <button

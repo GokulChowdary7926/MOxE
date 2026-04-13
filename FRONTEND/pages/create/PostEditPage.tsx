@@ -60,6 +60,7 @@ export default function PostEditPage() {
           </div>
           <button
             type="button"
+            data-testid="post-edit-next"
             onClick={goToShare}
             className="w-10 h-10 rounded-full bg-[#0095f6] flex items-center justify-center text-white"
           >

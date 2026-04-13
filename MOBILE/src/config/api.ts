@@ -22,7 +22,10 @@ export async function getStoredAccountId(): Promise<string | null> {
 }
 
 export async function clearStoredAuth(): Promise<void> {
-  await AsyncStorage.multiRemove([STORAGE_TOKEN_KEY, STORAGE_ACCOUNT_ID_KEY]);
+  await Promise.all([
+    AsyncStorage.removeItem(STORAGE_TOKEN_KEY),
+    AsyncStorage.removeItem(STORAGE_ACCOUNT_ID_KEY),
+  ]);
 }
 
 export async function apiFetch<T = unknown>(

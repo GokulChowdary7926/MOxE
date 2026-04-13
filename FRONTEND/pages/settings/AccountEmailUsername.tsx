@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ThemedView, ThemedText, ThemedHeader, ThemedButton, ThemedInput } from '../../components/ui/Themed';
+import { getApiBase } from '../../services/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 export default function AccountEmailUsername() {
   const [accountId, setAccountId] = useState<string | null>(null);

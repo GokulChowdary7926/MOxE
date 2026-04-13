@@ -4,7 +4,7 @@ import { Avatar } from './Avatar';
 import { LiveBadge } from '../atoms/LiveBadge';
 
 /**
- * Instagram-style story circle for tray:
+ * MOxE story circle for tray:
  * - Your story: + add state
  * - Unseen: gradient ring (#833AB4 → #E1306C → #FCAF45)
  * - Seen: gray ring
@@ -31,12 +31,12 @@ export function StoryCircle({
   closeFriends?: boolean;
   /** true = gray ring (viewed), false with hasStory = gradient (unviewed) */
   seen?: boolean;
-  /** Light theme (e.g. home): light gray ring, dark text */
+  /** Light-looking ring/text variant for contrast on non-black parents (app shell is still dark) */
   light?: boolean;
   to?: string;
   onClick?: () => void;
 }) {
-  const size = 56;
+  const size = 64;
   const ringWidth = 2;
 
   const ringClass = (() => {
@@ -82,13 +82,13 @@ export function StoryCircle({
           </span>
         )}
       </div>
-      <span className={`text-[12px] text-center block truncate max-w-[64px] ${light ? 'text-[#262626]' : 'text-white'}`}>
+      <span className={`text-[11px] text-center block truncate max-w-[76px] ${light ? 'text-[#262626]' : 'text-white'}`}>
         {label}
       </span>
     </>
   );
 
-  const wrapperClass = 'flex flex-col items-center flex-shrink-0 w-[72px] active:opacity-80';
+  const wrapperClass = 'flex flex-col items-center flex-shrink-0 w-[78px] active:opacity-80';
   if (to) {
     return (
       <Link to={to} className={wrapperClass}>

@@ -94,7 +94,7 @@ export function MapScreen() {
             alerts.map((a) => (
               <View key={a.id} style={styles.alertRow}>
                 <View style={styles.alertText}>
-                  <ThemedText>@{a.targetAccount?.username ?? 'unknown'}</ThemedText>
+                  <ThemedText>@{a.targetAccount?.username ?? 'account'}</ThemedText>
                   <ThemedText secondary>
                     {a.radiusMeters}m · cooldown {a.cooldownMinutes}m · {a.isActive ? 'Active' : 'Paused'}
                   </ThemedText>

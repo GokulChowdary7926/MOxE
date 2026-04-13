@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { BoostLayout } from './BoostLayout';
+import { writeBoostDraft } from '../../utils/boostDraft';
 
 export default function BoostAudiencePage() {
   const navigate = useNavigate();
@@ -27,7 +28,7 @@ export default function BoostAudiencePage() {
             <div>
               <p className="text-white font-medium">Suggested audience</p>
               <p className="text-[#a8a8a8] text-sm">Targets this ad to people similar to your followers.</p>
-              <p className="text-[#0095f6] text-sm mt-1">India · Edit</p>
+              <p className="text-[#0095f6] text-sm mt-1">Edit in Create audience</p>
             </div>
             <button type="button" onClick={() => setSuggested(!suggested)} className={`w-11 h-6 rounded-full flex-shrink-0 ${suggested ? 'bg-[#0095f6]' : 'bg-[#363636]'}`}>
               <span className={`block w-5 h-5 rounded-full bg-white mt-0.5 transition-transform ${suggested ? 'ml-5' : 'ml-0.5'}`} />
@@ -47,7 +48,20 @@ export default function BoostAudiencePage() {
           <button type="button" onClick={() => setShowCategories(true)} className="mt-4 text-[#0095f6] text-sm font-medium">Select categories</button>
         )}
 
-        <Link to="/boost/create-audience" className="block w-full py-3 rounded-lg bg-[#0095f6] text-white font-semibold text-center mt-8">Next</Link>
+        <button
+          type="button"
+          onClick={() => {
+            writeBoostDraft({
+              audienceSummary: suggested
+                ? 'People similar to your followers'
+                : 'Custom targeting (configure in Create audience)',
+            });
+            navigate('/boost/create-audience');
+          }}
+          className="block w-full py-3 rounded-lg bg-[#0095f6] text-white font-semibold text-center mt-8"
+        >
+          Next
+        </button>
       </div>
 
       {showCategories && (

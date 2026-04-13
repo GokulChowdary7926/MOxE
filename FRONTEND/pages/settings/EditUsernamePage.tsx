@@ -6,6 +6,7 @@ import { MobileShell } from '../../components/layout/MobileShell';
 import { useCurrentAccount } from '../../hooks/useAccountCapabilities';
 import { getApiBase, getToken } from '../../services/api';
 import { MoxePageHeader } from '../../components/layout/MoxePageHeader';
+import { validateUsernameClient } from '../../utils/usernameValidation';
 
 export default function EditUsernamePage() {
   const navigate = useNavigate();
@@ -15,33 +16,10 @@ export default function EditUsernamePage() {
   const [available, setAvailable] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const RESERVED = new Set([
-    'admin',
-    'support',
-    'moxe',
-    'instagram',
-    'facebook',
-    'twitter',
-    'help',
-    'security',
-  ]);
-
   const validate = (raw: string) => {
-    const normalized = raw.trim().replace(/^@+/, '');
-    if (!normalized) return { ok: false as const, message: 'Username is required' };
-    if (normalized.length < 3 || normalized.length > 30) {
-      return { ok: false as const, message: 'Username must be 3-30 characters' };
-    }
-    if (!/^[a-zA-Z0-9._]+$/.test(normalized)) {
-      return {
-        ok: false as const,
-        message: 'Username can only contain letters, numbers, periods (.) and underscores (_)',
-      };
-    }
-    if (RESERVED.has(normalized.toLowerCase())) {
-      return { ok: false as const, message: 'This username is reserved' };
-    }
-    return { ok: true as const, normalized };
+    const r = validateUsernameClient(raw);
+    if (!r.ok) return { ok: false as const, message: r.message };
+    return { ok: true as const, normalized: r.normalized };
   };
 
   async function checkAvailability() {
@@ -101,16 +79,21 @@ export default function EditUsernamePage() {
         <MoxePageHeader title="Edit username" onBack={() => navigate(-1)} />
 
         <div className="flex-1 overflow-auto p-4">
-          <p className="text-[#a8a8a8] text-sm mb-4">Changing your username will also change your MOxE account address.</p>
+          <p className="text-[#a8a8a8] text-sm mb-4">Changing your username will also change your MOxE account address. Use 3–30 lowercase letters (a–z) only.</p>
           <label className="block text-[#737373] text-xs mb-1">Username</label>
           <div className="relative">
             <input
               type="text"
               value={username}
-              onChange={(e) => { setUsername(e.target.value); setAvailable(null); setValidationError(null); }}
+              onChange={(e) => {
+                setUsername(e.target.value.toLowerCase().replace(/[^a-z]/g, ''));
+                setAvailable(null);
+                setValidationError(null);
+              }}
               onBlur={checkAvailability}
               className="w-full px-4 py-3 pr-10 rounded-lg bg-[#262626] border border-[#363636] text-white text-sm"
-              placeholder="Username"
+              placeholder="lowercase letters only (a–z)"
+              maxLength={30}
             />
             {available === true && (
               <span className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-green-500 flex items-center justify-center">

@@ -67,7 +67,7 @@ export class AuthTests extends TestSuite {
           isVerified: true,
           accounts: {
             create: {
-              username: `testuser_${Date.now()}`,
+              username: `testuser${Array.from({ length: 8 }, () => String.fromCharCode(97 + Math.floor(Math.random() * 26))).join('')}`,
               displayName: 'Test User',
               accountType: 'PERSONAL',
               subscriptionTier: 'FREE',

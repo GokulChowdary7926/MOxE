@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { getApiBase } from '../../services/api';
+import { JobPageContent } from '../../components/job/JobPageContent';
+import { JobBibleReferenceSection, JobToolBibleShell } from '../../components/job/bible';
 import { safeFirst } from '../../utils/safeAccess';
 
 const API_BASE = getApiBase();
@@ -89,7 +91,7 @@ export default function Chat() {
     setLoadingThreads(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/message/threads`, { headers });
+      const res = await fetch(`${API_BASE}/messages/threads`, { headers });
       if (!res.ok) {
         const text = await res.text();
         throw new Error(text || 'Failed to load conversations');
@@ -115,7 +117,7 @@ export default function Chat() {
     setError(null);
     try {
       const params = new URLSearchParams({ userId: peerId, limit: '50' });
-      const res = await fetch(`${API_BASE}/message?${params.toString()}`, { headers });
+      const res = await fetch(`${API_BASE}/messages?${params.toString()}`, { headers });
       if (!res.ok) {
         const text = await res.text();
         throw new Error(text || 'Failed to load messages');
@@ -204,7 +206,7 @@ export default function Chat() {
     setError(null);
     const text = content.trim();
     try {
-      const res = await fetch(`${API_BASE}/message`, {
+      const res = await fetch(`${API_BASE}/messages`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -334,15 +336,15 @@ export default function Chat() {
         <div
           className={`max-w-[70%] rounded-2xl px-3 py-1.5 text-xs ${
             isMine
-              ? 'bg-indigo-600 text-white rounded-br-none'
-              : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-bl-none'
+              ? 'bg-[#0052CC] dark:bg-[#2684FF] text-white rounded-br-none'
+              : 'bg-[#F4F5F7] dark:bg-[#2C333A] text-[#172B4D] dark:text-[#E6EDF3] rounded-bl-none'
           }`}
         >
           <div className="whitespace-pre-wrap break-words">{contentText}</div>
           {created && (
             <div
               className={`mt-0.5 text-[10px] ${
-                isMine ? 'text-indigo-100/80' : 'text-slate-500 dark:text-slate-400'
+                isMine ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'
               }`}
             >
               {created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -354,25 +356,18 @@ export default function Chat() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6">
-      <div className="w-full lg:w-72 xl:w-80 space-y-3">
-        <div>
-          <h2 className="text-2xl font-semibold text-slate-800 dark:text-white mb-1">
-            MOxE CHAT
-          </h2>
-          <p className="text-slate-600 dark:text-slate-400 text-sm">
-            Direct messages and support tickets. Convert conversations to tickets for assignment and tracking.
-          </p>
-        </div>
-
-        <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-0.5">
+    <JobPageContent variant="track" error={error}>
+      <JobToolBibleShell toolTitle="MOxE CHAT" toolIconMaterial="forum">
+    <div className="flex flex-col gap-4">
+      <div className="w-full space-y-3">
+        <div className="flex rounded-xl border border-[#2C333A] bg-[#131315] p-1">
           <button
             type="button"
             onClick={() => setTab('conversations')}
-            className={`flex-1 px-3 py-1.5 rounded-md text-sm font-medium ${
+            className={`flex-1 min-h-[44px] px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
               tab === 'conversations'
-                ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                ? 'bg-[#161A1D] text-[#2684FF] shadow-sm border border-[#2C333A]'
+                : 'text-[#8C9BAB]'
             }`}
           >
             Conversations
@@ -380,24 +375,18 @@ export default function Chat() {
           <button
             type="button"
             onClick={() => setTab('tickets')}
-            className={`flex-1 px-3 py-1.5 rounded-md text-sm font-medium ${
+            className={`flex-1 min-h-[44px] px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
               tab === 'tickets'
-                ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                ? 'bg-[#161A1D] text-[#2684FF] shadow-sm border border-[#2C333A]'
+                : 'text-[#8C9BAB]'
             }`}
           >
             Tickets
           </button>
         </div>
 
-        {error && (
-          <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-200 text-xs">
-            {error}
-          </div>
-        )}
-
         {tab === 'conversations' && (
-          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 max-h-[420px] overflow-auto">
+          <div className="rounded-[14px] border border-[#2C333A] bg-[#161A1D] max-h-[420px] overflow-auto">
             <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between">
               <span>Conversations</span>
               {loadingThreads && (
@@ -415,10 +404,10 @@ export default function Chat() {
                     key={`thread-${t.otherId}`}
                     type="button"
                     onClick={() => setSelectedPeerId(t.otherId)}
-                    className={`w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 ${
+                    className={`w-full text-left px-3 py-2 hover:bg-[#F4F5F7] dark:hover:bg-[#2C333A] ${
                       isActive
-                        ? 'bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-200'
-                        : 'text-slate-700 dark:text-slate-200'
+                        ? 'bg-[#DEEBFF] dark:bg-[#1D2125] text-[#0052CC] dark:text-[#2684FF]'
+                        : 'text-[#172B4D] dark:text-[#E6EDF3]'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2 mb-0.5">
@@ -456,7 +445,7 @@ export default function Chat() {
         )}
 
         {tab === 'tickets' && (
-          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 max-h-[420px] overflow-auto">
+          <div className="rounded-[14px] border border-[#2C333A] bg-[#161A1D] max-h-[420px] overflow-auto">
             <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
               <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Tickets</span>
               <select
@@ -480,10 +469,10 @@ export default function Chat() {
                   key={t.id}
                   type="button"
                   onClick={() => setSelectedTicketId(t.id)}
-                  className={`w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 ${
+                  className={`w-full text-left px-3 py-2 hover:bg-[#F4F5F7] dark:hover:bg-[#2C333A] ${
                     selectedTicketId === t.id
-                      ? 'bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-200'
-                      : 'text-slate-700 dark:text-slate-200'
+                      ? 'bg-[#DEEBFF] dark:bg-[#1D2125] text-[#0052CC] dark:text-[#2684FF]'
+                      : 'text-[#172B4D] dark:text-[#E6EDF3]'
                   }`}
                 >
                   <div className="font-medium truncate">{t.subject}</div>
@@ -508,12 +497,12 @@ export default function Chat() {
         )}
       </div>
 
-      <div className="flex-1 min-w-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex flex-col">
+      <div className="w-full min-h-[320px] min-w-0 rounded-xl border border-[#DFE1E6] dark:border-[#2C333A] bg-white dark:bg-[#1D2125] flex flex-col">
         {tab === 'conversations' && (
           <>
             {!selectedPeerId && (
               <div className="flex-1 flex items-center justify-center text-sm text-slate-500 dark:text-slate-400 px-4">
-                Select a conversation on the left to start chatting.
+                Select a conversation above to start chatting.
               </div>
             )}
             {selectedPeerId && (
@@ -532,7 +521,7 @@ export default function Chat() {
                   <button
                     type="button"
                     onClick={openConvertModal}
-                    className="px-3 py-1.5 rounded-md bg-slate-200 dark:bg-slate-600 text-slate-800 dark:text-slate-100 text-xs font-medium hover:bg-slate-300 dark:hover:bg-slate-500"
+                      className="px-3 py-1.5 rounded-xl border border-[#DFE1E6] dark:border-[#2C333A] bg-[#F4F5F7] dark:bg-[#2C333A] text-[#172B4D] dark:text-[#E6EDF3] text-xs font-medium"
                   >
                     Convert to ticket
                   </button>
@@ -569,7 +558,7 @@ export default function Chat() {
                     <button
                       type="submit"
                       disabled={sending || !content.trim()}
-                      className="inline-flex items-center justify-center px-3 py-1.5 rounded-md bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-700 disabled:opacity-50"
+                      className="inline-flex items-center justify-center min-h-[44px] px-4 py-2 rounded-xl bg-[#0052CC] dark:bg-[#2684FF] text-white text-xs font-semibold hover:opacity-90 disabled:opacity-50"
                     >
                       {sending ? 'Sending…' : 'Send'}
                     </button>
@@ -645,7 +634,7 @@ export default function Chat() {
       </div>
 
       {convertModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-4 border border-slate-200 dark:border-slate-700">
             <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-3">
               Convert to ticket
@@ -675,7 +664,7 @@ export default function Chat() {
                 type="button"
                 onClick={handleConvertToTicket}
                 disabled={creatingTicket || !convertSubject.trim()}
-                className="px-3 py-1.5 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
+                className="px-3 py-1.5 rounded-xl bg-[#0052CC] dark:bg-[#2684FF] text-white text-sm font-medium hover:opacity-90 disabled:opacity-50"
               >
                 {creatingTicket ? 'Creating…' : 'Create ticket'}
               </button>
@@ -683,6 +672,10 @@ export default function Chat() {
           </div>
         </div>
       )}
+
+      <JobBibleReferenceSection toolKey="chat" />
     </div>
+      </JobToolBibleShell>
+    </JobPageContent>
   );
 }

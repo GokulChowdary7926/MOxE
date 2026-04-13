@@ -1,16 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ThemedView, ThemedHeader, ThemedText } from '../../components/ui/Themed';
 import { FeedPost } from '../../components/ui/FeedPost';
+import { getApiBase } from '../../services/api';
+import { fetchClientSettings, type ClientSettingsData } from '../../services/clientSettings';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type SharedCollectionPost = {
   id: string;
   caption: string | null;
   location: string | null;
   media: { url: string }[] | any;
-  account: { username: string; displayName?: string | null; profilePhoto?: string | null };
+  account?: { id?: string; username: string; displayName?: string | null; profilePhoto?: string | null };
+  username?: string;
+  accountId?: string;
+  allowComments?: boolean;
   _count?: { likes: number; comments: number };
 };
 
@@ -20,6 +25,25 @@ export default function SharedCollection() {
   const [posts, setPosts] = useState<SharedCollectionPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hideEngagementCounts, setHideEngagementCounts] = useState(false);
+
+  const refreshCountVisibility = useCallback(() => {
+    void fetchClientSettings()
+      .then((settings) => {
+        setHideEngagementCounts(!!settings.socialCounts?.hideLikeAndShareCounts);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    refreshCountVisibility();
+  }, [refreshCountVisibility]);
+
+  useEffect(() => {
+    const onFocus = () => refreshCountVisibility();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [refreshCountVisibility]);
 
   useEffect(() => {
     if (!token) return;
@@ -35,7 +59,26 @@ export default function SharedCollection() {
         }
         if (cancelled) return;
         setName(data.name ?? null);
-        setPosts(data.posts ?? []);
+        const rows: { post?: SharedCollectionPost }[] = Array.isArray(data.items)
+          ? data.items
+          : Array.isArray(data.posts)
+            ? data.posts
+            : [];
+        const normalized: SharedCollectionPost[] = rows.map((row) => {
+          const p = (row.post ?? row) as SharedCollectionPost;
+          const acc =
+            p.account ??
+            (p.username || p.accountId
+              ? {
+                  id: p.accountId,
+                  username: p.username ?? 'user',
+                  displayName: (p as { displayName?: string | null }).displayName ?? null,
+                  profilePhoto: (p as { profilePhoto?: string | null }).profilePhoto ?? null,
+                }
+              : { username: 'user' });
+          return { ...p, account: acc };
+        });
+        setPosts(normalized);
       } catch (e: any) {
         if (!cancelled) setError(e.message || 'Failed to load collection.');
       } finally {
@@ -80,22 +123,26 @@ export default function SharedCollection() {
           posts.map((p) => {
             const mediaArray = Array.isArray(p.media) ? p.media : [];
             const mediaUrl = mediaArray[0]?.url ?? '';
+            const acc = p.account ?? { username: p.username ?? 'user' };
             return (
               <FeedPost
                 key={p.id}
                 id={p.id}
+                authorAccountId={acc.id ?? p.accountId}
                 author={{
-                  username: p.account.username,
-                  displayName: p.account.displayName ?? undefined,
-                  avatarUri: p.account.profilePhoto ?? undefined,
+                  username: acc.username,
+                  displayName: acc.displayName ?? undefined,
+                  avatarUri: acc.profilePhoto ?? undefined,
                 }}
                 location={p.location ?? undefined}
                 mediaUris={mediaUrl ? [mediaUrl] : []}
                 caption={p.caption ?? undefined}
                 likeCount={p._count?.likes ?? 0}
                 commentCount={p._count?.comments ?? 0}
+                hideEngagementCounts={hideEngagementCounts}
                 isLiked={false}
                 isSaved={false}
+                allowComments={p.allowComments !== false}
               />
             );
           })}

@@ -1,6 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../../navigation/types';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { ThemedText, ThemedView } from '../../components/Themed';
 
@@ -9,7 +11,7 @@ export function StoryCameraScreen() {
   const [recording, setRecording] = useState(false);
   const [mode, setMode] = useState<'photo' | 'video' | 'boomerang'>('photo');
   const cameraRef = useRef<CameraView>(null);
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   if (!permission) {
     return (
@@ -35,11 +37,11 @@ export function StoryCameraScreen() {
       if (mode === 'photo') {
         const photo = await cameraRef.current.takePictureAsync({ base64: false });
         if (photo?.uri) {
-          navigation.navigate('StoryEditor' as never, {
+          navigation.navigate('StoryEditor', {
             uri: photo.uri,
             type: 'image',
             mode: 'photo',
-          } as never);
+          });
         }
         return;
       }
@@ -51,11 +53,11 @@ export function StoryCameraScreen() {
         const video = await cameraRef.current.recordAsync({ maxDuration });
         setRecording(false);
         if (video?.uri) {
-          navigation.navigate('StoryEditor' as never, {
+          navigation.navigate('StoryEditor', {
             uri: video.uri,
             type: 'video',
             mode,
-          } as never);
+          });
         }
       } else {
         // Stop current recording early

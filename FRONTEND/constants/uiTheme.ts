@@ -19,7 +19,7 @@ export const UI = {
   /* Header bar (back + title + action) */
   header: 'sticky top-0 z-10 flex items-center justify-between h-12 px-3 border-b border-[#262626] bg-black safe-area-pt',
   headerBack: 'flex items-center gap-1 text-white font-medium active:opacity-70',
-  headerTitle: 'absolute left-1/2 -translate-x-1/2 text-white font-semibold',
+  headerTitle: 'absolute left-1/2 -translate-x-1/2 text-[17px] text-white font-semibold',
   headerAction: 'text-[#0095f6] text-sm font-semibold',
 
   /* Filter/sort pills */

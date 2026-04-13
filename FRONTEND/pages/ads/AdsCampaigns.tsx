@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAccountCapabilities } from '../../hooks/useAccountCapabilities';
+import { getApiBase } from '../../services/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type CampaignMetrics = {
   impressions: number;
@@ -23,6 +24,12 @@ type Campaign = {
   startDate: string | null;
   endDate: string | null;
   createdAt: string;
+  destinationUrl?: string | null;
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
+  utmTerm?: string | null;
+  utmContent?: string | null;
   metrics: CampaignMetrics;
   attachedAudiences?: { id: string; name: string }[];
 };
@@ -54,6 +61,12 @@ export default function AdsCampaigns() {
   const [newName, setNewName] = useState('');
   const [newDailyBudget, setNewDailyBudget] = useState('');
   const [newTotalBudget, setNewTotalBudget] = useState('');
+  const [newDestinationUrl, setNewDestinationUrl] = useState('');
+  const [newUtmSource, setNewUtmSource] = useState('');
+  const [newUtmMedium, setNewUtmMedium] = useState('');
+  const [newUtmCampaign, setNewUtmCampaign] = useState('');
+  const [newUtmTerm, setNewUtmTerm] = useState('');
+  const [newUtmContent, setNewUtmContent] = useState('');
 
   const [audiences, setAudiences] = useState<Audience[]>([]);
   const [audName, setAudName] = useState('');
@@ -64,6 +77,21 @@ export default function AdsCampaigns() {
   const [billing, setBilling] = useState<BillingSummary | null>(null);
   const [billingLoading, setBillingLoading] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState('');
+  const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
+  const [savingCampaignId, setSavingCampaignId] = useState<string | null>(null);
+  const [editDrafts, setEditDrafts] = useState<
+    Record<
+      string,
+      {
+        destinationUrl: string;
+        utmSource: string;
+        utmMedium: string;
+        utmCampaign: string;
+        utmTerm: string;
+        utmContent: string;
+      }
+    >
+  >({});
 
   const canAdvertise = cap.label === 'BUSINESS' || cap.label === 'CREATOR';
 
@@ -263,6 +291,12 @@ export default function AdsCampaigns() {
       const body: any = { name: newName.trim(), objective: 'AWARENESS', type: 'STANDARD' };
       if (newDailyBudget.trim()) body.dailyBudget = Number(newDailyBudget);
       if (newTotalBudget.trim()) body.totalBudget = Number(newTotalBudget);
+      if (newDestinationUrl.trim()) body.destinationUrl = newDestinationUrl.trim();
+      if (newUtmSource.trim()) body.utmSource = newUtmSource.trim();
+      if (newUtmMedium.trim()) body.utmMedium = newUtmMedium.trim();
+      if (newUtmCampaign.trim()) body.utmCampaign = newUtmCampaign.trim();
+      if (newUtmTerm.trim()) body.utmTerm = newUtmTerm.trim();
+      if (newUtmContent.trim()) body.utmContent = newUtmContent.trim();
       const res = await fetch(`${API_BASE}/ads/campaigns`, {
         method: 'POST',
         headers: {
@@ -279,10 +313,93 @@ export default function AdsCampaigns() {
       setNewName('');
       setNewDailyBudget('');
       setNewTotalBudget('');
+      setNewDestinationUrl('');
+      setNewUtmSource('');
+      setNewUtmMedium('');
+      setNewUtmCampaign('');
+      setNewUtmTerm('');
+      setNewUtmContent('');
     } catch (e: any) {
       setError(e?.message || 'Failed to create campaign');
     } finally {
       setCreating(false);
+    }
+  };
+
+  const startInlineEdit = (campaign: Campaign) => {
+    setEditingCampaignId(campaign.id);
+    setEditDrafts((prev) => ({
+      ...prev,
+      [campaign.id]: {
+        destinationUrl: campaign.destinationUrl ?? '',
+        utmSource: campaign.utmSource ?? '',
+        utmMedium: campaign.utmMedium ?? '',
+        utmCampaign: campaign.utmCampaign ?? '',
+        utmTerm: campaign.utmTerm ?? '',
+        utmContent: campaign.utmContent ?? '',
+      },
+    }));
+  };
+
+  const cancelInlineEdit = () => {
+    setEditingCampaignId(null);
+  };
+
+  const updateInlineField = (
+    campaignId: string,
+    field: 'destinationUrl' | 'utmSource' | 'utmMedium' | 'utmCampaign' | 'utmTerm' | 'utmContent',
+    value: string,
+  ) => {
+    setEditDrafts((prev) => ({
+      ...prev,
+      [campaignId]: {
+        destinationUrl: prev[campaignId]?.destinationUrl ?? '',
+        utmSource: prev[campaignId]?.utmSource ?? '',
+        utmMedium: prev[campaignId]?.utmMedium ?? '',
+        utmCampaign: prev[campaignId]?.utmCampaign ?? '',
+        utmTerm: prev[campaignId]?.utmTerm ?? '',
+        utmContent: prev[campaignId]?.utmContent ?? '',
+        [field]: value,
+      },
+    }));
+  };
+
+  const saveInlineEdit = async (campaignId: string) => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setError('Not logged in');
+      return;
+    }
+    const draft = editDrafts[campaignId];
+    if (!draft) return;
+    try {
+      setSavingCampaignId(campaignId);
+      setError(null);
+      const res = await fetch(`${API_BASE}/ads/campaigns/${campaignId}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          destinationUrl: draft.destinationUrl.trim() || null,
+          utmSource: draft.utmSource.trim() || null,
+          utmMedium: draft.utmMedium.trim() || null,
+          utmCampaign: draft.utmCampaign.trim() || null,
+          utmTerm: draft.utmTerm.trim() || null,
+          utmContent: draft.utmContent.trim() || null,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to update campaign');
+      }
+      setCampaigns((prev) => prev.map((c) => (c.id === campaignId ? data : c)));
+      setEditingCampaignId(null);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to update campaign');
+    } finally {
+      setSavingCampaignId(null);
     }
   };
 
@@ -383,6 +500,66 @@ export default function AdsCampaigns() {
               value={newTotalBudget}
               onChange={(e) => setNewTotalBudget(e.target.value)}
               placeholder="Optional"
+              className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-medium text-slate-500 mb-1">Destination URL</label>
+            <input
+              type="url"
+              value={newDestinationUrl}
+              onChange={(e) => setNewDestinationUrl(e.target.value)}
+              placeholder="https://example.com/product"
+              className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">UTM source</label>
+            <input
+              type="text"
+              value={newUtmSource}
+              onChange={(e) => setNewUtmSource(e.target.value)}
+              placeholder="instagram"
+              className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">UTM medium</label>
+            <input
+              type="text"
+              value={newUtmMedium}
+              onChange={(e) => setNewUtmMedium(e.target.value)}
+              placeholder="social"
+              className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">UTM campaign</label>
+            <input
+              type="text"
+              value={newUtmCampaign}
+              onChange={(e) => setNewUtmCampaign(e.target.value)}
+              placeholder="spring_launch"
+              className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">UTM term</label>
+            <input
+              type="text"
+              value={newUtmTerm}
+              onChange={(e) => setNewUtmTerm(e.target.value)}
+              placeholder="lookalike_audience"
+              className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">UTM content</label>
+            <input
+              type="text"
+              value={newUtmContent}
+              onChange={(e) => setNewUtmContent(e.target.value)}
+              placeholder="hero_video_v1"
               className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100"
             />
           </div>
@@ -500,6 +677,100 @@ export default function AdsCampaigns() {
                     ? `${c.currency} ${c.dailyBudget.toFixed(2)} / day`
                     : 'Not set'}
                 </p>
+                {c.destinationUrl && (
+                  <p className="text-xs text-slate-500 mt-0.5 truncate max-w-[420px]">
+                    Destination: {c.destinationUrl}
+                  </p>
+                )}
+                {(c.utmSource || c.utmMedium || c.utmCampaign || c.utmTerm || c.utmContent) && (
+                  <p className="text-[11px] text-slate-500 mt-0.5 truncate max-w-[420px]">
+                    UTM: {[
+                      c.utmSource ? `source=${c.utmSource}` : null,
+                      c.utmMedium ? `medium=${c.utmMedium}` : null,
+                      c.utmCampaign ? `campaign=${c.utmCampaign}` : null,
+                      c.utmTerm ? `term=${c.utmTerm}` : null,
+                      c.utmContent ? `content=${c.utmContent}` : null,
+                    ].filter(Boolean).join(' · ')}
+                  </p>
+                )}
+                <div className="mt-2">
+                  {editingCampaignId === c.id ? (
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 p-3 space-y-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        Edit destination & UTM
+                      </p>
+                      <input
+                        type="url"
+                        value={editDrafts[c.id]?.destinationUrl ?? ''}
+                        onChange={(e) => updateInlineField(c.id, 'destinationUrl', e.target.value)}
+                        placeholder="https://example.com/product"
+                        className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100"
+                      />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          value={editDrafts[c.id]?.utmSource ?? ''}
+                          onChange={(e) => updateInlineField(c.id, 'utmSource', e.target.value)}
+                          placeholder="utm_source"
+                          className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100"
+                        />
+                        <input
+                          type="text"
+                          value={editDrafts[c.id]?.utmMedium ?? ''}
+                          onChange={(e) => updateInlineField(c.id, 'utmMedium', e.target.value)}
+                          placeholder="utm_medium"
+                          className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100"
+                        />
+                        <input
+                          type="text"
+                          value={editDrafts[c.id]?.utmCampaign ?? ''}
+                          onChange={(e) => updateInlineField(c.id, 'utmCampaign', e.target.value)}
+                          placeholder="utm_campaign"
+                          className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100"
+                        />
+                        <input
+                          type="text"
+                          value={editDrafts[c.id]?.utmTerm ?? ''}
+                          onChange={(e) => updateInlineField(c.id, 'utmTerm', e.target.value)}
+                          placeholder="utm_term"
+                          className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100"
+                        />
+                        <input
+                          type="text"
+                          value={editDrafts[c.id]?.utmContent ?? ''}
+                          onChange={(e) => updateInlineField(c.id, 'utmContent', e.target.value)}
+                          placeholder="utm_content"
+                          className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 sm:col-span-2"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => saveInlineEdit(c.id)}
+                          disabled={savingCampaignId === c.id}
+                          className="inline-flex items-center px-3 py-1 rounded-full bg-indigo-600 text-white text-xs font-semibold disabled:opacity-60"
+                        >
+                          {savingCampaignId === c.id ? 'Saving…' : 'Save'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelInlineEdit}
+                          className="inline-flex items-center px-3 py-1 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => startInlineEdit(c)}
+                      className="inline-flex items-center px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold"
+                    >
+                      Edit link & UTM
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                 <div>

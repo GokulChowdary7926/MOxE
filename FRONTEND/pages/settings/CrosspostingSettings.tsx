@@ -11,10 +11,10 @@ export default function CrosspostingSettings() {
           label="Allow crossposting to other apps"
           checked={allowCrosspost}
           onChange={setAllowCrosspost}
-          description="Let your posts be shared to connected apps (e.g. Facebook) when you choose to crosspost."
+          description="Let your posts be shared to other apps you connect, when you choose to crosspost."
         />
         <div className="px-4 py-3">
-          <p className="text-[#a8a8a8] text-sm">When this is on, you can share MOxE posts to other Meta apps in one tap.</p>
+          <p className="text-[#a8a8a8] text-sm">When this is on, you can share MOxE posts to linked apps in one tap.</p>
         </div>
       </div>
     </SettingsPageShell>

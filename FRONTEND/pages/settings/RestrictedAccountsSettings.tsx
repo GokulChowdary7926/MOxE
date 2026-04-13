@@ -13,7 +13,7 @@ export default function RestrictedAccountsSettings() {
         <p className="text-[#a8a8a8] text-sm mb-2">
           Limit interactions from someone on MOxE without having to block or unfollow them.
         </p>
-        <a href="#" className="text-[#0095f6] text-sm font-medium">Learn how it works.</a>
+        <Link to="/settings/info/help-restricted-accounts" className="text-[#0095f6] text-sm font-medium">Learn how it works.</Link>
         <div className="relative mt-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#737373]" />
           <input

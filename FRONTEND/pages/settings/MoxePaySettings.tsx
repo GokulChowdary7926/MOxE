@@ -16,7 +16,7 @@ export default function MoxePaySettings() {
           description="Store cards and payment info for faster checkout in MOxE."
         />
         <Link
-          to="#"
+          to="/settings/info/payments-methods"
           className="flex items-center justify-between px-4 py-3 border-b border-[#262626] text-white active:bg-white/5"
         >
           <div className="flex items-center gap-3">

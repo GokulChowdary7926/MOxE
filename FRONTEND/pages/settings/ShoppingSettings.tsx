@@ -17,7 +17,7 @@ export default function ShoppingSettings() {
         label="Suggested for you"
         checked={suggestedForYou}
         onChange={setSuggestedForYou}
-        description="Be notified about products and shops you may like based on your activity on MOxE. If you've set up your Accounts Centre with Facebook, it will also be based on your activity on Facebook."
+        description="Be notified about products and shops you may like based on your activity on MOxE and linked accounts in Accounts Centre, when you enable that option."
       />
     </SettingsPageShell>
   );

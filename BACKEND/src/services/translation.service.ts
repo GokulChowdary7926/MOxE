@@ -2,9 +2,11 @@ import { prisma } from '../server';
 import { getTranslationProvider, getSupportedLanguages } from './translation/translationProvider';
 import type { SupportedLanguage } from '../types/translation';
 import { AppError } from '../utils/AppError';
+import { isProductionFreeSubscriptionsEnabled } from '../constants/tierCapabilities';
 
 /** Paid tier (STAR/THICK) only. */
 export function requireLiveTranslationTier(account: { subscriptionTier: string }): void {
+  if (isProductionFreeSubscriptionsEnabled()) return;
   if (account.subscriptionTier !== 'STAR' && account.subscriptionTier !== 'THICK') {
     throw new AppError('Real-time translation is available on Star or Thick (paid) plans only.', 403);
   }

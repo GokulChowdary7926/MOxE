@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ThemedView, ThemedHeader, ThemedText, ThemedButton, ThemedInput } from '../../components/ui/Themed';
 import { useAccountCapabilities } from '../../hooks/useAccountCapabilities';
-import { getApiBase } from '../../services/api';
+import { getApiBase, getUploadUrl } from '../../services/api';
+import { Star } from 'lucide-react';
 
 const API_BASE = getApiBase();
 
@@ -51,6 +52,7 @@ export default function CreateStory() {
   const [creatorTiers, setCreatorTiers] = useState<{ key: string; name?: string; price?: number }[]>([]);
   const [allowReplies, setAllowReplies] = useState(true);
   const [allowReshares, setAllowReshares] = useState(true);
+  const [audience, setAudience] = useState<'PUBLIC' | 'CLOSE_FRIENDS_ONLY'>('PUBLIC');
 
   const cap = useAccountCapabilities();
 
@@ -114,7 +116,7 @@ export default function CreateStory() {
 
       const form = new FormData();
       form.append('file', file);
-      const uploadRes = await fetch(`${API_BASE}/upload`, {
+      const uploadRes = await fetch(getUploadUrl(), {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: form,
@@ -143,6 +145,8 @@ export default function CreateStory() {
         stickers: stickers.length ? stickers : undefined,
         allowReplies,
         allowReshares,
+        privacy: audience,
+        isCloseFriendsOnly: audience === 'CLOSE_FRIENDS_ONLY',
         ...(cap?.canSubscriptions && isSubscriberOnly && { isSubscriberOnly: true, subscriberTierKeys: subscriberTierKeys.length > 0 ? subscriberTierKeys : undefined }),
       };
       const storyRes = await fetch(`${API_BASE}/stories`, {
@@ -156,6 +160,27 @@ export default function CreateStory() {
       const storyData = await storyRes.json().catch(() => ({}));
       if (!storyRes.ok) {
         throw new Error(storyData.error || 'Failed to create story.');
+      }
+
+      const ctx = (location.state as { linkQuestionContext?: { sourceStoryId: string; questionId: string } } | null)
+        ?.linkQuestionContext;
+      const newStoryId = storyData?.id as string | undefined;
+      if (ctx?.sourceStoryId && ctx?.questionId && newStoryId) {
+        const linkRes = await fetch(
+          `${API_BASE}/stories/${encodeURIComponent(ctx.sourceStoryId)}/questions/${encodeURIComponent(ctx.questionId)}/link-answer`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ answerStoryId: newStoryId }),
+          },
+        );
+        const linkData = await linkRes.json().catch(() => ({}));
+        if (!linkRes.ok) {
+          throw new Error((linkData as { error?: string }).error || 'Story posted, but linking the Q&A answer failed.');
+        }
       }
 
       navigate('/');
@@ -177,7 +202,7 @@ export default function CreateStory() {
         }
         right={
           <ThemedButton
-            label={loading ? 'Sharing…' : 'Share'}
+            label={loading ? 'Posting…' : 'Post'}
             onClick={handleShare}
             disabled={loading}
             className="px-3 py-1 text-xs"
@@ -256,6 +281,39 @@ export default function CreateStory() {
         </div>
 
         <div className="space-y-3">
+          {cap?.canCloseFriends && (
+            <div className="space-y-2 pt-1">
+              <ThemedText secondary className="text-moxe-caption mb-1 block">
+                Share to
+              </ThemedText>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAudience('PUBLIC')}
+                  className={`px-3 py-1.5 rounded-full text-sm border ${
+                    audience === 'PUBLIC'
+                      ? 'bg-moxe-primary border-moxe-primary text-white'
+                      : 'bg-moxe-surface border-moxe-border text-moxe-textSecondary'
+                  }`}
+                >
+                  Everyone
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAudience('CLOSE_FRIENDS_ONLY')}
+                  className={`px-3 py-1.5 rounded-full text-sm border inline-flex items-center gap-1.5 ${
+                    audience === 'CLOSE_FRIENDS_ONLY'
+                      ? 'bg-moxe-primary border-moxe-primary text-white'
+                      : 'bg-moxe-surface border-moxe-border text-moxe-textSecondary'
+                  }`}
+                >
+                  <Star className="w-4 h-4" />
+                  Close Friends
+                </button>
+              </div>
+            </div>
+          )}
+
           <div>
             <ThemedText secondary className="text-moxe-caption mb-1 block">
               Main text (optional)

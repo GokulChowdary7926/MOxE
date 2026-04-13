@@ -28,6 +28,8 @@ export interface LeafletMapProps {
   center?: [number, number];
   /** Initial zoom 1–18 */
   zoom?: number;
+  /** Use light OSM tiles (default false = Carto dark basemap for app-wide dark theme) */
+  lightTiles?: boolean;
   /** Show a single draggable or static marker at center */
   showMarker?: boolean;
   /** If true, user can drag marker and onMove is called */
@@ -50,6 +52,8 @@ export interface LeafletMapProps {
   routeFrom?: [number, number];
   /** Show direction route to this point (e.g. destination). When set with routeFrom, fetches OSRM route and draws it. */
   routeTo?: [number, number];
+  /** Fly the map to this point when `revision` changes (search / "my location"). */
+  flyTo?: { lat: number; lng: number; zoom?: number; revision: number };
 }
 
 const DEFAULT_CENTER: [number, number] = [37.7749, -122.4194];
@@ -84,6 +88,17 @@ function UserLocationLayer({ zoom, onLocation }: { zoom: number; onLocation?: (l
       <Popup>Your location</Popup>
     </Marker>
   );
+}
+
+function MapFlyTo({ flyTo }: { flyTo: { lat: number; lng: number; zoom?: number; revision: number } }) {
+  const map = useMap();
+  const lastRevision = React.useRef<number | null>(null);
+  useEffect(() => {
+    if (lastRevision.current === flyTo.revision) return;
+    lastRevision.current = flyTo.revision;
+    map.flyTo([flyTo.lat, flyTo.lng], flyTo.zoom ?? 16, { duration: 1 });
+  }, [map, flyTo]);
+  return null;
 }
 
 function RouteLayer({
@@ -154,6 +169,8 @@ export default function LeafletMap({
   onUserLocation,
   routeFrom,
   routeTo,
+  lightTiles = false,
+  flyTo,
 }: LeafletMapProps) {
   const [internalPos, setInternalPos] = useState<[number, number]>(markerPosition ?? center);
   const pos = markerPosition ?? internalPos;
@@ -172,14 +189,23 @@ export default function LeafletMap({
       center={center}
       zoom={zoom}
       className={className}
-      style={{ background: '#1a1a1a' }}
+      style={{ background: '#0e0e0e' }}
       zoomControl={true}
       scrollWheelZoom={true}
     >
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution={
+          lightTiles
+            ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+        }
+        url={
+          lightTiles
+            ? 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+            : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+        }
       />
+      {flyTo && <MapFlyTo flyTo={flyTo} />}
       {showUserLocation && <UserLocationLayer zoom={zoom} onLocation={onUserLocation} />}
       {showMarker && (
         <Marker

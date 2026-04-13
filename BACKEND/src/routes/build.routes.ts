@@ -6,15 +6,16 @@ const router = Router();
 const buildService = new BuildService();
 
 router.use(authenticate as any);
-router.use((req: any, _res, next) => {
-  req.account = req.account || (req.user?.accountId ? { id: req.user.accountId } : null);
-  next();
-});
+
+function accountIdFromReq(req: any): string | null {
+  return (req.user?.accountId || req.user?.userId) as string | null;
+}
 
 // List pipelines for current JOB account
 router.get('/pipelines', async (req: any, res, next) => {
   try {
-    const accountId = req.account.id as string;
+    const accountId = accountIdFromReq(req);
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
     const pipelines = await buildService.listPipelines(accountId);
     res.json(pipelines);
   } catch (err) {
@@ -25,7 +26,8 @@ router.get('/pipelines', async (req: any, res, next) => {
 // Create pipeline
 router.post('/pipelines', async (req: any, res, next) => {
   try {
-    const accountId = req.account.id as string;
+    const accountId = accountIdFromReq(req);
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
     const { repoId, name, branchFilter, triggers, stages, externalKey } = req.body || {};
     const pipeline = await buildService.createPipeline(accountId, {
       repoId,
@@ -44,7 +46,8 @@ router.post('/pipelines', async (req: any, res, next) => {
 // Get pipeline detail + recent runs
 router.get('/pipelines/:pipelineId', async (req: any, res, next) => {
   try {
-    const accountId = req.account.id as string;
+    const accountId = accountIdFromReq(req);
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
     const { pipelineId } = req.params;
     const pipeline = await buildService.getPipeline(accountId, pipelineId);
     const runs = await buildService.listRuns(accountId, pipelineId);
@@ -57,7 +60,8 @@ router.get('/pipelines/:pipelineId', async (req: any, res, next) => {
 // List runs only
 router.get('/pipelines/:pipelineId/runs', async (req: any, res, next) => {
   try {
-    const accountId = req.account.id as string;
+    const accountId = accountIdFromReq(req);
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
     const { pipelineId } = req.params;
     const runs = await buildService.listRuns(accountId, pipelineId);
     res.json(runs);

@@ -11,12 +11,16 @@ import Onboarding from '../pages/auth/Onboarding';
 import ForgotPassword from '../pages/auth/ForgotPassword';
 import AuthCallback from '../pages/auth/AuthCallback';
 import ComingSoonPage from '../pages/ComingSoonPage';
+import FeatureSlugPage from '../pages/FeatureSlugPage';
+import SettingsInfoPage from '../pages/settings/SettingsInfoPage';
 import Home from '../pages/home/Home';
 import Profile from '../pages/profile/Profile';
 import EditProfile from '../pages/profile/EditProfile';
+import EditGender from '../pages/profile/EditGender';
 import Followers from '../pages/profile/Followers';
 import Explore from '../pages/explore/Explore';
 import Messages from '../pages/messages/Messages';
+import MessagesInboxMorePage from '../pages/messages/MessagesInboxMorePage';
 import MessageRequests from '../pages/messages/MessageRequests';
 import Notifications from '../pages/notifications/Notifications';
 import Settings from '../pages/settings/Settings';
@@ -30,6 +34,7 @@ import CreateReel from '../pages/create/CreateReel';
 import NewReelPage from '../pages/create/NewReelPage';
 import ReelEditPage from '../pages/create/ReelEditPage';
 import ReelSharePage from '../pages/create/ReelSharePage';
+import AlsoShareOnPage from '../pages/create/AlsoShareOnPage';
 import ReelMoreOptionsPage from '../pages/create/ReelMoreOptionsPage';
 import PartnershipLabelAdsPage from '../pages/create/PartnershipLabelAdsPage';
 import AddPartnershipLabelPage from '../pages/create/AddPartnershipLabelPage';
@@ -38,6 +43,7 @@ import ReelLocationPage from '../pages/create/ReelLocationPage';
 import ReelAudiencePage from '../pages/create/ReelAudiencePage';
 import ReelFundraiserPage from '../pages/create/ReelFundraiserPage';
 import Reels from '../pages/reels/Reels';
+import ReelMoreActionsPage from '../pages/reels/ReelMoreActionsPage';
 import Live from '../pages/live/Live';
 import LiveReplay from '../pages/live/LiveReplay';
 import LiveWatch from '../pages/live/LiveWatch';
@@ -50,6 +56,7 @@ import StoryMusicPage from '../pages/stories/StoryMusicPage';
 import StorySearchStickersPage from '../pages/stories/StorySearchStickersPage';
 import CameraSettings from '../pages/settings/CameraSettings';
 import StoryViewer from '../pages/stories/StoryViewer';
+import StoryArchive from '../pages/stories/StoryArchive';
 import HighlightViewer from '../pages/stories/HighlightViewer';
 import ManageHighlights from '../pages/stories/ManageHighlights';
 import Map from '../pages/map/Map';
@@ -57,6 +64,7 @@ import MapFullScreen from '../pages/map/MapFullScreen';
 import NearbyPlacesPage from '../pages/map/NearbyPlacesPage';
 import NearbyMessagingPage from '../pages/map/NearbyMessagingPage';
 import NearbyMessagingSettingsPage from '../pages/map/NearbyMessagingSettingsPage';
+import NearbyMessagingAnalyticsPage from '../pages/map/NearbyMessagingAnalyticsPage';
 import SOSPage from '../pages/map/SOSPage';
 import ManageContactsPage from '../pages/map/ManageContactsPage';
 import AddEmergencyContactPage from '../pages/map/AddEmergencyContactPage';
@@ -66,11 +74,16 @@ import ProximityAlertsPage from '../pages/map/ProximityAlertsPage';
 import Job from '../pages/job/Job';
 import Admin from '../pages/admin/Admin';
 import Commerce from '../pages/commerce/Commerce';
+import StorePage from '../pages/commerce/Store';
+import StoreProductPage from '../pages/commerce/StoreProduct';
+import StoreWishlistPage from '../pages/commerce/StoreWishlist';
 import Checkout from '../pages/commerce/Checkout';
 import MyOrdersPage from '../pages/commerce/MyOrdersPage';
 import OrderDetailPage from '../pages/commerce/OrderDetailPage';
 import Analytics from '../pages/analytics/Analytics';
 import AdsCampaigns from '../pages/ads/AdsCampaigns';
+import Marketplace from '../pages/marketplace/Marketplace';
+import CreateCampaign from '../pages/marketplace/CreateCampaign';
 import SwitchAccount from '../pages/settings/SwitchAccount';
 import SavedCollections from '../pages/saved/SavedCollections';
 import FavoritesFeed from '../pages/feed/FavoritesFeed';
@@ -109,6 +122,16 @@ import HelpPaymentsPage from '../pages/settings/HelpPaymentsPage';
 import HelpOrdersPage from '../pages/settings/HelpOrdersPage';
 import HelpContactPaymentPage from '../pages/settings/HelpContactPaymentPage';
 import HelpTermsPage from '../pages/settings/HelpTermsPage';
+import CommunityGuidelinesPage from '../pages/settings/CommunityGuidelinesPage';
+import InterestedSettingsPage from '../pages/settings/InterestedSettingsPage';
+import OpenSourceLicensesPage from '../pages/settings/OpenSourceLicensesPage';
+import DeviceDataUsageSettings from '../pages/settings/DeviceDataUsageSettings';
+import LegalTrustHubPage from '../pages/settings/LegalTrustHubPage';
+import MemorializationRequestPage from '../pages/settings/MemorializationRequestPage';
+import ClaimProfilePage from '../pages/settings/ClaimProfilePage';
+import CounterNotificationPage from '../pages/settings/CounterNotificationPage';
+import LawEnforcementPortalPage from '../pages/settings/LawEnforcementPortalPage';
+import TransferInformationPage from '../pages/settings/TransferInformationPage';
 import DontTranslateSettings from '../pages/settings/DontTranslateSettings';
 import CrosspostingSettings from '../pages/settings/CrosspostingSettings';
 import DevicePermissionDetailPage from '../pages/settings/DevicePermissionDetailPage';
@@ -125,7 +148,7 @@ import BlockCommentsFromPage from '../pages/settings/BlockCommentsFromPage';
 import HideUnwantedCommentsPage from '../pages/settings/HideUnwantedCommentsPage';
 import BlockStoryCommentsFromPage from '../pages/settings/BlockStoryCommentsFromPage';
 import FollowCreatorsPage from '../pages/settings/FollowCreatorsPage';
-import FacebookCreatorsPage from '../pages/settings/FacebookCreatorsPage';
+import MoxeCreatorsPage from '../pages/settings/MoxeCreatorsPage';
 import AudioSettingsPage from '../pages/audio/AudioSettingsPage';
 import BrandedContentStatusPage from '../pages/insights/BrandedContentStatusPage';
 import RunAdPage from '../pages/ads/RunAdPage';
@@ -142,7 +165,7 @@ import PostsStoriesCommentsSettings from '../pages/settings/PostsStoriesComments
 import FollowingFollowersSettings from '../pages/settings/FollowingFollowersSettings';
 import MessagesNotificationsSettings from '../pages/settings/MessagesNotificationsSettings';
 import EmailNotificationsSettings from '../pages/settings/EmailNotificationsSettings';
-import FromInstagramSettings from '../pages/settings/FromInstagramSettings';
+import FromMoxeNotificationsSettings from '../pages/settings/FromMoxeNotificationsSettings';
 import LiveReelsSettings from '../pages/settings/LiveReelsSettings';
 import BirthdaysSettings from '../pages/settings/BirthdaysSettings';
 import FundraisersSettings from '../pages/settings/FundraisersSettings';
@@ -175,6 +198,9 @@ import LimitInteractionReminderPage from '../pages/settings/LimitInteractionRemi
 import HiddenWordsSettings from '../pages/settings/HiddenWordsSettings';
 import FollowingAndInvitationsSettings from '../pages/settings/FollowingAndInvitationsSettings';
 import ContactAccessSettings from '../pages/settings/ContactAccessSettings';
+import ContactSyncSettings from '../pages/settings/ContactSyncSettings';
+import VerifiedSupportPage from '../pages/settings/VerifiedSupportPage';
+import VerifiedProtectionSettings from '../pages/settings/VerifiedProtectionSettings';
 import YourActivityDailyLimit from '../pages/settings/YourActivityDailyLimit';
 import TimeSpent from '../pages/settings/your-activity/TimeSpent';
 import WatchHistory from '../pages/settings/your-activity/WatchHistory';
@@ -212,6 +238,7 @@ import CreateSupportTicket from '../pages/support/CreateSupportTicket';
 import BlockedList from '../pages/blocked/BlockedList';
 import RestrictedList from '../pages/restricted/RestrictedList';
 import MutedList from '../pages/muted/MutedList';
+import SnoozedList from '../pages/snoozed/SnoozedList';
 import CloseFriendsList from '../pages/close-friends/CloseFriendsList';
 import CloseFriendsAdd from '../pages/close-friends/CloseFriendsAdd';
 import SearchResults from '../pages/search/SearchResults';
@@ -227,13 +254,13 @@ import EmergencyContacts from '../pages/settings/EmergencyContacts';
 import BusinessDashboard from '../pages/dashboard/BusinessDashboard';
 import CreatorStudio from '../pages/dashboard/CreatorStudio';
 import CreatorSubscriptionTiers from '../pages/dashboard/CreatorSubscriptionTiers';
-import JobHub from '../pages/dashboard/JobHub';
 import AnonymousSpaces from '../pages/anonymous/AnonymousSpaces';
 import Streaks from '../pages/streaks/Streaks';
 import FollowRequests from '../pages/follow/FollowRequests';
 import Activity from '../pages/activity/Activity';
 import RepostsPage from '../pages/activity/RepostsPage';
 import TaggedPage from '../pages/activity/TaggedPage';
+import TaggedMorePage from '../pages/activity/TaggedMorePage';
 import StickerResponsesPage from '../pages/activity/StickerResponsesPage';
 import ProfileVisitorsPage from '../pages/activity/ProfileVisitorsPage';
 import ReviewsPage from '../pages/activity/ReviewsPage';
@@ -303,6 +330,7 @@ import NoteSongPage from '../pages/notes/NoteSongPage';
 import NoteShareWithPage from '../pages/notes/NoteShareWithPage';
 
 import ProtectedRoute from '../components/auth/ProtectedRoute';
+import { ScreenTimeBeat } from '../components/ScreenTimeBeat';
 import MobileHeader from '../components/layout/MobileHeader';
 import { MobileShell } from '../components/layout/MobileShell';
 import BottomNav from '../components/layout/BottomNav';
@@ -311,17 +339,21 @@ import { ThemeRouter } from './theme/ThemeRouter';
 import ThemeSettingsPage from '../pages/settings/ThemeSettingsPage';
 
 import { RootState, store } from '../store';
-import { initializeSocket, registerAccount } from '../services/socket';
-import { getApiBase, getToken } from '../services/api';
+import { disconnectLiveSocket, disconnectSocket, initializeSocket, registerAccount } from '../services/socket';
+import { disconnectDmSocket } from '../services/dmSocket';
+import { fetchApi, getToken } from '../services/api';
 import { setCurrentAccount, setCapabilities } from '../store/accountSlice';
-import { fetchMe, logoutThunk } from '../store/authSlice';
+import { fetchMe, logoutThunk, setCredentials } from '../store/authSlice';
 
 const queryClient = new QueryClient();
 
-/** Hide global bottom nav on Job routes so only the Job Atlassian-style bottom nav is visible. */
+/** Hide global bottom nav on Job routes so only the MOxE Job tools bottom nav is visible. */
 function ConditionalBottomNav() {
   const location = useLocation();
+  const isMessagesRoute = location.pathname.startsWith('/messages');
+  const isMessagesInbox = location.pathname === '/messages';
   if (location.pathname.startsWith('/job')) return null;
+  if (isMessagesRoute && !isMessagesInbox) return null;
   return <BottomNav />;
 }
 
@@ -329,8 +361,13 @@ function ConditionalBottomNav() {
 function MainWithPadding({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const isJob = location.pathname.startsWith('/job');
+  const isMessagesRoute = location.pathname.startsWith('/messages');
+  const isMessagesInbox = location.pathname === '/messages';
+  const isMessagesNoBottomNav = isMessagesRoute && !isMessagesInbox;
   return (
-    <main className={`flex-1 flex flex-col min-h-0 safe-area-pb ${isJob ? 'pb-0' : 'pb-20'}`}>
+    <main
+      className={`flex-1 flex flex-col min-h-0 overflow-hidden safe-area-pb ${(isJob || isMessagesNoBottomNav) ? 'pb-0' : 'pb-20'}`}
+    >
       {children}
     </main>
   );
@@ -343,6 +380,7 @@ function ConditionalAppHeader() {
   const pathname = location.pathname;
   const hasOwnHeader =
     pathname === '/' ||
+    pathname.startsWith('/explore') ||
     pathname.startsWith('/messages') ||
     pathname.startsWith('/map') ||
     pathname.startsWith('/profile') ||
@@ -353,18 +391,25 @@ function ConditionalAppHeader() {
 }
 
 function App() {
-  const { isAuthenticated, user, token } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, token } = useSelector((state: RootState) => state.auth);
   const { currentAccount } = useSelector((state: RootState) => state.account);
   const lastLocationSyncRef = useRef(0);
 
   useEffect(() => {
-    if (isAuthenticated && user) {
-      initializeSocket(user.id, currentAccount?.id);
+    if (!isAuthenticated || typeof currentAccount?.id !== 'string') {
+      disconnectSocket();
+      disconnectDmSocket();
+      disconnectLiveSocket();
+      return;
     }
-  }, [isAuthenticated, user, currentAccount?.id]);
+    const acc = currentAccount as { id: string; userId?: string };
+    const socketUserId = String(acc.userId ?? acc.id);
+    initializeSocket(socketUserId, acc.id);
+  }, [isAuthenticated, currentAccount]);
 
   useEffect(() => {
-    if (currentAccount?.id) registerAccount(currentAccount.id);
+    const id = currentAccount?.id;
+    if (typeof id === 'string') registerAccount(id);
   }, [currentAccount?.id]);
 
   useEffect(() => {
@@ -375,6 +420,10 @@ function App() {
       .then((data) => {
           store.dispatch(setCurrentAccount({ ...data.account, capabilities: data.capabilities }));
           store.dispatch(setCapabilities(data.capabilities ?? null));
+          const acc = data.account as { id?: string; userId?: string };
+          const uid = acc.userId != null ? String(acc.userId) : acc.id ? String(acc.id) : '';
+          const t = getToken();
+          if (uid && t) store.dispatch(setCredentials({ token: t, user: { id: uid } }));
       })
       .catch(() => {
         store.dispatch(logoutThunk());
@@ -392,12 +441,8 @@ function App() {
         const now = Date.now();
         if (now - lastLocationSyncRef.current < 30000) return;
         lastLocationSyncRef.current = now;
-        fetch(`${getApiBase()}/location`, {
+        void fetchApi('location', {
           method: 'POST',
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-            'Content-Type': 'application/json',
-          },
           body: JSON.stringify({
             latitude: pos.coords.latitude,
             longitude: pos.coords.longitude,
@@ -417,6 +462,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <ThemeRouter />
+          <ScreenTimeBeat />
           <MobileShell>
           <ConditionalAppHeader />
           
@@ -426,6 +472,7 @@ function App() {
               <Route path="/report/anonymous" element={<AnonymousReport />} />
               <Route path="/coming-soon" element={<ComingSoonPage />} />
               <Route path="/coming-soon/:feature" element={<ComingSoonPage />} />
+              <Route path="/features/:slug" element={<ProtectedRoute><FeatureSlugPage /></ProtectedRoute>} />
               <Route path="/onboarding" element={<Onboarding />} />
               <Route path="/login" element={<Login />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
@@ -439,7 +486,9 @@ function App() {
                 <Route path="/hashtag/:tag" element={<ProtectedRoute><HashtagPage /></ProtectedRoute>} />
                 <Route path="/location/:id" element={<ProtectedRoute><LocationPage /></ProtectedRoute>} />
                 <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+                <Route path="/messages/new" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
                 <Route path="/messages/requests" element={<ProtectedRoute><MessageRequests /></ProtectedRoute>} />
+                <Route path="/messages/inbox/more" element={<ProtectedRoute><MessagesInboxMorePage /></ProtectedRoute>} />
                 <Route path="/messages/:userId" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
                 <Route path="/messages/group/:groupId" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
                 <Route path="/notes" element={<ProtectedRoute><NotesPage /></ProtectedRoute>} />
@@ -451,6 +500,7 @@ function App() {
                 <Route path="/profile/:username/followers" element={<ProtectedRoute><Followers /></ProtectedRoute>} />
                 <Route path="/profile/:username/following" element={<ProtectedRoute><FollowingPage /></ProtectedRoute>} />
               <Route path="/profile/edit" element={<ProtectedRoute><EditProfile /></ProtectedRoute>} />
+              <Route path="/profile/edit/gender" element={<ProtectedRoute><EditGender /></ProtectedRoute>} />
                 <Route path="/profile/:username?" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                 <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
                 <Route path="/settings/algorithm-preferences" element={<ProtectedRoute><AlgorithmPreferencesPage /></ProtectedRoute>} />
@@ -471,8 +521,16 @@ function App() {
                 <Route path="/settings/orders-payments" element={<ProtectedRoute><OrdersAndPaymentsSettings /></ProtectedRoute>} />
                 <Route path="/settings/orders-payments/auto-detection" element={<ProtectedRoute><AutoDetectionSettings /></ProtectedRoute>} />
                 <Route path="/settings/orders-payments/security" element={<ProtectedRoute><SecurityPaymentsSettings /></ProtectedRoute>} />
-                <Route path="/settings/orders-payments/meta-pay" element={<ProtectedRoute><MoxePaySettings /></ProtectedRoute>} />
-                <Route path="/settings/account-centre/meta-pay" element={<ProtectedRoute><OrdersAndPaymentsSettings /></ProtectedRoute>} />
+                <Route path="/settings/orders-payments/moxe-pay" element={<ProtectedRoute><MoxePaySettings /></ProtectedRoute>} />
+                <Route
+                  path="/settings/orders-payments/meta-pay"
+                  element={<Navigate to="/settings/orders-payments/moxe-pay" replace />}
+                />
+                <Route path="/settings/account-centre/moxe-pay" element={<ProtectedRoute><OrdersAndPaymentsSettings /></ProtectedRoute>} />
+                <Route
+                  path="/settings/account-centre/meta-pay"
+                  element={<Navigate to="/settings/account-centre/moxe-pay" replace />}
+                />
                 <Route path="/settings/account-centre/subscriptions" element={<ProtectedRoute><SubscriptionsSettings /></ProtectedRoute>} />
                 <Route path="/settings/account-centre/two-factor" element={<ProtectedRoute><TwoFactorAuthSettings /></ProtectedRoute>} />
                 <Route path="/settings/account-centre/verification-selfie" element={<ProtectedRoute><VerificationSelfieSettings /></ProtectedRoute>} />
@@ -492,7 +550,15 @@ function App() {
                 <Route path="/settings/notifications/following-followers" element={<ProtectedRoute><FollowingFollowersSettings /></ProtectedRoute>} />
                 <Route path="/settings/notifications/messages" element={<ProtectedRoute><MessagesNotificationsSettings /></ProtectedRoute>} />
                 <Route path="/settings/notifications/email" element={<ProtectedRoute><EmailNotificationsSettings /></ProtectedRoute>} />
-                <Route path="/settings/notifications/from-instagram" element={<ProtectedRoute><FromInstagramSettings /></ProtectedRoute>} />
+                <Route path="/settings/notifications/from-moxe" element={<ProtectedRoute><FromMoxeNotificationsSettings /></ProtectedRoute>} />
+                <Route
+                  path="/settings/notifications/from-instagram"
+                  element={
+                    <ProtectedRoute>
+                      <Navigate to="/settings/notifications/from-moxe" replace />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="/settings/notifications/live-reels" element={<ProtectedRoute><LiveReelsSettings /></ProtectedRoute>} />
                 <Route path="/settings/notifications/birthdays" element={<ProtectedRoute><BirthdaysSettings /></ProtectedRoute>} />
                 <Route path="/settings/notifications/fundraisers" element={<ProtectedRoute><FundraisersSettings /></ProtectedRoute>} />
@@ -516,6 +582,7 @@ function App() {
                 <Route path="/settings/language/dont-translate" element={<ProtectedRoute><DontTranslateSettings /></ProtectedRoute>} />
                 <Route path="/settings/help" element={<ProtectedRoute><HelpSettings /></ProtectedRoute>} />
                 <Route path="/settings/help/centre" element={<ProtectedRoute><HelpCentrePage /></ProtectedRoute>} />
+                <Route path="/settings/info/:slug" element={<ProtectedRoute><SettingsInfoPage /></ProtectedRoute>} />
                 <Route path="/settings/help/report" element={<ProtectedRoute><ReportProblem /></ProtectedRoute>} />
                 <Route path="/support/tickets" element={<ProtectedRoute><SupportTickets /></ProtectedRoute>} />
                 <Route path="/support/tickets/new" element={<ProtectedRoute><CreateSupportTicket /></ProtectedRoute>} />
@@ -524,11 +591,21 @@ function App() {
                 <Route path="/settings/help/orders" element={<ProtectedRoute><HelpOrdersPage /></ProtectedRoute>} />
                 <Route path="/settings/help/contact-payment" element={<ProtectedRoute><HelpContactPaymentPage /></ProtectedRoute>} />
                 <Route path="/settings/help/terms" element={<ProtectedRoute><HelpTermsPage /></ProtectedRoute>} />
+                <Route path="/settings/help/community-guidelines" element={<ProtectedRoute><CommunityGuidelinesPage /></ProtectedRoute>} />
+                <Route path="/settings/help/open-source-licenses" element={<ProtectedRoute><OpenSourceLicensesPage /></ProtectedRoute>} />
+                <Route path="/settings/help/legal-trust" element={<ProtectedRoute><LegalTrustHubPage /></ProtectedRoute>} />
+                <Route path="/settings/help/memorialization" element={<ProtectedRoute><MemorializationRequestPage /></ProtectedRoute>} />
+                <Route path="/settings/help/claim-profile" element={<ProtectedRoute><ClaimProfilePage /></ProtectedRoute>} />
+                <Route path="/settings/help/counter-notification" element={<ProtectedRoute><CounterNotificationPage /></ProtectedRoute>} />
+                <Route path="/settings/help/law-enforcement" element={<ProtectedRoute><LawEnforcementPortalPage /></ProtectedRoute>} />
+                <Route path="/settings/help/transfer-information" element={<ProtectedRoute><TransferInformationPage /></ProtectedRoute>} />
+                <Route path="/settings/data-usage" element={<ProtectedRoute><DeviceDataUsageSettings /></ProtectedRoute>} />
                 <Route path="/settings/privacy-centre" element={<ProtectedRoute><PrivacyCentrePage /></ProtectedRoute>} />
                 <Route path="/settings/privacy-centre/topics" element={<ProtectedRoute><PrivacyTopicsPage /></ProtectedRoute>} />
                 <Route path="/blocked" element={<ProtectedRoute><BlockedList /></ProtectedRoute>} />
                 <Route path="/restricted" element={<ProtectedRoute><RestrictedList /></ProtectedRoute>} />
                 <Route path="/muted" element={<ProtectedRoute><MutedList /></ProtectedRoute>} />
+                <Route path="/snoozed" element={<ProtectedRoute><SnoozedList /></ProtectedRoute>} />
                 <Route path="/close-friends/add" element={<ProtectedRoute><CloseFriendsAdd /></ProtectedRoute>} />
                 <Route path="/search" element={<ProtectedRoute><SearchResults /></ProtectedRoute>} />
                 <Route path="/audio/stub" element={<ProtectedRoute><AudioSettingsPage /></ProtectedRoute>} />
@@ -562,6 +639,7 @@ function App() {
                 <Route path="/settings/content-preferences/sensitive" element={<ProtectedRoute><SensitiveContentSettings /></ProtectedRoute>} />
                 <Route path="/settings/content-preferences/political" element={<ProtectedRoute><PoliticalContentSettings /></ProtectedRoute>} />
                 <Route path="/settings/content-preferences/not-interested" element={<ProtectedRoute><NotInterestedSettings /></ProtectedRoute>} />
+                <Route path="/settings/content-preferences/interested" element={<ProtectedRoute><InterestedSettingsPage /></ProtectedRoute>} />
                 <Route path="/settings/like-share-counts" element={<ProtectedRoute><LikeShareCountsSettings /></ProtectedRoute>} />
                 <Route path="/settings/subscription" element={<ProtectedRoute><SubscriptionPlansPage /></ProtectedRoute>} />
                 <Route path="/settings/subscriptions" element={<ProtectedRoute><SubscriptionsSettings /></ProtectedRoute>} />
@@ -592,6 +670,9 @@ function App() {
                 <Route path="/settings/hidden-words" element={<ProtectedRoute><HiddenWordsSettings /></ProtectedRoute>} />
                 <Route path="/settings/following-invitations" element={<ProtectedRoute><FollowingAndInvitationsSettings /></ProtectedRoute>} />
                 <Route path="/settings/following-invitations/contacts" element={<ProtectedRoute><ContactAccessSettings /></ProtectedRoute>} />
+                <Route path="/settings/contact-sync" element={<ProtectedRoute><ContactSyncSettings /></ProtectedRoute>} />
+                <Route path="/settings/verified-support" element={<ProtectedRoute><VerifiedSupportPage /></ProtectedRoute>} />
+                <Route path="/settings/verified-protection" element={<ProtectedRoute><VerifiedProtectionSettings /></ProtectedRoute>} />
                 <Route path="/settings/following/contacts" element={<ProtectedRoute><ContactAccessSettings /></ProtectedRoute>} />
                 <Route path="/settings/story" element={<ProtectedRoute><StorySettings /></ProtectedRoute>} />
                 <Route path="/settings/story/allow-comments" element={<ProtectedRoute><AllowStoryCommentsFrom /></ProtectedRoute>} />
@@ -611,6 +692,7 @@ function App() {
                 <Route path="/activity/profile-visitors" element={<ProtectedRoute><ProfileVisitorsPage /></ProtectedRoute>} />
               <Route path="/activity/reviews" element={<ProtectedRoute><ReviewsPage /></ProtectedRoute>} />
               <Route path="/activity/recently-deleted" element={<ProtectedRoute><RecentlyDeletedPage /></ProtectedRoute>} />
+              <Route path="/settings/recently-deleted" element={<ProtectedRoute><RecentlyDeletedPage /></ProtectedRoute>} />
               <Route path="/activity/not-interested" element={<ProtectedRoute><NotInterestedPage /></ProtectedRoute>} />
               <Route path="/activity/posts" element={<ProtectedRoute><PostsActivityPage /></ProtectedRoute>} />
               <Route path="/activity/reels" element={<ProtectedRoute><ReelsActivityPage /></ProtectedRoute>} />
@@ -620,13 +702,21 @@ function App() {
                 <Route path="/business-dashboard" element={<ProtectedRoute requiredType="BUSINESS"><BusinessDashboard /></ProtectedRoute>} />
                 <Route path="/creator-studio" element={<ProtectedRoute requiredType="CREATOR"><CreatorStudio /></ProtectedRoute>} />
                 <Route path="/creator-studio/subscription-tiers" element={<ProtectedRoute requiredType="CREATOR"><CreatorSubscriptionTiers /></ProtectedRoute>} />
-                <Route path="/job-hub" element={<ProtectedRoute requiredType="JOB"><JobHub /></ProtectedRoute>} />
+                <Route
+                  path="/job-hub"
+                  element={<ProtectedRoute requiredType="JOB"><Navigate to="/job/overview/home" replace /></ProtectedRoute>}
+                />
 
+                <Route path="/store" element={<ProtectedRoute><StorePage /></ProtectedRoute>} />
+                <Route path="/store/p/:productId" element={<ProtectedRoute><StoreProductPage /></ProtectedRoute>} />
+                <Route path="/store/wishlist" element={<ProtectedRoute><StoreWishlistPage /></ProtectedRoute>} />
                 <Route path="/commerce" element={<ProtectedRoute><Commerce /></ProtectedRoute>} />
                 <Route path="/commerce/orders" element={<ProtectedRoute><MyOrdersPage /></ProtectedRoute>} />
                 <Route path="/commerce/orders/:orderId" element={<ProtectedRoute><OrderDetailPage /></ProtectedRoute>} />
                 <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
                 <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+                <Route path="/marketplace" element={<ProtectedRoute><Marketplace /></ProtectedRoute>} />
+                <Route path="/marketplace/create" element={<ProtectedRoute><CreateCampaign /></ProtectedRoute>} />
                 <Route path="/insights" element={<ProtectedRoute><InsightsHub /></ProtectedRoute>} />
                 <Route path="/insights/content" element={<ProtectedRoute><InsightsContentPage /></ProtectedRoute>} />
                 <Route path="/insights/interaction" element={<ProtectedRoute><InsightsInteractionPage /></ProtectedRoute>} />
@@ -677,7 +767,11 @@ function App() {
                 <Route path="/audio/trending" element={<ProtectedRoute><TrendingAudioPage /></ProtectedRoute>} />
                 <Route path="/settings/helpful-resources" element={<ProtectedRoute><HelpfulResourcesPage /></ProtectedRoute>} />
                 <Route path="/settings/helpful-resources/follow-creators" element={<ProtectedRoute><FollowCreatorsPage /></ProtectedRoute>} />
-                <Route path="/settings/helpful-resources/facebook-creators" element={<ProtectedRoute><FacebookCreatorsPage /></ProtectedRoute>} />
+                <Route path="/settings/helpful-resources/moxe-creators" element={<ProtectedRoute><MoxeCreatorsPage /></ProtectedRoute>} />
+                <Route
+                  path="/settings/helpful-resources/facebook-creators"
+                  element={<Navigate to="/settings/helpful-resources/moxe-creators" replace />}
+                />
 
                 <Route path="/create" element={<ProtectedRoute><Create /></ProtectedRoute>} />
                 <Route path="/create/post" element={<ProtectedRoute><NewPostPage /></ProtectedRoute>} />
@@ -686,6 +780,7 @@ function App() {
                 <Route path="/create/post/tag" element={<ProtectedRoute><ReelTagPeoplePage /></ProtectedRoute>} />
                 <Route path="/create/post/location" element={<ProtectedRoute><ReelLocationPage /></ProtectedRoute>} />
                 <Route path="/create/post/audience" element={<ProtectedRoute><ReelAudiencePage /></ProtectedRoute>} />
+                <Route path="/create/post/also-share" element={<ProtectedRoute><AlsoShareOnPage /></ProtectedRoute>} />
                 <Route path="/create/post/more" element={<ProtectedRoute><ReelMoreOptionsPage /></ProtectedRoute>} />
                 <Route path="/create/post/partnership" element={<ProtectedRoute><PartnershipLabelAdsPage /></ProtectedRoute>} />
                 <Route path="/create/post/partnership/add" element={<ProtectedRoute><AddPartnershipLabelPage /></ProtectedRoute>} />
@@ -700,6 +795,7 @@ function App() {
                 <Route path="/stories/create/search" element={<ProtectedRoute><StorySearchStickersPage /></ProtectedRoute>} />
                 <Route path="/settings/camera" element={<ProtectedRoute><CameraSettings /></ProtectedRoute>} />
                 <Route path="/stories/:username" element={<ProtectedRoute><StoryViewer /></ProtectedRoute>} />
+                <Route path="/stories/archive" element={<ProtectedRoute><StoryArchive /></ProtectedRoute>} />
                 <Route path="/comments/:commentId/replies" element={<ProtectedRoute><CommentThread /></ProtectedRoute>} />
                 <Route path="/highlights/:highlightId" element={<ProtectedRoute><HighlightViewer /></ProtectedRoute>} />
                 <Route path="/highlights/:highlightId/edit" element={<ProtectedRoute><EditHighlightPage /></ProtectedRoute>} />
@@ -717,6 +813,8 @@ function App() {
                 <Route path="/reel/:reelId/settings" element={<ProtectedRoute><ContentSettingsPage /></ProtectedRoute>} />
                 <Route path="/story/:id/settings" element={<ProtectedRoute><ContentSettingsPage /></ProtectedRoute>} />
                 <Route path="/create/reel" element={<ProtectedRoute><NewReelPage /></ProtectedRoute>} />
+                <Route path="/create/reel/record" element={<ProtectedRoute><CreateReel /></ProtectedRoute>} />
+                <Route path="/create-reel" element={<ProtectedRoute><CreateReel /></ProtectedRoute>} />
                 <Route path="/create/reel/edit" element={<ProtectedRoute><ReelEditPage /></ProtectedRoute>} />
                 <Route path="/create/reel/share" element={<ProtectedRoute><ReelSharePage /></ProtectedRoute>} />
                 <Route path="/create/reel/more" element={<ProtectedRoute><ReelMoreOptionsPage /></ProtectedRoute>} />
@@ -725,7 +823,9 @@ function App() {
                 <Route path="/create/reel/tag" element={<ProtectedRoute><ReelTagPeoplePage /></ProtectedRoute>} />
                 <Route path="/create/reel/location" element={<ProtectedRoute><ReelLocationPage /></ProtectedRoute>} />
                 <Route path="/create/reel/audience" element={<ProtectedRoute><ReelAudiencePage /></ProtectedRoute>} />
+                <Route path="/create/reel/also-share" element={<ProtectedRoute><AlsoShareOnPage /></ProtectedRoute>} />
                 <Route path="/create/reel/fundraiser" element={<ProtectedRoute><ReelFundraiserPage /></ProtectedRoute>} />
+                <Route path="/reels/actions" element={<ProtectedRoute><ReelMoreActionsPage /></ProtectedRoute>} />
                 <Route path="/reels" element={<ProtectedRoute><Reels /></ProtectedRoute>} />
                 <Route path="/live" element={<ProtectedRoute><Live /></ProtectedRoute>} />
                 <Route path="/live/start" element={<ProtectedRoute><LiveStart /></ProtectedRoute>} />
@@ -736,6 +836,7 @@ function App() {
                 <Route path="/map/full" element={<ProtectedRoute><MapFullScreen /></ProtectedRoute>} />
                 <Route path="/map/places" element={<ProtectedRoute><NearbyPlacesPage /></ProtectedRoute>} />
                 <Route path="/map/nearby-messaging" element={<ProtectedRoute><NearbyMessagingPage /></ProtectedRoute>} />
+                <Route path="/map/nearby-messaging/analytics" element={<ProtectedRoute><NearbyMessagingAnalyticsPage /></ProtectedRoute>} />
                 <Route path="/map/nearby-messaging/settings" element={<ProtectedRoute><NearbyMessagingSettingsPage /></ProtectedRoute>} />
                 <Route path="/map/sos" element={<ProtectedRoute><SOSPage /></ProtectedRoute>} />
                 <Route path="/map/sos/contacts" element={<ProtectedRoute><ManageContactsPage /></ProtectedRoute>} />

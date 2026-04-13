@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { SettingsPageShell } from '../../components/layout/SettingsPageShell';
 import { Search, ChevronRight } from 'lucide-react';
 
@@ -28,9 +29,9 @@ export default function HelpCentrePage() {
         <p className="text-[#a8a8a8] text-sm mb-4">Browse topics or search for what you need.</p>
         <div className="space-y-0 border border-[#262626] rounded-xl overflow-hidden">
           {TOPICS.map((t) => (
-            <a
+            <Link
               key={t.id}
-              href="#"
+              to={`/settings/info/help-${t.id}`}
               className="flex items-center justify-between gap-2 px-4 py-3 border-b border-[#262626] last:border-b-0 text-white active:bg-white/5"
             >
               <div className="flex-1 min-w-0">
@@ -38,7 +39,7 @@ export default function HelpCentrePage() {
                 <span className="text-[#737373] text-xs">{t.count} articles</span>
               </div>
               <ChevronRight className="w-5 h-5 text-[#737373] flex-shrink-0" />
-            </a>
+            </Link>
           ))}
         </div>
       </div>

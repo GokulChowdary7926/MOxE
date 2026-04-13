@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { getApiBase } from '../../services/api';
+import { JobPageContent } from '../../components/job/JobPageContent';
+import { JobBibleReferenceSection, JobToolBibleShell } from '../../components/job/bible';
 import { safeFirst } from '../../utils/safeAccess';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type StrategyStatus = 'DRAFT' | 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
 type StrategyHorizon = 'QUARTER' | 'YEAR' | 'MULTI_YEAR' | 'CUSTOM';
@@ -243,7 +246,7 @@ export default function Strategy() {
       case 'ACTIVE':
         return <span className={`${base} bg-emerald-100 text-emerald-700`}>Active</span>;
       case 'COMPLETED':
-        return <span className={`${base} bg-indigo-100 text-indigo-700`}>Completed</span>;
+        return <span className={`${base} bg-[#DEEBFF] dark:bg-[#1D2125] text-[#0052CC] dark:text-[#2684FF]`}>Completed</span>;
       case 'ARCHIVED':
         return <span className={`${base} bg-slate-200 text-slate-700`}>Archived</span>;
       default:
@@ -252,23 +255,10 @@ export default function Strategy() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6">
-      <div className="w-full lg:w-72 space-y-3">
-        <div>
-          <h2 className="text-2xl font-semibold text-slate-800 dark:text-white mb-1">
-            MOxE STRATEGY
-          </h2>
-          <p className="text-slate-600 dark:text-slate-400 text-sm">
-            Capture and track high‑level Job strategies: horizons, focus areas, and status.
-          </p>
-        </div>
-
-        {error && (
-          <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-200 text-xs">
-            {error}
-          </div>
-        )}
-
+    <JobPageContent variant="track" error={error}>
+      <JobToolBibleShell toolTitle="MOxE STRATEGY" toolIconMaterial="strategy">
+    <div className="flex flex-col gap-4">
+      <div className="w-full space-y-3">
         <button
           type="button"
           onClick={() => {
@@ -282,7 +272,7 @@ export default function Strategy() {
               focusAreasText: '',
             });
           }}
-          className="w-full inline-flex items-center justify-center rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-3 py-2"
+          className="w-full inline-flex items-center justify-center rounded-md bg-[#0052CC] hover:bg-[#0747A6] dark:bg-[#2684FF] dark:hover:bg-[#0052CC] text-white text-sm font-medium px-3 py-2"
         >
           New strategy plan
         </button>
@@ -304,7 +294,7 @@ export default function Strategy() {
                   onClick={() => setSelectedPlan(p)}
                   className={`w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 ${
                     isActive
-                      ? 'bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-200'
+                      ? 'bg-[#DEEBFF] dark:bg-[#1D2125] text-[#0052CC] dark:text-[#2684FF]'
                       : 'text-slate-700 dark:text-slate-200'
                   }`}
                 >
@@ -335,7 +325,7 @@ export default function Strategy() {
         </div>
       </div>
 
-      <div className="flex-1 min-w-0 space-y-4">
+      <div className="w-full min-w-0 space-y-4">
         {showCreate && (
           <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 space-y-4">
             <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
@@ -354,7 +344,7 @@ export default function Strategy() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-slate-700 dark:text-slate-200">
                     Horizon
@@ -424,7 +414,7 @@ export default function Strategy() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="inline-flex items-center justify-center rounded-md bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-xs font-medium px-3 py-1.5"
+                  className="inline-flex items-center justify-center rounded-md bg-[#0052CC] hover:bg-[#0747A6] disabled:opacity-50 dark:bg-[#2684FF] dark:hover:bg-[#0052CC] text-white text-xs font-medium px-3 py-1.5"
                 >
                   {saving
                     ? selectedPlan
@@ -525,8 +515,12 @@ export default function Strategy() {
             Select a strategy plan on the left to view details.
           </div>
         )}
+
+        <JobBibleReferenceSection toolKey="strategy" />
       </div>
     </div>
+      </JobToolBibleShell>
+    </JobPageContent>
   );
 }
 

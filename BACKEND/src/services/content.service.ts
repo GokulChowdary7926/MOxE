@@ -40,4 +40,62 @@ export class ContentService {
     }
     return { ok: true };
   }
+
+  async listScreenshotLogsForOwner(
+    ownerId: string,
+    options?: { limit?: number; cursorId?: string },
+  ): Promise<{
+    items: Array<{
+      id: string;
+      contentId: string;
+      contentType: string;
+      viewerId: string;
+      createdAt: string;
+    }>;
+    nextCursor: string | null;
+  }> {
+    const limit = Math.min(100, Math.max(1, options?.limit ?? 30));
+    const rows = await prisma.screenshotLog.findMany({
+      where: { ownerId },
+      orderBy: { createdAt: 'desc' },
+      take: limit + 1,
+      ...(options?.cursorId ? { cursor: { id: options.cursorId }, skip: 1 } : {}),
+    });
+    const nextCursor = rows.length > limit ? rows[limit - 1].id : null;
+    const items = rows.slice(0, limit).map((r) => ({
+      id: r.id,
+      contentId: r.contentId,
+      contentType: r.contentType,
+      viewerId: r.viewerId,
+      createdAt: r.createdAt.toISOString(),
+    }));
+    return { items, nextCursor };
+  }
+
+  async getScreenshotAlertPreference(accountId: string): Promise<{ screenshotAlerts: boolean }> {
+    const account = await prisma.account.findUnique({
+      where: { id: accountId },
+      select: { notificationPrefs: true },
+    });
+    const prefs = (account?.notificationPrefs as Record<string, unknown> | null) ?? {};
+    return { screenshotAlerts: prefs.screenshotAlerts !== false };
+  }
+
+  async setScreenshotAlertPreference(accountId: string, screenshotAlerts: boolean): Promise<{ screenshotAlerts: boolean }> {
+    const account = await prisma.account.findUnique({
+      where: { id: accountId },
+      select: { notificationPrefs: true },
+    });
+    const prefs = (account?.notificationPrefs as Record<string, unknown> | null) ?? {};
+    await prisma.account.update({
+      where: { id: accountId },
+      data: {
+        notificationPrefs: {
+          ...prefs,
+          screenshotAlerts: !!screenshotAlerts,
+        } as any,
+      },
+    });
+    return { screenshotAlerts: !!screenshotAlerts };
+  }
 }

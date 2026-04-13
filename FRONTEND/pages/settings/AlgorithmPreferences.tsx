@@ -69,6 +69,26 @@ export default function AlgorithmPreferencesPage() {
     }
   };
 
+  const handleResetSuggested = async () => {
+    const token = getToken();
+    if (!token) return;
+    if (!window.confirm('Clear saved topic preferences? Explore and recommendations will start fresh until you interact again.')) {
+      return;
+    }
+    setSaving(true);
+    try {
+      await fetch(`${getApiBase()}/ranking/reset-suggestions`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setTopics([]);
+    } catch {
+      // ignore
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <SettingsPageShell
       title="Your algorithm"
@@ -141,6 +161,18 @@ export default function AlgorithmPreferencesPage() {
         >
           Add topic
         </button>
+
+        <div className="pt-4 border-t border-[#262626] mt-4 space-y-2">
+          <p className="text-xs text-[#a8a8a8]">Reset personalization stored for your account (not your posts or followers).</p>
+          <button
+            type="button"
+            onClick={() => void handleResetSuggested()}
+            disabled={saving}
+            className="inline-flex items-center justify-center px-4 py-2 rounded-lg border border-[#ff4d4d]/50 text-sm text-[#ff8a8a] active:bg-white/5 disabled:opacity-50"
+          >
+            Reset suggested content
+          </button>
+        </div>
       </div>
     </SettingsPageShell>
   );

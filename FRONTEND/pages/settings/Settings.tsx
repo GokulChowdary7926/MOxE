@@ -25,16 +25,24 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   return <p className="text-[#737373] text-xs font-semibold px-4 pt-4 pb-1">{children}</p>;
 }
 
-const themeLabel: Record<string, string> = { dark: 'Dark', light: 'Light', default: 'Default' };
+const THEME_DISPLAY = 'Dark';
 
 export default function Settings() {
   const navigate = useNavigate();
-  const currentAccount = useSelector((s: RootState) => s.account.currentAccount) as { accountType?: string } | null;
-  const appTheme = useSelector((s: RootState) => s.settings.appTheme);
+  const currentAccount = useSelector((s: RootState) => s.account.currentAccount) as {
+    accountType?: string;
+    verifiedBadge?: boolean;
+  } | null;
+  const isVerified = !!currentAccount?.verifiedBadge;
   const isPersonalAccount = currentAccount?.accountType === 'PERSONAL';
   const [isPrivate, setIsPrivate] = useState(false);
   const [closeFriendsCount, setCloseFriendsCount] = useState(0);
   const [blockedCount, setBlockedCount] = useState<number | null>(null);
+  const [restrictedCount, setRestrictedCount] = useState<number | null>(null);
+  const [mutedCount, setMutedCount] = useState<number | null>(null);
+  const [snoozedCount, setSnoozedCount] = useState<number | null>(null);
+  const [favoritesCount, setFavoritesCount] = useState<number | null>(null);
+  const [limitInteractionsOn, setLimitInteractionsOn] = useState<boolean | null>(null);
 
   useEffect(() => {
     const token = getToken();
@@ -59,6 +67,33 @@ export default function Settings() {
         setBlockedCount(Array.isArray(list) ? list.length : 0);
       })
       .catch(() => {});
+    fetch(`${getApiBase()}/privacy/restricted`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const list = Array.isArray(data) ? data : data?.restricted ?? [];
+        setRestrictedCount(Array.isArray(list) ? list.length : 0);
+      })
+      .catch(() => {});
+    fetch(`${getApiBase()}/privacy/muted`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const list = Array.isArray(data) ? data : data?.muted ?? [];
+        setMutedCount(Array.isArray(list) ? list.length : 0);
+      })
+      .catch(() => {});
+    fetch(`${getApiBase()}/follow/favorites`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const list = Array.isArray(data) ? data : data?.favorites ?? [];
+        setFavoritesCount(Array.isArray(list) ? list.length : 0);
+      })
+      .catch(() => {});
+    fetch(`${getApiBase()}/privacy/limit-interactions`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { active?: boolean } | null) => {
+        setLimitInteractionsOn(typeof data?.active === 'boolean' ? data.active : false);
+      })
+      .catch(() => {});
   }, []);
 
   return (
@@ -75,12 +110,12 @@ export default function Settings() {
         <div className="flex-1 overflow-auto pb-20">
           <div className="relative px-4 py-3">
             <Search className="absolute left-7 top-1/2 -translate-y-1/2 w-5 h-5 text-[#737373]" />
-            <input
-              type="text"
-              placeholder="Search"
+          <input
+            type="text"
+            placeholder="Search"
               className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-[#262626] border border-[#363636] text-white placeholder:text-[#737373] text-sm"
-            />
-          </div>
+          />
+        </div>
 
           <SectionTitle>Your account</SectionTitle>
           <Link to="/settings/account-centre" className="flex items-center gap-3 px-4 py-3 border-y border-[#262626] text-white active:bg-white/5">
@@ -124,16 +159,33 @@ export default function Settings() {
             <Row to="/settings/tags-mentions" icon={AtSign} label="Tags and mentions" />
             <Row to="/settings/comments" icon={MessageSquare} label="Comments" />
             <Row to="/settings/sharing" icon={Share2} label="Sharing" />
-            <Row to="/settings/restricted" icon={CircleSlash} label="Restricted accounts" value="0" />
-            <Row to="/settings/limit-interactions" icon={AlertCircle} label="Limit interactions" value="Off" />
+            <Row to="/restricted" icon={CircleSlash} label="Restricted accounts" value={restrictedCount != null ? String(restrictedCount) : undefined} />
+            <Row
+              to="/settings/limit-interactions"
+              icon={AlertCircle}
+              label="Limit interactions"
+              value={limitInteractionsOn == null ? undefined : limitInteractionsOn ? 'On' : 'Off'}
+            />
             <Row to="/settings/hidden-words" icon={AtSign} label="Hidden words" />
             <Row to="/settings/following-invitations" icon={User} label="Following and invitations" />
           </div>
 
           <SectionTitle>What you see</SectionTitle>
           <div className="border-t border-[#262626]">
-            <Row to="/saved" icon={Heart} label="Favourites" value="0" />
-            <Row to="/muted" icon={Bell} label="Muted accounts" value="0" />
+            <Row
+              to="/favorites"
+              icon={Heart}
+              label="Favourites"
+              value={favoritesCount != null ? String(favoritesCount) : undefined}
+            />
+            <Row to="/muted" icon={Bell} label="Muted accounts" value={mutedCount != null ? String(mutedCount) : undefined} />
+            <Row
+              to="/snoozed"
+              icon={Clock}
+              label="Snoozed accounts"
+              value={snoozedCount != null ? String(snoozedCount) : undefined}
+              subtitle="Hidden from home feed for a time"
+            />
             <Row to="/settings/content-preferences" icon={LayoutGrid} label="Content preferences" />
             <Row to="/settings/algorithm-preferences" icon={BarChart3} label="Your algorithm" subtitle="Tell MOxE what to show more or less" />
             <Row to="/settings/like-share-counts" icon={Heart} label="Like and share counts" />
@@ -142,12 +194,18 @@ export default function Settings() {
 
           <SectionTitle>Appearance</SectionTitle>
           <div className="border-t border-[#262626]">
-            <Row to="/settings/theme" icon={Palette} label="Theme" value={themeLabel[appTheme] ?? 'Default'} />
+            <Row to="/settings/theme" icon={Palette} label="Theme" value={THEME_DISPLAY} subtitle="Dark only" />
           </div>
 
           <SectionTitle>Your app and media</SectionTitle>
           <div className="border-t border-[#262626]">
             <Row to="/settings/device-permissions" icon={Smartphone} label="Device permissions" />
+            <Row
+              to="/settings/data-usage"
+              icon={Smartphone}
+              label="Data usage and media"
+              subtitle="Data saver, preload reels, storage estimate"
+            />
             <Row to="/settings/archiving-downloading" icon={Download} label="Archiving and downloading" />
             <Row to="/settings/accessibility" icon={Accessibility} label="Accessibility" />
             <Row to="/settings/language" icon={Languages} label="Language and translations" />
@@ -164,11 +222,18 @@ export default function Settings() {
           <div className="border-t border-[#262626]">
             <Row to="/settings/account-type-tools" icon={BarChart2} label="Account type and tools" />
             <Row to="/settings/subscriptions" icon={Shield} label="MOxE Verified" value="Not subscribed" />
+            {isVerified && (
+              <>
+                <Row to="/settings/verified-support" icon={HelpCircle} label="Verified support" subtitle="Help resources for verified accounts" />
+                <Row to="/settings/verified-protection" icon={Shield} label="Verified protection" subtitle="Extra account safeguards (preferences)" />
+              </>
+            )}
           </div>
 
           <SectionTitle>Data and privacy</SectionTitle>
           <div className="border-t border-[#262626]">
             <Row to="/settings/download-your-data" icon={Download} label="Download your data" subtitle="Export your data (GDPR/CCPA)" />
+            <Row to="/settings/recently-deleted" icon={Archive} label="Recently Deleted" subtitle="Restore or permanently delete content" />
           </div>
 
           <SectionTitle>More info and support</SectionTitle>
@@ -177,8 +242,8 @@ export default function Settings() {
             <Row to="/settings/privacy-centre" icon={Info} label="Privacy Centre" />
             <Row to="/settings/account" icon={User} label="Account Status" />
             <Row to="/settings/help" icon={Info} label="About" />
-          </div>
-        </div>
+      </div>
+    </div>
       </MobileShell>
     </ThemedView>
   );

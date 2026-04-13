@@ -5,10 +5,11 @@ import { FeedPost } from '../../components/ui/FeedPost';
 import { useCurrentAccount } from '../../hooks/useAccountCapabilities';
 import { fetchApi, getToken } from '../../services/api';
 import { getSocket } from '../../services/socket';
-import { MobileShell } from '../../components/layout/MobileShell';
 import { Link } from 'react-router-dom';
-import { MessageCircle, Heart, Plus } from 'lucide-react';
-import { ShopIcon } from '../../components/icons/ShopIcon';
+import { useAdFeed } from '../../hooks/useAdFeed';
+import { SocialTopBar } from '../../components/layout/SocialTopBar';
+import { feedAuthorFromApiItem } from '../../utils/feedAuthorFromApiItem';
+import { fetchClientSettings } from '../../services/clientSettings';
 
 type StoryAvatar = {
   id: string;
@@ -21,6 +22,7 @@ type StoryAvatar = {
 
 type FeedItem = {
   id: string;
+  authorAccountId?: string;
   author: { username: string; displayName?: string | null; avatarUri?: string | null };
   mediaUrls: string[];
   caption?: string | null;
@@ -33,14 +35,42 @@ type FeedItem = {
   screenshotProtection?: boolean;
   adCampaignId?: string;
   sponsorAccountId?: string;
+  adDestinationUrl?: string | null;
+  adUtm?: {
+    source?: string | null;
+    medium?: string | null;
+    campaign?: string | null;
+    term?: string | null;
+    content?: string | null;
+  };
+  allowComments?: boolean;
+  hideLikeCount?: boolean;
 };
 
 export default function Home() {
   const currentAccount = useCurrentAccount() as any;
+  const accountType = String(currentAccount?.accountType || 'PERSONAL').toUpperCase();
+  const isJob = accountType === 'JOB';
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stories, setStories] = useState<StoryAvatar[]>([]);
+  const [feedType, setFeedType] = useState<'forYou' | 'favorites'>('forYou');
+  const [hideEngagementCounts, setHideEngagementCounts] = useState(false);
+  const { itemsWithAds } = useAdFeed(items, feedType === 'forYou');
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchClientSettings()
+      .then((settings) => {
+        if (cancelled) return;
+        setHideEngagementCounts(!!settings.socialCounts?.hideLikeAndShareCounts);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const loadFeed = useCallback(async () => {
     setLoading(true);
@@ -51,7 +81,8 @@ export default function Home() {
         setItems([]);
         return;
       }
-      const res = await fetchApi('posts/feed');
+      const endpoint = feedType === 'favorites' ? 'posts/feed/favorites' : 'posts/feed';
+      const res = await fetchApi(endpoint);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError((data as { error?: string }).error || 'Unable to load feed.');
@@ -65,12 +96,14 @@ export default function Home() {
               Array.isArray(p.media) && p.media.length
                 ? p.media.map((m: any) => m.url || m.uri || m.mediaUrl).filter(Boolean)
                 : [p.mediaUrl ?? p.media_uri ?? ''].filter(Boolean);
+            const authorFields = feedAuthorFromApiItem(p as Record<string, unknown>);
             return {
               id: p.id,
+              authorAccountId: p.accountId ?? p.author?.id,
               author: {
-                username: p.author?.username ?? 'unknown',
-                displayName: p.author?.displayName ?? null,
-                avatarUri: p.author?.avatarUrl ?? p.author?.avatarUri ?? null,
+                username: authorFields.username,
+                displayName: authorFields.displayName,
+                avatarUri: authorFields.avatarUri,
               },
               mediaUrls: mediaArray.length ? mediaArray : [''],
               caption: p.caption ?? null,
@@ -78,11 +111,15 @@ export default function Home() {
               likeCount: p.likeCount ?? p.likesCount ?? 0,
               commentCount: p.commentCount ?? p.commentsCount ?? 0,
               shareCount: p.shareCount ?? p.sharesCount ?? 0,
-              isLiked: !!p.viewerHasLiked,
-              isSaved: !!p.viewerHasSaved,
+              isLiked: !!(p.isLiked ?? p.viewerHasLiked),
+              isSaved: !!(p.isSaved ?? p.viewerHasSaved),
+              allowComments: p.allowComments !== false,
+              hideLikeCount: !!p.hideLikeCount,
               screenshotProtection: !!p.screenshotProtection,
               adCampaignId: p.adCampaignId ?? undefined,
               sponsorAccountId: p.accountId ?? undefined,
+              adDestinationUrl: p.adDestinationUrl ?? null,
+              adUtm: p.adUtm ?? undefined,
             };
           })
         : [];
@@ -93,7 +130,7 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [feedType]);
 
   useEffect(() => {
     loadFeed();
@@ -110,6 +147,8 @@ export default function Home() {
       socket.off('feed:new-post', onNewPost);
     };
   }, [loadFeed]);
+
+  const accountIdForStories = (currentAccount as { id?: string } | null)?.id;
 
   const loadStories = useCallback(async () => {
     if (!getToken()) return;
@@ -135,7 +174,7 @@ export default function Home() {
     } catch {
       setStories([]);
     }
-  }, []);
+  }, [accountIdForStories]);
 
   useEffect(() => {
     loadStories();
@@ -153,52 +192,16 @@ export default function Home() {
     };
   }, [loadStories]);
 
-  // Rebuilt unified feed UI – Instagram-style light shell with centered column.
+  // Single-column mobile layout (width capped by App MobileShell); scroll inside main.
   return (
-    <ThemedView className="min-h-screen flex flex-col bg-black">
-      <MobileShell>
-        {/* Top app bar (feed) – dark theme header */}
-        <header className="flex items-center justify-between h-12 px-3 border-b border-[#262626] bg-black safe-area-pt">
-          <Link
-            to="/create"
-            className="w-10 h-10 flex items-center justify-center text-white active:opacity-70"
-            aria-label="Create"
-          >
-            <Plus className="w-6 h-6" strokeWidth={2} />
-          </Link>
-          <Link to="/" className="text-xl font-semibold text-white tracking-tight">
-            MOxE
-          </Link>
-          <div className="flex items-center gap-1">
-            <Link
-              to="/commerce"
-              className="w-9 h-9 flex items-center justify-center text-white active:opacity-70"
-              aria-label="Shop"
-            >
-              <ShopIcon className="w-5 h-5" strokeWidth={2} />
-            </Link>
-            <Link
-              to="/notifications"
-              className="w-9 h-9 flex items-center justify-center text-white active:opacity-70"
-              aria-label="Notifications"
-            >
-              <Heart className="w-5 h-5" />
-            </Link>
-            <Link
-              to="/messages"
-              className="w-9 h-9 flex items-center justify-center text-white active:opacity-70"
-              aria-label="Messages"
-            >
-              <MessageCircle className="w-5 h-5" />
-            </Link>
-          </div>
-        </header>
+    <ThemedView className="flex flex-1 flex-col min-h-0 w-full bg-black overflow-hidden">
+        <SocialTopBar />
 
-        <div className="flex-1 overflow-auto pb-20">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pb-20 touch-pan-y">
           <div className="w-full flex justify-center">
-            <div className="w-full max-w-[470px] md:max-w-[600px] lg:max-w-[900px]">
+            <div className="w-full max-w-full">
               {/* Stories tray: first circle = own story if present, else "Your story" add; then others */}
-              <div className="px-2 pt-3 pb-2 flex items-center gap-3 overflow-x-auto no-scrollbar">
+              <div className="px-3 pt-2 pb-2 flex items-center gap-3 overflow-x-auto no-scrollbar border-b border-moxe-border/80">
                 {(() => {
                   const myUsername = (currentAccount as any)?.username;
                   const myStory = myUsername ? stories.find((s) => s.username === myUsername) : null;
@@ -236,8 +239,36 @@ export default function Home() {
                 })()}
               </div>
 
-              {/* Feed list – centered Instagram column */}
-              <div className="pb-4">
+              {/* Feed switcher: MOxE home tabs */}
+              <div className="px-2 pb-2">
+                <div className="inline-flex rounded-full border border-moxe-border bg-moxe-surface p-1">
+                  <button
+                    type="button"
+                    onClick={() => setFeedType('forYou')}
+                    className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                      feedType === 'forYou'
+                        ? 'bg-moxe-border text-moxe-text font-semibold'
+                        : 'text-moxe-textSecondary'
+                    }`}
+                  >
+                    For you
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFeedType('favorites')}
+                    className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                      feedType === 'favorites'
+                        ? 'bg-moxe-border text-moxe-text font-semibold'
+                        : 'text-moxe-textSecondary'
+                    }`}
+                  >
+                    Favorites
+                  </button>
+                </div>
+              </div>
+
+              {/* Feed list – centered MOxE column */}
+              <div className="pb-4" data-testid="home-feed-list">
                 {loading && (
                   <p className="px-4 py-4 text-sm text-moxe-textSecondary">Loading feed…</p>
                 )}
@@ -254,42 +285,63 @@ export default function Home() {
                   </div>
                 )}
                 {!loading && !error && items.length === 0 && (
-                  <div className="px-4 py-6">
-                    <p className="text-sm text-[#a8a8a8]">No posts yet in your feed.</p>
-                    <p className="text-xs text-[#737373] mt-1">
-                      Follow more accounts or create your first post to see activity here.
-                    </p>
-                    <Link to="/create" className="inline-block mt-3 text-xs text-[#0095f6] font-semibold">
-                      Create post
-                    </Link>
+                  <div className="px-4 py-6" data-testid="feed-empty">
+                    {feedType === 'favorites' ? (
+                      <>
+                        <p className="text-sm text-[#a8a8a8]">No posts from favorites yet.</p>
+                        <p className="text-xs text-[#737373] mt-1">
+                          Mark profiles as favorites to see their posts first.
+                        </p>
+                        <Link to="/favorites" className="inline-block mt-3 text-xs text-[#0095f6] font-semibold">
+                          Open favorites feed
+                        </Link>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm text-[#a8a8a8]">No posts yet in your feed.</p>
+                        <p className="text-xs text-[#737373] mt-1">
+                          Follow more accounts or create your first post to see activity here.
+                        </p>
+                        <Link to="/create" className="inline-block mt-3 text-xs text-[#0095f6] font-semibold">
+                          Create post
+                        </Link>
+                      </>
+                    )}
                   </div>
                 )}
                 {!loading &&
-                  items.map((p) => (
-                    <article key={p.id} className="pt-0 pb-4">
-                      <FeedPost
-                        id={p.id}
-                        author={{ ...p.author, displayName: p.author?.displayName ?? undefined }}
-                        location={p.locationName ?? undefined}
-                        mediaUris={p.mediaUrls}
-                        caption={p.caption ?? undefined}
-                        likeCount={p.likeCount}
-                        commentCount={p.commentCount}
-                        shareCount={p.shareCount}
-                        isLiked={p.isLiked}
-                        isSaved={p.isSaved}
-                        screenshotProtection={p.screenshotProtection}
-                        adCampaignId={p.adCampaignId}
-                        sponsorAccountId={p.sponsorAccountId}
-                        variant="light"
-                      />
-                    </article>
+                  itemsWithAds.map((p) => (
+                    <FeedPost
+                      key={p.id}
+                      id={p.id}
+                      authorAccountId={p.authorAccountId}
+                      onPostDeleted={(postId) =>
+                        setItems((prev) => prev.filter((x) => x.id !== postId))
+                      }
+                      author={{ ...p.author, displayName: p.author?.displayName ?? undefined }}
+                      location={p.locationName ?? undefined}
+                      mediaUris={p.mediaUrls}
+                      caption={p.caption ?? undefined}
+                      likeCount={p.likeCount}
+                      commentCount={p.commentCount}
+                      shareCount={p.shareCount}
+                      hideEngagementCounts={hideEngagementCounts}
+                      isLiked={p.isLiked}
+                      isSaved={p.isSaved}
+                      screenshotProtection={p.screenshotProtection}
+                      adCampaignId={p.adCampaignId}
+                      sponsorAccountId={p.sponsorAccountId}
+                      adDestinationUrl={p.adDestinationUrl}
+                      adUtm={p.adUtm}
+                      allowComments={p.allowComments !== false}
+                      hideLikeCountFromAuthor={!!p.hideLikeCount}
+                    />
                   ))}
               </div>
+
             </div>
           </div>
         </div>
-      </MobileShell>
     </ThemedView>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getApiBase } from '../../services/api';
 import { JobPageContent } from '../../components/job/JobPageContent';
+import { JobBibleReferenceSection, JobToolBibleShell } from '../../components/job/bible';
 
 const API_BASE = getApiBase();
 
@@ -193,13 +194,10 @@ export default function Docs() {
   };
 
   return (
-    <JobPageContent
-      title="MOxE Docs"
-      description="Create and edit documents with version history and comments. Save creates a new version."
-      error={error}
-    >
-    <div className="flex flex-col lg:flex-row gap-6">
-      <div className="w-full lg:w-72 space-y-4">
+    <JobPageContent variant="track" error={error}>
+      <JobToolBibleShell toolTitle="MOxE DOCS" toolIconMaterial="description">
+    <div className="flex flex-col gap-6">
+      <div className="w-full min-w-0 space-y-4">
         <form
           onSubmit={handleCreate}
           className="p-3 rounded-xl border border-[#DFE1E6] dark:border-slate-700 bg-white dark:bg-slate-800"
@@ -371,8 +369,10 @@ export default function Docs() {
             )}
           </>
         )}
+      <JobBibleReferenceSection toolKey="docs" />
       </div>
     </div>
+      </JobToolBibleShell>
     </JobPageContent>
   );
 }

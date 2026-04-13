@@ -46,6 +46,19 @@ export default function NewPostPage() {
             Next
           </button>
         </header>
+        <div className="px-4 pt-3">
+          <div className="grid grid-cols-3 gap-2 rounded-xl border border-[#262626] bg-[#111] p-1">
+            <Link to="/create/post" className="rounded-lg bg-[#1d9bf0] px-3 py-2 text-center text-sm font-semibold text-white">
+              Post
+            </Link>
+            <Link to="/create/reel" className="rounded-lg bg-[#1a1a1a] px-3 py-2 text-center text-sm font-semibold text-[#d0d0d0] border border-[#2f2f2f]">
+              Reel
+            </Link>
+            <Link to="/stories/create" className="rounded-lg bg-[#1a1a1a] px-3 py-2 text-center text-sm font-semibold text-[#d0d0d0] border border-[#2f2f2f]">
+              Story
+            </Link>
+          </div>
+        </div>
 
         <div className="flex-1 flex flex-col p-4 pb-20">
           <div className="flex items-center justify-between mb-3">
@@ -91,6 +104,7 @@ export default function NewPostPage() {
           </div>
           <input
             ref={inputRef}
+            data-testid="new-post-file-input"
             type="file"
             accept="image/*,video/*"
             multiple

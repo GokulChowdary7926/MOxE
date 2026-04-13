@@ -11,7 +11,7 @@ import { AUTH } from './authStyles';
 type Step = 'phone' | 'code';
 
 export default function PhoneVerification() {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
   const location = useLocation();
   const accountType = (location.state as { accountType?: string } | null)?.accountType || 'PERSONAL';

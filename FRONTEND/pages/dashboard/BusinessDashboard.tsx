@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom';
 import { ThemedView, ThemedText, ThemedHeader } from '../../components/ui/Themed';
 import { useAccountCapabilities, useCurrentAccount } from '../../hooks/useAccountCapabilities';
 import { ACCENT } from '../../constants/designSystem';
+import { getApiBase } from '../../services/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type SalesOverview = {
   today: number;

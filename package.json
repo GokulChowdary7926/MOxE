@@ -1,0 +1,16 @@
+{
+  "name": "moxe",
+  "private": true,
+  "scripts": {
+    "inventory": "node scripts/generate-moxe-inventory.mjs",
+    "verify:functional-report": "node scripts/validate-functional-report.mjs",
+    "verify:functional-report:strict": "node scripts/validate-functional-report.mjs --strict",
+    "lint": "npm run lint --prefix FRONTEND && npm run lint --prefix BACKEND && npm run lint --prefix MOBILE",
+    "test": "npm run test --prefix BACKEND && npm run test --prefix FRONTEND",
+    "test:backend": "npm run test --prefix BACKEND",
+    "test:frontend": "npm run test --prefix FRONTEND",
+    "test:backend:unit": "npm run test:unit --prefix BACKEND",
+    "test:backend:e2e": "npm run test:e2e --prefix BACKEND",
+    "test:frontend:e2e": "npm run test:e2e --prefix FRONTEND"
+  }
+}

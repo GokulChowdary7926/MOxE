@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Link } from 'react-router-dom';
-import { ShoppingCart, ClipboardList } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ShoppingCart, ClipboardList, Search, Smartphone, Shirt, Home as HomeIcon, Gift } from 'lucide-react';
 import { useAccountCapabilities } from '../../hooks/useAccountCapabilities';
+import { getApiBase, getUploadUrl } from '../../services/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type Product = {
   id: string;
@@ -59,6 +60,7 @@ const defaultProductForm = {
 };
 
 export default function Commerce() {
+  const navigate = useNavigate();
   const cap = useAccountCapabilities();
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<SellerOrder[]>([]);
@@ -386,7 +388,7 @@ export default function Commerce() {
     if (!token) throw new Error('Not authenticated');
     const form = new FormData();
     form.append('file', file);
-    const res = await fetch(`${API_BASE}/upload`, {
+    const res = await fetch(getUploadUrl(), {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: form,
@@ -439,10 +441,44 @@ export default function Commerce() {
   if (!cap.canCommerce) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold text-[#172B4D] dark:text-white mb-2">MOxE Shop</h1>
-        <p className="text-[#5E6C84] dark:text-slate-400 mb-8">
-          Browse products, manage your cart, and track orders.
+        <h1 className="text-2xl font-bold text-[#172B4D] dark:text-white mb-2">MOxE Store</h1>
+        <p className="text-[#5E6C84] dark:text-slate-400 mb-4">
+          Flipkart-style shopping hub: discover products, checkout fast, and track your orders.
         </p>
+
+        <div className="mb-6 rounded-xl border border-[#DFE1E6] dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search products, brands and categories"
+              className="w-full rounded-lg border border-[#DFE1E6] dark:border-slate-700 bg-[#F4F5F7] dark:bg-slate-800 py-2 pl-9 pr-3 text-sm text-slate-800 dark:text-slate-100"
+              onFocus={() => {
+                // Search is routed through Explore currently until a dedicated catalog endpoint is added.
+                navigate('/explore');
+              }}
+              readOnly
+            />
+          </div>
+          <div className="mt-3 grid grid-cols-4 gap-2">
+            {[
+              { icon: Smartphone, label: 'Mobiles' },
+              { icon: Shirt, label: 'Fashion' },
+              { icon: HomeIcon, label: 'Home' },
+              { icon: Gift, label: 'Gifts' },
+            ].map(({ icon: Icon, label }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => navigate('/explore')}
+                className="rounded-lg border border-[#DFE1E6] dark:border-slate-700 py-2 px-1 text-center hover:bg-[#F4F5F7] dark:hover:bg-slate-800"
+              >
+                <Icon className="w-4 h-4 mx-auto text-[#0052CC]" />
+                <span className="block mt-1 text-[11px] text-[#172B4D] dark:text-slate-200">{label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
 
         <div className="grid md:grid-cols-2 gap-6">
           <Link
@@ -497,6 +533,35 @@ export default function Commerce() {
           Business dashboard
         </Link>
       </header>
+
+      <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+        <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">Store access</h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+          Business accounts can both sell and buy in the MOxE Store.
+        </p>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <Link
+            to="/checkout"
+            className="flex items-center gap-3 rounded-lg border border-[#DFE1E6] dark:border-slate-700 px-3 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+          >
+            <ShoppingCart className="w-5 h-5 text-[#0052CC] flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-[#172B4D] dark:text-slate-100">Buy products</p>
+              <p className="text-xs text-[#5E6C84] dark:text-slate-400">Open cart and checkout</p>
+            </div>
+          </Link>
+          <Link
+            to="/commerce/orders"
+            className="flex items-center gap-3 rounded-lg border border-[#DFE1E6] dark:border-slate-700 px-3 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+          >
+            <ClipboardList className="w-5 h-5 text-[#0052CC] flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-[#172B4D] dark:text-slate-100">My purchases</p>
+              <p className="text-xs text-[#5E6C84] dark:text-slate-400">Track buyer orders</p>
+            </div>
+          </Link>
+        </div>
+      </section>
 
       {loading ? (
         <p className="text-slate-500 text-sm">Loading commerce data…</p>

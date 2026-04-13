@@ -1,12 +1,13 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import type { LucideIcon } from 'lucide-react';
 import { Home, Search, MapPin, MessageCircle, User, Wrench } from 'lucide-react';
 import { useAccountType } from '../../hooks/useAccountCapabilities';
 
 type TabDef = {
   to: string;
   label: string;
-  Icon: React.ComponentType<{ className?: string; fill?: string; strokeWidth?: number }>;
+  Icon: LucideIcon;
   /** Custom active check (pathname from useLocation) */
   isActive: (path: string) => boolean;
 };
@@ -60,7 +61,10 @@ export default function BottomNav() {
   const tabs = isJob ? jobSocialTabs : defaultTabs;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 max-w-[428px] mx-auto bg-black border-t border-moxe-border flex items-stretch z-30 safe-area-pb h-14 backdrop-blur-sm">
+    <div
+      data-testid="bottom-nav"
+      className="fixed bottom-0 left-0 right-0 max-w-[428px] mx-auto bg-black border-t border-moxe-border flex items-stretch z-30 safe-area-pb h-14 backdrop-blur-sm"
+    >
       {tabs.map(({ to, label, Icon, isActive }) => {
         const active = isActive(path);
         return (

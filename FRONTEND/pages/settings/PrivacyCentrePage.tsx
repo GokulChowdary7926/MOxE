@@ -37,7 +37,7 @@ export default function PrivacyCentrePage() {
         <div className="flex-1 overflow-auto pb-20 px-4">
           <h1 className="text-white font-bold text-2xl pt-6 pb-2">Privacy Centre</h1>
           <p className="text-[#a8a8a8] text-sm pb-6">
-            Make the privacy choices that are right for you. Learn how to manage and control your privacy on MOxE and other Meta products.
+            Make the privacy choices that are right for you. Learn how to manage and control your privacy on MOxE.
           </p>
 
           <h2 className="text-white font-semibold text-lg pb-3">We build privacy into our products</h2>

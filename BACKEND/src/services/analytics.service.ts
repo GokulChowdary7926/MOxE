@@ -38,13 +38,32 @@ export interface BusinessInsightsPayload {
     age: { range: string; pct: number }[];
     locations: { city: string; pct: number }[];
   };
+  creatorInsights?: {
+    reelViews: number;
+    reelViewsChange: number;
+    playsSource: { source: string; count: number }[];
+    audioPerformance: { audio: string; views: number; reels: number }[];
+    contentComparison: { id: string; title: string; views: number; engagement: number; score: number }[];
+    reelRetentionPreview: { second: number; viewers: number }[];
+  };
 }
 
 const reviewService = new ReviewService();
 const adBillingService = new AdBillingService();
 const fraudService = new FraudService();
 
-const ALLOWED_EVENT_TYPES = ['profile_visit', 'link_click', 'action_button_click', 'ad_impression', 'ad_click'] as const;
+const ALLOWED_EVENT_TYPES = [
+  'profile_visit',
+  'link_click',
+  'action_button_click',
+  'ad_impression',
+  'ad_click',
+  'reel_view',
+  'reel_retention',
+  /** Map / Nearby: sender-side and viewer-side telemetry (accountId = subject of event). */
+  'nearby_message_sent',
+  'nearby_message_impression',
+] as const;
 
 export class AnalyticsService {
   /** Record an analytics event for a business profile (e.g. profile visit, link click, action button tap). */
@@ -270,13 +289,165 @@ export class AnalyticsService {
       ],
     };
 
-    return {
+    const payload: BusinessInsightsPayload = {
       metrics,
       trendData: trendDaily,
       followerGrowthTrend,
       accountOverview,
       topPosts: topPostsRaw,
       demographics,
+    };
+    if (account.accountType === 'CREATOR') {
+      payload.creatorInsights = await this.getCreatorAdvancedInsights(accountId, since, prevSince);
+    }
+    return payload;
+  }
+
+  async recordReelRetention(accountId: string, reelId: string, second: number): Promise<void> {
+    const safeSecond = Math.max(0, Math.min(600, Math.floor(second)));
+    await prisma.analyticsEvent.create({
+      data: {
+        accountId,
+        eventType: 'reel_retention',
+        contentType: 'reel',
+        contentId: reelId,
+        metadata: { second: safeSecond } as object,
+      },
+    });
+  }
+
+  async getReelRetention(ownerAccountId: string, reelId: string): Promise<{ second: number; viewers: number }[]> {
+    const reel = await prisma.reel.findUnique({
+      where: { id: reelId },
+      select: { id: true, accountId: true },
+    });
+    if (!reel || reel.accountId !== ownerAccountId) return [];
+    const events = await prisma.analyticsEvent.findMany({
+      where: {
+        accountId: ownerAccountId,
+        eventType: 'reel_retention',
+        contentType: 'reel',
+        contentId: reelId,
+      },
+      select: { metadata: true },
+      take: 5000,
+    });
+    const bySecond = new Map<number, number>();
+    for (const e of events) {
+      const secRaw = (e.metadata as any)?.second;
+      const sec = Number.isFinite(secRaw) ? Math.max(0, Math.floor(secRaw)) : NaN;
+      if (Number.isNaN(sec)) continue;
+      bySecond.set(sec, (bySecond.get(sec) ?? 0) + 1);
+    }
+    return [...bySecond.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([second, viewers]) => ({ second, viewers }));
+  }
+
+  private async getCreatorAdvancedInsights(accountId: string, since: Date, prevSince: Date): Promise<NonNullable<BusinessInsightsPayload['creatorInsights']>> {
+    const reels = await prisma.reel.findMany({
+      where: { accountId },
+      select: { id: true, caption: true, createdAt: true, audio: true, duration: true },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    const reelIds = reels.map((r) => r.id);
+    const [viewsCur, viewsPrev] = await Promise.all([
+      reelIds.length
+        ? prisma.reelView.count({ where: { reelId: { in: reelIds }, viewedAt: { gte: since } } })
+        : 0,
+      reelIds.length
+        ? prisma.reelView.count({ where: { reelId: { in: reelIds }, viewedAt: { gte: prevSince, lt: since } } })
+        : 0,
+    ]);
+    const reelViewsChange = viewsPrev === 0 ? (viewsCur === 0 ? 0 : 100) : Math.round(((viewsCur - viewsPrev) / viewsPrev) * 100);
+
+    const sourceEvents = await prisma.analyticsEvent.findMany({
+      where: {
+        accountId,
+        eventType: 'reel_view',
+        timestamp: { gte: since },
+      },
+      select: { metadata: true },
+      take: 5000,
+    });
+    const sourceMap = new Map<string, number>();
+    for (const e of sourceEvents) {
+      const source = String((e.metadata as any)?.source || 'unknown');
+      sourceMap.set(source, (sourceMap.get(source) ?? 0) + 1);
+    }
+    const playsSource = [...sourceMap.entries()]
+      .map(([source, count]) => ({ source, count }))
+      .sort((a, b) => b.count - a.count);
+
+    const viewRows = reelIds.length
+      ? await prisma.reelView.groupBy({
+          by: ['reelId'],
+          where: { reelId: { in: reelIds } },
+          _count: { _all: true },
+        })
+      : [];
+    const viewByReel = new Map(viewRows.map((r) => [r.reelId, r._count._all]));
+    const likeRows = reelIds.length
+      ? await prisma.reelLike.groupBy({
+          by: ['reelId'],
+          where: { reelId: { in: reelIds } },
+          _count: { _all: true },
+        })
+      : [];
+    const commentRows = reelIds.length
+      ? await prisma.reelComment.groupBy({
+          by: ['reelId'],
+          where: { reelId: { in: reelIds } },
+          _count: { _all: true },
+        })
+      : [];
+    const likesByReel = new Map(likeRows.map((r) => [r.reelId, r._count._all]));
+    const commentsByReel = new Map(commentRows.map((r) => [r.reelId, r._count._all]));
+
+    const audioAgg = new Map<string, { views: number; reels: number }>();
+    reels.forEach((r) => {
+      const audioTitle = String((r.audio as any)?.title || (r.audio as any)?.name || 'Original audio');
+      const current = audioAgg.get(audioTitle) ?? { views: 0, reels: 0 };
+      current.reels += 1;
+      current.views += viewByReel.get(r.id) ?? 0;
+      audioAgg.set(audioTitle, current);
+    });
+    const audioPerformance = [...audioAgg.entries()]
+      .map(([audio, v]) => ({ audio, views: v.views, reels: v.reels }))
+      .sort((a, b) => b.views - a.views)
+      .slice(0, 8);
+
+    const contentComparison = reels
+      .map((r) => {
+        const views = viewByReel.get(r.id) ?? 0;
+        const engagement = (likesByReel.get(r.id) ?? 0) + (commentsByReel.get(r.id) ?? 0);
+        const score = views + engagement * 3;
+        return {
+          id: r.id,
+          title: (r.caption || 'Reel').slice(0, 42) + ((r.caption || '').length > 42 ? '…' : ''),
+          views,
+          engagement,
+          score,
+          createdAt: r.createdAt.getTime(),
+        };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10)
+      .map(({ createdAt, ...rest }) => rest);
+
+    const topReelId = contentComparison[0]?.id;
+    const reelRetentionPreview = topReelId
+      ? await this.getReelRetention(accountId, topReelId)
+      : [];
+
+    return {
+      reelViews: viewsCur,
+      reelViewsChange,
+      playsSource,
+      audioPerformance,
+      contentComparison,
+      reelRetentionPreview,
     };
   }
 

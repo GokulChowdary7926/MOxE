@@ -10,7 +10,7 @@ const MAX_HIGHLIGHTS = 50;
 export class HighlightService {
   async list(accountId: string) {
     const list = await prisma.highlight.findMany({
-      where: { accountId },
+      where: { accountId, deletedAt: null },
       orderBy: { order: 'asc' },
       include: {
         items: {
@@ -27,7 +27,7 @@ export class HighlightService {
 
   async getById(accountId: string, highlightId: string) {
     const h = await prisma.highlight.findFirst({
-      where: { id: highlightId, accountId },
+      where: { id: highlightId, accountId, deletedAt: null },
       include: {
         items: {
           orderBy: { order: 'asc' },
@@ -45,7 +45,7 @@ export class HighlightService {
   /** Public: get any highlight by id (for viewing on profile). */
   async getByIdPublic(highlightId: string) {
     const h = await prisma.highlight.findFirst({
-      where: { id: highlightId },
+      where: { id: highlightId, deletedAt: null },
       include: {
         items: {
           orderBy: { order: 'asc' },
@@ -61,7 +61,7 @@ export class HighlightService {
   }
 
   async create(accountId: string, data: { name: string; coverImage?: string; archivedStoryIds: string[] }) {
-    const count = await prisma.highlight.count({ where: { accountId } });
+    const count = await prisma.highlight.count({ where: { accountId, deletedAt: null } });
     if (count >= MAX_HIGHLIGHTS) throw new AppError('Maximum number of highlights reached', 400);
 
     const ids = (data.archivedStoryIds || []).slice(0, MAX_ITEMS_PER_HIGHLIGHT);
@@ -96,7 +96,7 @@ export class HighlightService {
   }
 
   async update(accountId: string, highlightId: string, data: { name?: string; coverImage?: string }) {
-    const h = await prisma.highlight.findFirst({ where: { id: highlightId, accountId } });
+    const h = await prisma.highlight.findFirst({ where: { id: highlightId, accountId, deletedAt: null } });
     if (!h) throw new AppError('Highlight not found', 404);
     await prisma.highlight.update({
       where: { id: highlightId },
@@ -109,19 +109,36 @@ export class HighlightService {
   }
 
   async delete(accountId: string, highlightId: string) {
-    const h = await prisma.highlight.findFirst({ where: { id: highlightId, accountId } });
+    const h = await prisma.highlight.findFirst({ where: { id: highlightId, accountId, deletedAt: null } });
     if (!h) throw new AppError('Highlight not found', 404);
-    await prisma.highlight.delete({ where: { id: highlightId } });
+    await prisma.highlight.update({
+      where: { id: highlightId },
+      data: { deletedAt: new Date(), deletedBy: accountId },
+    });
     return { ok: true };
   }
 
-  async addItem(accountId: string, highlightId: string, archivedStoryId: string) {
-    const h = await prisma.highlight.findFirst({ where: { id: highlightId, accountId } });
+  async addItem(accountId: string, highlightId: string, input: { archivedStoryId?: string; storyId?: string }) {
+    const h = await prisma.highlight.findFirst({ where: { id: highlightId, accountId, deletedAt: null } });
     if (!h) throw new AppError('Highlight not found', 404);
-    const archived = await prisma.archivedStory.findFirst({
-      where: { id: archivedStoryId, accountId },
-    });
-    if (!archived) throw new AppError('Archived story not found', 404);
+    const archivedStoryId = typeof input.archivedStoryId === 'string' ? input.archivedStoryId.trim() : '';
+    const storyId = typeof input.storyId === 'string' ? input.storyId.trim() : '';
+    if (!archivedStoryId && !storyId) {
+      throw new AppError('archivedStoryId or storyId is required', 400);
+    }
+    if (archivedStoryId) {
+      const archived = await prisma.archivedStory.findFirst({
+        where: { id: archivedStoryId, accountId },
+      });
+      if (!archived) throw new AppError('Archived story not found', 404);
+    }
+    if (storyId) {
+      const liveStory = await prisma.story.findFirst({
+        where: { id: storyId, accountId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!liveStory) throw new AppError('Story not found', 404);
+    }
     const maxOrder = await prisma.highlightItem.findMany({
       where: { highlightId },
       orderBy: { order: 'desc' },
@@ -131,7 +148,12 @@ export class HighlightService {
     const count = await prisma.highlightItem.count({ where: { highlightId } });
     if (count >= MAX_ITEMS_PER_HIGHLIGHT) throw new AppError('Maximum items per highlight reached', 400);
     await prisma.highlightItem.create({
-      data: { highlightId, archivedStoryId, order: nextOrder },
+      data: {
+        highlightId,
+        archivedStoryId: archivedStoryId || null,
+        storyId: storyId || null,
+        order: nextOrder,
+      },
     });
     return this.getById(accountId, highlightId);
   }
@@ -146,7 +168,7 @@ export class HighlightService {
   }
 
   async reorder(accountId: string, highlightId: string, itemIds: string[]) {
-    const h = await prisma.highlight.findFirst({ where: { id: highlightId, accountId } });
+    const h = await prisma.highlight.findFirst({ where: { id: highlightId, accountId, deletedAt: null } });
     if (!h) throw new AppError('Highlight not found', 404);
     for (let i = 0; i < itemIds.length; i++) {
       await prisma.highlightItem.updateMany({

@@ -2,8 +2,63 @@ import { NoteType, Prisma, SubscriptionTier } from '@prisma/client';
 import { prisma } from '../server';
 import { AppError } from '../utils/AppError';
 import { canViewByAudience, getNoteLimits } from '../utils/noteUtils';
+import { addAccountActivityLog } from './activity.service';
+import { normalizeNoteContentJsonForApi } from '../utils/mediaUrl';
+
+function contentMatchesHiddenWords(content: string, words: string[]): boolean {
+  const lower = content.toLowerCase();
+  return words.some((w) => typeof w === 'string' && w.length > 0 && lower.includes(w.toLowerCase()));
+}
+
+function contentMatchesRegex(content: string, patterns: string[]): boolean {
+  return patterns.some((p) => {
+    if (!p) return false;
+    try {
+      return new RegExp(p, 'i').test(content);
+    } catch {
+      return false;
+    }
+  });
+}
+
+function parseHiddenWordsConfig(raw: unknown): { regexPatterns: string[]; allowListAccountIds: string[] } {
+  const obj = raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? (raw as Record<string, unknown>)
+    : {};
+  return {
+    regexPatterns: Array.isArray(obj.regexPatterns) ? obj.regexPatterns.filter((x): x is string => typeof x === 'string') : [],
+    allowListAccountIds: Array.isArray(obj.allowListAccountIds) ? obj.allowListAccountIds.filter((x): x is string => typeof x === 'string') : [],
+  };
+}
 
 export class NoteService {
+  private async assertPassesAuthorFilter(authorAccountId: string, content: Record<string, unknown>): Promise<void> {
+    const account = await prisma.account.findUnique({
+      where: { id: authorAccountId },
+      select: { hiddenWordsCommentFilter: true, hiddenWords: true, clientSettings: true },
+    });
+    if (!account?.hiddenWordsCommentFilter) return;
+    const words = Array.isArray(account.hiddenWords) ? account.hiddenWords.filter((x): x is string => typeof x === 'string') : [];
+    const cfg = parseHiddenWordsConfig(
+      (account.clientSettings as Record<string, unknown> | null)?.hiddenWordsConfig,
+    );
+    const noteText = typeof content.text === 'string' ? content.text : '';
+    const pollOptions = Array.isArray((content as any).poll?.options)
+      ? ((content as any).poll.options as unknown[]).filter((x): x is string => typeof x === 'string')
+      : [];
+    const corpus = [noteText, ...pollOptions].join(' ').trim();
+    if (!corpus) return;
+    if (contentMatchesHiddenWords(corpus, words) || contentMatchesRegex(corpus, cfg.regexPatterns)) {
+      await addAccountActivityLog(authorAccountId, {
+        type: 'hidden_word_filter_note',
+        title: 'Note blocked',
+        description: 'A note was blocked by your Hidden words filter.',
+        metadata: { at: new Date().toISOString() },
+      });
+      throw new AppError('Note content contains hidden words blocked by your safety settings', 400);
+    }
+  }
+
   async createNote(input: {
     accountId: string;
     accountType: 'PERSONAL' | 'BUSINESS' | 'CREATOR' | 'JOB';
@@ -19,6 +74,7 @@ export class NoteService {
     if (input.type === 'TEXT' && text.length > limits.charLimit) {
       throw new AppError(`Character limit exceeded. Max ${limits.charLimit} characters.`, 400);
     }
+    await this.assertPassesAuthorFilter(input.accountId, input.content);
 
     const now = new Date();
     if (input.scheduleAt && !limits.canSchedule) {
@@ -66,7 +122,7 @@ export class NoteService {
     if (input.tier !== 'FREE') {
       await prisma.noteAnalytics.create({ data: { noteId: note.id } });
     }
-    return note;
+    return { ...note, contentJson: normalizeNoteContentJsonForApi(note.contentJson) };
   }
 
   async listVisibleNotes(viewerAccountId: string) {
@@ -81,7 +137,7 @@ export class NoteService {
 
     const now = new Date();
     const notes = await prisma.note.findMany({
-      where: { status: 'ACTIVE', publishAt: { lte: now }, expiresAt: { gt: now } },
+      where: { status: 'ACTIVE', deletedAt: null, publishAt: { lte: now }, expiresAt: { gt: now } },
       orderBy: { createdAt: 'desc' },
       take: 100,
       include: {
@@ -91,19 +147,21 @@ export class NoteService {
       },
     });
 
-    return notes.filter((note) => {
-      if (note.accountId === viewerAccountId) return true;
-      const audienceType = (note.audienceJson as { type?: string } | null)?.type;
-      const isMutual = followingSet.has(note.accountId) && followersSet.has(note.accountId);
-      const isCloseFriend = closeFriendsSet.has(note.accountId);
-      return canViewByAudience(audienceType, isMutual, isCloseFriend);
-    });
+    return notes
+      .filter((note) => {
+        if (note.accountId === viewerAccountId) return true;
+        const audienceType = (note.audienceJson as { type?: string } | null)?.type;
+        const isMutual = followingSet.has(note.accountId) && followersSet.has(note.accountId);
+        const isCloseFriend = closeFriendsSet.has(note.accountId);
+        return canViewByAudience(audienceType, isMutual, isCloseFriend);
+      })
+      .map((note) => ({ ...note, contentJson: normalizeNoteContentJsonForApi(note.contentJson) }));
   }
 
   async getMyActiveNote(accountId: string) {
     const now = new Date();
-    return prisma.note.findFirst({
-      where: { accountId, status: 'ACTIVE', publishAt: { lte: now }, expiresAt: { gt: now } },
+    const note = await prisma.note.findFirst({
+      where: { accountId, status: 'ACTIVE', deletedAt: null, publishAt: { lte: now }, expiresAt: { gt: now } },
       orderBy: { createdAt: 'desc' },
       include: {
         account: { select: { id: true, username: true, profilePhoto: true } },
@@ -111,17 +169,22 @@ export class NoteService {
         pollVotes: { select: { accountId: true, option: true } },
       },
     });
+    if (!note) return null;
+    return { ...note, contentJson: normalizeNoteContentJsonForApi(note.contentJson) };
   }
 
   async deleteNote(noteId: string, accountId: string) {
     const note = await prisma.note.findFirst({ where: { id: noteId, accountId } });
     if (!note) throw new AppError('Note not found', 404);
-    await prisma.note.update({ where: { id: noteId }, data: { status: 'DELETED' } });
+    await prisma.note.update({
+      where: { id: noteId },
+      data: { status: 'DELETED', deletedAt: new Date(), deletedBy: accountId },
+    });
   }
 
   async likeNote(noteId: string, accountId: string) {
     const note = await prisma.note.findUnique({ where: { id: noteId } });
-    if (!note || note.status !== 'ACTIVE') throw new AppError('Note not found', 404);
+    if (!note || note.status !== 'ACTIVE' || note.deletedAt) throw new AppError('Note not found', 404);
     const existing = await prisma.noteLike.findUnique({ where: { noteId_accountId: { noteId, accountId } } });
     if (existing) throw new AppError('Already liked this note', 400);
     await prisma.noteLike.create({ data: { noteId, accountId } });
@@ -140,7 +203,7 @@ export class NoteService {
 
   async votePoll(noteId: string, accountId: string, option: string) {
     const note = await prisma.note.findUnique({ where: { id: noteId } });
-    if (!note || note.status !== 'ACTIVE' || note.type !== 'POLL') {
+    if (!note || note.status !== 'ACTIVE' || note.deletedAt || note.type !== 'POLL') {
       throw new AppError('Invalid poll note', 400);
     }
     const poll = (note.contentJson as { poll?: { expiresAt?: string } } | null)?.poll;

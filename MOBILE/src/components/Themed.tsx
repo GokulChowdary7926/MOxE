@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ViewStyle,
   TextStyle,
+  StyleProp,
   TouchableOpacityProps,
   TextInputProps,
 } from 'react-native';
@@ -50,7 +51,7 @@ export function ThemedText({
   style,
   secondary,
   ...props
-}: { style?: TextStyle; secondary?: boolean } & React.ComponentProps<typeof Text>) {
+}: { style?: StyleProp<TextStyle>; secondary?: boolean } & React.ComponentProps<typeof Text>) {
   const { theme } = useTheme();
   const color = secondary ? theme.colors.textSecondary : theme.colors.text;
   return (

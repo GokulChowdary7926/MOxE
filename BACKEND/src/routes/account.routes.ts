@@ -9,6 +9,7 @@ import { MessageService } from '../services/message.service';
 import { DataExportService } from '../services/dataExport.service';
 import { prisma } from '../server';
 import { normalizeUsername, validateUsernameFormat } from '../utils/usernameValidation';
+import { listAccountActivityLogs, listHiddenWordModerationLogs } from '../services/activity.service';
 
 const router = Router();
 const dataExportService = new DataExportService();
@@ -106,25 +107,8 @@ router.get('/me', authenticate, async (req, res, next) => {
   try {
     const accountId = (req as any).user?.accountId || (req as any).user?.userId;
     if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
-    const account = await accountService.getAccountById(accountId);
-    const capabilities = await accountService.getCapabilities(accountId);
-    const accountPayload = account as Record<string, unknown>;
-    if (account.accountType === 'BUSINESS') {
-      const { rating, reviewsCount } = await reviewService.getRatingForSeller(account.id);
-      accountPayload.rating = rating;
-      accountPayload.reviewsCount = reviewsCount;
-    }
-    const [postCount, followersCount, followingCount] = await Promise.all([
-      prisma.post.count({ where: { accountId } }),
-      prisma.follow.count({ where: { followingId: accountId } }),
-      prisma.follow.count({ where: { followerId: accountId } }),
-    ]);
-    accountPayload.postsCount = postCount;
-    accountPayload.postCount = postCount;
-    accountPayload.followersCount = followersCount;
-    accountPayload.followerCount = followersCount;
-    accountPayload.followingCount = followingCount;
-    res.json({ account: accountPayload, capabilities });
+    const bundle = await accountService.getMeBundle(accountId);
+    res.json(bundle);
   } catch (e) {
     next(e);
   }
@@ -186,12 +170,49 @@ router.get('/me/storage-usage', authenticate, async (req, res, next) => {
   }
 });
 
-/** GET /accounts/me/activity — Account-level security & profile activity (email/username changes, logins, etc.). For now returns an empty list so the Activity screen can render without 404s. */
+/** GET /accounts/me/activity — Profile/history events (username, bio, privacy, account type from AccountActivityLog). */
 router.get('/me/activity', authenticate, async (req, res, next) => {
   try {
     const accountId = (req as any).user?.accountId;
     if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
-    res.json({ items: [] });
+    const { items } = await listAccountActivityLogs(accountId);
+    res.json({
+      items: items.map((row) => ({
+        id: row.id,
+        type: row.type,
+        title: row.title,
+        description: row.description,
+        createdAt: row.createdAt,
+        metadata: row.metadata,
+      })),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/**
+ * GET /accounts/me/hidden-word-moderation — Paged safety moderation audit (Safety Center).
+ * Query: limit (default 20, max 100), cursor (previous nextCursor), type (comma-separated subset of hidden_word_filter_* / limit_interaction_*).
+ */
+router.get('/me/hidden-word-moderation', authenticate, async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const limitRaw = parseInt(String(req.query.limit ?? ''), 10);
+    const limit = Number.isNaN(limitRaw) ? undefined : limitRaw;
+    const cursorId = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
+    const typeParam = typeof req.query.type === 'string' ? req.query.type : '';
+    const types = typeParam
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const result = await listHiddenWordModerationLogs(accountId, {
+      limit,
+      cursorId,
+      types: types.length ? types : undefined,
+    });
+    res.json(result);
   } catch (e) {
     next(e);
   }
@@ -214,6 +235,30 @@ router.patch('/me/notification-preferences', authenticate, async (req, res, next
     if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
     const prefs = await accountService.updateNotificationPreferences(accountId, req.body);
     res.json(prefs);
+  } catch (e) {
+    next(e);
+  }
+});
+
+/** Fine-grained MOxE client settings (notification sub-screens, daily limit, language). */
+router.get('/me/client-settings', authenticate, async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const settings = await accountService.getClientSettings(accountId);
+    res.json({ settings });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.patch('/me/client-settings', authenticate, async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+    const settings = await accountService.patchClientSettings(accountId, body as Record<string, unknown>);
+    res.json({ settings });
   } catch (e) {
     next(e);
   }
@@ -407,7 +452,7 @@ router.get('/:accountId', optionalAuthenticate, async (req, res, next) => {
   }
 });
 
-router.get('/username/:username', authenticate, async (req, res, next) => {
+router.get('/username/:username', optionalAuthenticate, async (req, res, next) => {
   try {
     const account = await accountService.getAccountByUsername(req.params.username);
     const payload = account as Record<string, unknown>;

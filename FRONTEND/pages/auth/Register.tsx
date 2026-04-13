@@ -7,6 +7,7 @@ import { register, fetchMe } from '../../store/authSlice';
 import { setCurrentAccount } from '../../store/accountSlice';
 import { ACCOUNT_TYPES, ACCOUNT_TYPE_LABELS } from '../../constants/accountTypes';
 import { getHomeRouteForAccountType } from '../../constants/accountTypes';
+import { validateUsernameClient } from '../../utils/usernameValidation';
 import { AUTH } from './authStyles';
 
 const ACCOUNT_CARDS: Array<{
@@ -78,20 +79,13 @@ export default function Register() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const u = username.trim();
+    const uCheck = validateUsernameClient(username);
+    if (!uCheck.ok) {
+      setError(uCheck.message);
+      return;
+    }
+    const u = uCheck.normalized;
     const d = displayName.trim();
-    if (!u) {
-      setError('Enter a username.');
-      return;
-    }
-    if (u.length < 3) {
-      setError('Username must be at least 3 characters.');
-      return;
-    }
-    if (!/^[a-zA-Z0-9_.]+$/.test(u)) {
-      setError('Username can only contain letters, numbers, underscore and period.');
-      return;
-    }
     if (!d) {
       setError('Enter a display name.');
       return;
@@ -123,7 +117,7 @@ export default function Register() {
   };
 
   if (step === 1) {
-    return (
+  return (
       <div className={`min-h-screen flex flex-col items-center px-6 py-10 ${AUTH.bg} safe-area-pt safe-area-pb`} style={{ background: 'var(--moxe-bg, #0a0a0a)' }}>
         <div className="w-full max-w-[380px] flex flex-col items-center">
           <div className="mb-8 flex flex-col items-center">
@@ -136,10 +130,10 @@ export default function Register() {
 
           <div className="w-full grid grid-cols-2 gap-3 mb-10">
             {ACCOUNT_CARDS.map((card) => (
-              <button
+                <button
                 key={card.type}
-                type="button"
-                onClick={() => {
+                  type="button"
+                  onClick={() => {
                   setAccountType(card.type);
                   setStep(2);
                 }}
@@ -148,9 +142,9 @@ export default function Register() {
                 <span className={`mb-3 ${ICON_COLORS[card.type]}`}>{card.icon}</span>
                 <span className="font-semibold text-sm text-[var(--moxe-text)]">{card.label}</span>
                 <span className="text-xs text-[var(--moxe-text-secondary)] mt-1 text-center">{card.description}</span>
-              </button>
-            ))}
-          </div>
+                </button>
+              ))}
+            </div>
 
           <p className="text-sm text-center text-[var(--moxe-text-secondary)] mb-2">
             Already have an account? <Link to="/login" className="text-violet-400 font-semibold hover:underline">Sign in</Link>
@@ -174,25 +168,25 @@ export default function Register() {
           <p className="text-[var(--moxe-text-secondary)] text-sm text-center mb-2">
             Creating <span className="font-medium text-[var(--moxe-text)]">{ACCOUNT_TYPE_LABELS[accountType as keyof typeof ACCOUNT_TYPE_LABELS]}</span> account
           </p>
-          <button
-            type="button"
+            <button
+              type="button"
             onClick={() => setStep(1)}
             className="text-xs text-[var(--moxe-text-secondary)] hover:text-[var(--moxe-text)] mb-4"
-          >
-            ← Change account type
-          </button>
+            >
+              ← Change account type
+            </button>
 
           <form onSubmit={handleSubmit} className="w-full space-y-3">
-            <input
+              <input
               type="text"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Username"
+              onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z]/g, ''))}
+              placeholder="Username (lowercase letters only)"
               autoComplete="username"
               className={AUTH.input}
               maxLength={30}
             />
-            <input
+              <input
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
@@ -200,7 +194,7 @@ export default function Register() {
               autoComplete="name"
               className={AUTH.input}
             />
-            <input
+                  <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -211,7 +205,7 @@ export default function Register() {
             {error && <div className={AUTH.error}>{error}</div>}
             <button type="submit" disabled={loading} className={AUTH.btnPrimary}>
               {loading ? 'Creating account…' : 'Create account'}
-            </button>
+              </button>
           </form>
         </div>
 

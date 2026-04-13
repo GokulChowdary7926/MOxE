@@ -2,18 +2,16 @@ services:
   - type: web
     name: moxe-backend
     env: node
-    plan: starter
-    buildCommand: cd BACKEND && npm install && npm run build
-    startCommand: cd BACKEND && npm start
-    healthCheckPath: /health
+    plan: free
+    buildCommand: cd BACKEND && npm ci && npx prisma generate && npm run build
+    startCommand: cd BACKEND && npx prisma migrate deploy && npm start
+    healthCheckPath: /api/health/live
     autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        fromDatabase:
-          name: moxe-db
-          property: connectionString
+        sync: false
       - key: JWT_SECRET
         sync: false
       - key: CLIENT_URL
@@ -55,8 +53,17 @@ services:
       - key: ALGOLIA_SEARCH_KEY
         sync: false
 
-databases:
-  - name: moxe-db
-    databaseName: moxe
-    user: moxe
+  - type: web
+    name: moxe-frontend
+    env: static
+    buildCommand: cd FRONTEND && npm ci && npm run build
+    staticPublishPath: FRONTEND/dist
+    autoDeploy: true
+    envVars:
+      - key: VITE_API_URL
+        sync: false
+      - key: VITE_SENTRY_DSN
+        sync: false
+      - key: VITE_SENTRY_ENVIRONMENT
+        value: production
 

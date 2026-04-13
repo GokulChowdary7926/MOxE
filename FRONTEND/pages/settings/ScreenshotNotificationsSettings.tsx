@@ -16,8 +16,10 @@ export default function ScreenshotNotificationsSettings() {
     const token = getToken();
     if (!token) return;
     fetch(`${getApiBase()}/accounts/me/notification-preferences`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => (r.ok ? r.json() : {}))
-      .then((prefs) => setScreenshotAlerts(prefs.screenshotAlerts !== false))
+      .then((r) => (r.ok ? r.json() : Promise.resolve({})))
+      .then((prefs: unknown) =>
+        setScreenshotAlerts((prefs as { screenshotAlerts?: boolean }).screenshotAlerts !== false),
+      )
       .finally(() => setLoading(false));
   }, []);
 
@@ -32,7 +34,9 @@ export default function ScreenshotNotificationsSettings() {
       body: JSON.stringify({ screenshotAlerts: next }),
     })
       .then((r) => (r.ok ? r.json() : {}))
-      .then((prefs) => setScreenshotAlerts(prefs.screenshotAlerts !== false))
+      .then((prefs: unknown) =>
+        setScreenshotAlerts((prefs as { screenshotAlerts?: boolean }).screenshotAlerts !== false),
+      )
       .finally(() => setSaving(false));
   }
 

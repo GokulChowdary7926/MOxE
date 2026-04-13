@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
 import { SettingsPageShell } from '../../components/layout/SettingsPageShell';
 import { MapPin } from 'lucide-react';
 import LeafletMap from '../../components/map/LeafletMap';
+import { MapLocationSearch, type MapPlaceResult } from '../../components/map/MapLocationSearch';
 import { fetchNearbyFamousPlaces, openDirections, type NearbyPlace } from '../../utils/nearbyPlaces';
 
 const MAP_CENTER: [number, number] = [37.7749, -122.4194];
@@ -14,7 +14,8 @@ export default function NearbyPlacesPage() {
   const [places, setPlaces] = useState<NearbyPlace[]>([]);
   const [loading, setLoading] = useState(true);
   const [directionTo, setDirectionTo] = useState<NearbyPlace | null>(null);
-  const [search, setSearch] = useState('');
+  const flyRevision = useRef(0);
+  const [flyTo, setFlyTo] = useState<{ lat: number; lng: number; zoom?: number; revision: number } | null>(null);
 
   useEffect(() => setMounted(true), []);
 
@@ -57,66 +58,30 @@ export default function NearbyPlacesPage() {
     }
   };
 
-  const handleSearchLocation = async () => {
-    const q = search.trim();
-    if (!q) {
-      setManualCenter(null);
-      setDirectionTo(null);
-      return;
-    }
-
-    setLoading(true);
+  const handlePickSearchPlace = (p: MapPlaceResult) => {
     setDirectionTo(null);
-    try {
-      // Best-effort geocode using OSM Nominatim.
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`,
-        { headers: { Accept: 'application/json' } },
-      );
-      const data = (await res.json().catch(() => [])) as Array<{ lat: string; lon: string }>;
-      const first = data?.[0];
-      if (!first) {
-        setLoading(false);
-        return;
-      }
-
-      const lat = Number(first.lat);
-      const lng = Number(first.lon);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        setLoading(false);
-        return;
-      }
-
-      setManualCenter([lat, lng]);
-    } catch {
-      // ignore, UI will keep last results
-      setLoading(false);
-    }
+    flyRevision.current += 1;
+    setManualCenter([p.latitude, p.longitude]);
+    setFlyTo({
+      lat: p.latitude,
+      lng: p.longitude,
+      zoom: 12,
+      revision: flyRevision.current,
+    });
   };
 
   return (
     <SettingsPageShell title="Nearby Places" backTo="/map">
       <div className="px-4 py-4">
         <p className="text-[#a8a8a8] text-sm mb-4">Nearby famous places, tourist spots, and attractions within 50 km. Tap Directions to show route on map.</p>
-        <div className="flex gap-2 mb-4">
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search location (city, landmark)"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void handleSearchLocation();
-            }}
-            className="flex-1 px-3 py-2.5 rounded-lg bg-[#262626] border border-[#363636] text-white placeholder:text-[#737373] text-sm"
+        <div className="mb-4">
+          <MapLocationSearch
+            biasCenter={mapCenter}
+            onSelect={handlePickSearchPlace}
+            placeholder="Search city, landmark, address…"
+            inputClassName="bg-[#262626] border-[#363636]"
           />
-          <button
-            type="button"
-            onClick={() => void handleSearchLocation()}
-            className="px-3 py-2.5 rounded-lg bg-[#a855f7] text-white text-sm font-semibold"
-            aria-label="Search location"
-          >
-            Search
-          </button>
+          <p className="text-[#737373] text-xs mt-2">Results update as you type. Pick a place to center the map and reload nearby spots.</p>
         </div>
         {mounted && (
           <>
@@ -129,6 +94,7 @@ export default function NearbyPlacesPage() {
                 markers={mapMarkers}
                 routeFrom={directionTo && activeCenter ? activeCenter : undefined}
                 routeTo={directionTo ? [directionTo.lat, directionTo.lng] : undefined}
+                flyTo={flyTo ?? undefined}
               />
             </div>
             {directionTo && (

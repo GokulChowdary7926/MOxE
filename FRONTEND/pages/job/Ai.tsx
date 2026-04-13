@@ -1,6 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { getApiBase } from '../../services/api';
+import { JobPageContent, JobCard } from '../../components/job/JobPageContent';
+import { JOB_MOBILE } from '../../components/job/jobMobileStyles';
+import { JobBibleReferenceSection, JobToolBibleShell } from '../../components/job/bible';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type AIMsgRole = 'user' | 'assistant' | 'system';
 
@@ -123,19 +127,19 @@ export default function Ai() {
         <div
           className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${
             isUser
-              ? 'bg-indigo-600 text-white rounded-br-sm'
+              ? 'bg-[#0052CC] dark:bg-[#2684FF] text-white rounded-br-sm'
               : isAssistant
-              ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-bl-sm'
-              : 'bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100'
+              ? 'bg-[#F4F5F7] dark:bg-[#2C333A] text-[#172B4D] dark:text-[#E6EDF3] rounded-bl-sm'
+              : 'bg-[#F4F5F7] dark:bg-[#2C333A] text-[#172B4D] dark:text-[#E6EDF3]'
           }`}
         >
           {!isUser && (
-            <div className="text-[11px] font-medium mb-0.5 text-slate-500 dark:text-slate-400">
+            <div className="text-[11px] font-medium mb-0.5 text-[#5E6C84] dark:text-[#8C9BAB]">
               {isAssistant ? 'MOxE AI' : 'System'}
             </div>
           )}
           <div className="text-[13px] leading-snug">{m.content}</div>
-          <div className="mt-1 text-[10px] text-slate-400">
+          <div className="mt-1 text-[10px] text-[#5E6C84] dark:text-[#8C9BAB]">
             {new Date(m.createdAt).toLocaleTimeString([], {
               hour: '2-digit',
               minute: '2-digit',
@@ -147,85 +151,57 @@ export default function Ai() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6">
-      <div className="w-full lg:w-72 space-y-4">
-        <div>
-          <h2 className="text-2xl font-semibold text-slate-800 dark:text-white mb-1">
-            MOxE AI (Job)
-          </h2>
-          <p className="text-slate-600 dark:text-slate-400 text-sm">
-            Get help with your Job workspace: projects, Track, Recruiter, code,
-            and workflows. History is stored per Job account.
-          </p>
-        </div>
-
-        {error && (
-          <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-200 text-xs">
-            {error}
+    <JobPageContent variant="track" error={error}>
+      <JobToolBibleShell toolTitle="MOxE AI" toolIconMaterial="psychology">
+      <div className="flex flex-col gap-4">
+        <JobCard variant="track">
+          <div className="space-y-2">
+            <label className={JOB_MOBILE.label}>Model</label>
+            <select className={JOB_MOBILE.input} value={model} onChange={(e) => setModel(e.target.value)}>
+              <option value="gpt-4">GPT‑4 (default)</option>
+              <option value="claude-3">Claude 3</option>
+              <option value="local">Local / internal</option>
+            </select>
+            <p className="text-xs text-[#5E6C84] dark:text-[#8C9BAB]">Model used for generating responses.</p>
+            <button type="button" onClick={loadHistory} className={JOB_MOBILE.btnSecondary}>Refresh history</button>
           </div>
-        )}
+        </JobCard>
 
-        <div className="space-y-2">
-          <label className="text-xs font-medium text-slate-700 dark:text-slate-200">
-            Model
-          </label>
-          <select
-            className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100"
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-          >
-            <option value="gpt-4">GPT‑4 (default)</option>
-            <option value="claude-3">Claude 3</option>
-            <option value="local">Local / internal</option>
-          </select>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400">
-            Model used for generating responses.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={loadHistory}
-          className="inline-flex items-center justify-center rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+        <JobCard
+          variant="track"
+          flush
+          className="flex flex-col min-h-[280px] max-h-[min(520px,70vh)] overflow-hidden"
         >
-          Refresh history
-        </button>
-      </div>
-
-      <div className="flex-1 min-w-0 flex flex-col rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden">
-        <div className="flex-1 min-h-[260px] max-h-[520px] overflow-y-auto px-4 py-3">
-          {messages.length === 0 && !loading && (
-            <div className="text-sm text-slate-500 dark:text-slate-400">
-              Ask a question about your Job projects, pipelines, code, or
-              workflows. Try: “How do I create a job posting?” or “Summarize my
-              Track board.”
-            </div>
-          )}
-          {messages.map((m) => renderMessage(m))}
-          <div ref={bottomRef} />
-        </div>
-
-        <form
-          onSubmit={send}
-          className="border-t border-slate-200 dark:border-slate-800 px-3 py-2 flex items-end gap-2 bg-slate-50 dark:bg-slate-950/80"
-        >
-          <textarea
-            className="flex-1 resize-none rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 max-h-32"
-            placeholder="Ask MOxE AI a question about your Job account, projects, or code…"
-            rows={2}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-          />
-          <button
-            type="submit"
-            disabled={loading || !input.trim()}
-            className="inline-flex items-center justify-center rounded-md bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-sm font-medium px-3 py-2"
+          <div className="flex-1 min-h-[200px] overflow-y-auto px-4 py-3">
+            {messages.length === 0 && !loading && (
+              <p className="text-sm text-[#5E6C84] dark:text-[#8C9BAB]">
+                Ask a question about your Job projects, pipelines, code, or workflows. Try: “How do I create a job posting?” or “Summarize my Track board.”
+              </p>
+            )}
+            {messages.map((m) => renderMessage(m))}
+            <div ref={bottomRef} />
+          </div>
+          <form
+            onSubmit={send}
+            className="border-t border-[#2C333A] px-3 py-2 flex items-end gap-2 bg-[#131315]"
           >
-            {loading ? 'Thinking…' : 'Send'}
-          </button>
-        </form>
+            <textarea
+              className={`flex-1 resize-none ${JOB_MOBILE.input} max-h-32`}
+              placeholder="Ask MOxE AI a question about your Job account, projects, or code…"
+              rows={2}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+            />
+            <button type="submit" disabled={loading || !input.trim()} className={`shrink-0 ${JOB_MOBILE.btnPrimary} w-auto min-w-[88px]`}>
+              {loading ? 'Thinking…' : 'Send'}
+            </button>
+          </form>
+        </JobCard>
+
+        <JobBibleReferenceSection toolKey="ai" />
       </div>
-    </div>
+      </JobToolBibleShell>
+    </JobPageContent>
   );
 }
 

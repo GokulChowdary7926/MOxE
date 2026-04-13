@@ -11,8 +11,30 @@ export type FollowRequestItem = {
 };
 
 export class FollowService {
+  private async assertNoActiveBlockBetween(a: string, b: string): Promise<void> {
+    const [aBlockedB, bBlockedA] = await Promise.all([
+      prisma.block.findUnique({
+        where: { blockerId_blockedId: { blockerId: a, blockedId: b } },
+        select: { expiresAt: true },
+      }),
+      prisma.block.findUnique({
+        where: { blockerId_blockedId: { blockerId: b, blockedId: a } },
+        select: { expiresAt: true },
+      }),
+    ]);
+    const now = new Date();
+    const isActive = (expiresAt: Date | null) => expiresAt == null || expiresAt > now;
+    if (aBlockedB && isActive(aBlockedB.expiresAt)) {
+      throw new AppError('You cannot follow an account you have blocked', 403);
+    }
+    if (bBlockedA && isActive(bBlockedA.expiresAt)) {
+      throw new AppError('You cannot follow this account', 403);
+    }
+  }
+
   async follow(followerId: string, followingId: string): Promise<{ ok: boolean; pending?: boolean }> {
     if (followerId === followingId) throw new AppError('Cannot follow yourself', 400);
+    await this.assertNoActiveBlockBetween(followerId, followingId);
     const target = await prisma.account.findUnique({
       where: { id: followingId },
       select: { id: true, isPrivate: true },
@@ -142,6 +164,16 @@ export class FollowService {
     return this.listMyFollowers(account.id);
   }
 
+  /** List following of the account with the given username (for public profile following list). */
+  async listFollowingByUsername(username: string): Promise<{ id: string; username: string; displayName: string; profilePhoto: string | null }[]> {
+    const account = await prisma.account.findUnique({
+      where: { username },
+      select: { id: true },
+    });
+    if (!account) throw new AppError('Account not found', 404);
+    return this.listFollowing(account.id);
+  }
+
   async listFollowing(accountId: string): Promise<{ id: string; username: string; displayName: string; profilePhoto: string | null }[]> {
     const rows = await prisma.follow.findMany({
       where: { followerId: accountId },
@@ -152,14 +184,47 @@ export class FollowService {
     return rows.map((r) => r.following);
   }
 
-  async getFollowStatus(followerId: string, followingId: string): Promise<{ isFollowing: boolean; isFavorite: boolean }> {
+  async getFollowStatus(
+    followerId: string,
+    followingId: string,
+  ): Promise<{
+    isFollowing: boolean;
+    isFavorite: boolean;
+    isRequested: boolean;
+    followRequested: boolean;
+    canFollow: boolean;
+  }> {
     if (followerId === followingId) {
-      return { isFollowing: true, isFavorite: false };
+      return {
+        isFollowing: true,
+        isFavorite: false,
+        isRequested: false,
+        followRequested: false,
+        canFollow: false,
+      };
     }
     const follow = await prisma.follow.findUnique({
       where: { followerId_followingId: { followerId, followingId } },
     });
-    if (!follow) return { isFollowing: false, isFavorite: false };
-    return { isFollowing: true, isFavorite: follow.isFavorite };
+    if (follow) {
+      return {
+        isFollowing: true,
+        isFavorite: follow.isFavorite,
+        isRequested: false,
+        followRequested: false,
+        canFollow: true,
+      };
+    }
+    const req = await prisma.followRequest.findUnique({
+      where: { requesterId_accountId: { requesterId: followerId, accountId: followingId } },
+    });
+    const isRequested = !!req;
+    return {
+      isFollowing: false,
+      isFavorite: false,
+      isRequested,
+      followRequested: isRequested,
+      canFollow: true,
+    };
   }
 }

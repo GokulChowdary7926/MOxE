@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ThemedView, ThemedHeader, ThemedText, ThemedButton } from '../../components/ui/Themed';
+import { getApiBase } from '../../services/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type StreakRow = {
   id: string;
@@ -254,7 +255,7 @@ export default function Streaks() {
                   summary && typeof summary === 'string'
                     ? `My MOxE streaks: ${summary}`
                     : 'Keeping my MOxE streaks going 🔥';
-                navigate('/create/story', {
+                navigate('/stories/create', {
                   state: { prefillQuestionAnswer: text },
                 } as any);
               } catch (e: any) {

@@ -50,7 +50,111 @@ const codeTrackLinker = new CodeTrackLinkerService();
 const recruiterMatchService = new RecruiterMatchService();
 const assistantAggregator = new AssistantAggregatorService();
 
+/**
+ * OAuth redirect target (GitHub, Slack, Atlassian, etc.). Browser hits this without a MOxE JWT.
+ * Must stay above `router.use(authenticate)`.
+ */
+router.get('/integrations/oauth/callback', async (req, res) => {
+  const clientUrl = (process.env.CLIENT_URL || 'http://localhost:3000').replace(/\/$/, '');
+  try {
+    const code = req.query.code as string | undefined;
+    const state = req.query.state as string | undefined;
+    const err = req.query.error as string | undefined;
+    const errDesc = req.query.error_description as string | undefined;
+    if (err) {
+      const msg = errDesc || err;
+      return res.redirect(
+        302,
+        `${clientUrl}/job/integrations?integration_error=${encodeURIComponent(msg)}`,
+      );
+    }
+    if (!code || !state) {
+      return res.redirect(
+        302,
+        `${clientUrl}/job/integrations?integration_error=${encodeURIComponent('missing_code_or_state')}`,
+      );
+    }
+    await jobIntegrationService.completeOAuthCallback(code, state);
+    return res.redirect(302, `${clientUrl}/job/integrations?integration_success=1`);
+  } catch (e: any) {
+    const msg = e?.message || 'oauth_failed';
+    return res.redirect(
+      302,
+      `${clientUrl}/job/integrations?integration_error=${encodeURIComponent(msg)}`,
+    );
+  }
+});
+
 router.use(authenticate);
+
+/** GET /api/job/overview — registry for clients and health checks (no Job capability required). */
+router.get('/overview', (_req, res) => {
+  res.json({
+    message: 'Job tools overview',
+    tools: [
+      { name: 'Track', apiPath: '/api/job/track', uiPath: '/job/track' },
+      { name: 'Agile', apiPath: '/api/job/track', uiPath: '/job/agile' },
+      { name: 'Compass', uiPath: '/job/compass' },
+      { name: 'Atlas', uiPath: '/job/atlas' },
+    ],
+  });
+});
+
+// ----- Job postings & apply: any authenticated user (not gated by canTrack) -----
+// Must be registered before router.use('/track', requireCapability('canTrack')).
+router.get('/track/jobs/suggest-titles', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const q = (req.query.q as string) || '';
+    const limit = Math.min(parseInt(String(req.query.limit), 10) || 10, 20);
+    const titles = await track.suggestJobTitles(accountId, q, limit);
+    res.json(titles);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get('/track/jobs/by-slug/:slug', async (req, res, next) => {
+  try {
+    const job = await track.getJobPostingBySlug(req.params.slug);
+    res.json(job);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get('/track/jobs', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    const myOnly = req.query.myOnly === 'true' || req.query.myOnly === '1';
+    const list = await track.getJobPostings(accountId, (req.query.status as string) || 'OPEN', myOnly);
+    res.json(list);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get('/track/jobs/:id', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    const job = await track.getJobPosting(req.params.id, accountId);
+    res.json(job);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post('/track/apply/:jobPostingId', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const app = await track.apply(accountId, req.params.jobPostingId, req.body);
+    res.status(201).json(app);
+  } catch (e) {
+    next(e);
+  }
+});
 
 // ----- Track (applications & pipelines) - JOB account only -----
 router.use('/track', requireCapability('canTrack'));
@@ -76,12 +180,13 @@ router.get('/track/applications/:id', async (req, res, next) => {
   }
 });
 
-router.post('/track/apply/:jobPostingId', async (req, res, next) => {
+router.patch('/track/applications/:id', async (req, res, next) => {
   try {
     const accountId = (req as any).user?.accountId || (req as any).user?.userId;
     if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
-    const app = await track.apply(accountId, req.params.jobPostingId, req.body);
-    res.status(201).json(app);
+    const status = typeof req.body?.status === 'string' ? req.body.status : '';
+    const updated = await track.updateApplicationStatus(accountId, req.params.id, status);
+    res.json(updated);
   } catch (e) {
     next(e);
   }
@@ -182,30 +287,6 @@ const TRACK_DEPARTMENTS = [
 router.get('/track/departments', async (_req, res, next) => {
   try {
     res.json(TRACK_DEPARTMENTS);
-  } catch (e) {
-    next(e);
-  }
-});
-
-router.get('/track/jobs', async (req, res, next) => {
-  try {
-    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
-    const myOnly = req.query.myOnly === 'true' || req.query.myOnly === '1';
-    const list = await track.getJobPostings(accountId, (req.query.status as string) || 'OPEN', myOnly);
-    res.json(list);
-  } catch (e) {
-    next(e);
-  }
-});
-
-router.get('/track/jobs/suggest-titles', async (req, res, next) => {
-  try {
-    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
-    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
-    const q = (req.query.q as string) || '';
-    const limit = Math.min(parseInt(String(req.query.limit), 10) || 10, 20);
-    const titles = await track.suggestJobTitles(accountId, q, limit);
-    res.json(titles);
   } catch (e) {
     next(e);
   }
@@ -375,25 +456,6 @@ router.get('/track/issues/:issueId/related', async (req, res, next) => {
     const projectId = (req.query.projectId as string) || '';
     const related = await trackSmartSuggest.suggestRelatedIssues(projectId, issueId);
     res.json({ related });
-  } catch (e) {
-    next(e);
-  }
-});
-
-router.get('/track/jobs/by-slug/:slug', async (req, res, next) => {
-  try {
-    const job = await track.getJobPostingBySlug(req.params.slug);
-    res.json(job);
-  } catch (e) {
-    next(e);
-  }
-});
-
-router.get('/track/jobs/:id', async (req, res, next) => {
-  try {
-    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
-    const job = await track.getJobPosting(req.params.id, accountId);
-    res.json(job);
   } catch (e) {
     next(e);
   }
@@ -1867,6 +1929,20 @@ router.get('/analytics/insights', async (req, res, next) => {
   }
 });
 
+router.get('/analytics/track-agile', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const projectId = typeof req.query.projectId === 'string' ? req.query.projectId.trim() : '';
+    if (!projectId) return res.status(400).json({ error: 'projectId required' });
+    const win = req.query.range === '30d' ? '30d' : 'sprint';
+    const payload = await jobAnalyticsService.getTrackAgileReports(accountId, projectId, win as 'sprint' | '30d');
+    res.json(payload);
+  } catch (e) {
+    next(e);
+  }
+});
+
 // ----- Integrations (Job app integrations) -----
 
 router.get('/integrations', async (req, res, next) => {
@@ -1880,6 +1956,18 @@ router.get('/integrations', async (req, res, next) => {
   }
 });
 
+router.post('/integrations/:provider/auth', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const authUrl = await jobIntegrationService.getOAuthAuthorizationUrl(accountId, req.params.provider);
+    res.json({ authUrl });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/** @deprecated Use POST /integrations/:provider/auth + OAuth callback. */
 router.post('/integrations/:provider/connect', async (req, res, next) => {
   try {
     const accountId = (req as any).user?.accountId || (req as any).user?.userId;
@@ -1887,6 +1975,17 @@ router.post('/integrations/:provider/connect', async (req, res, next) => {
     const provider = req.params.provider;
     const connected = await jobIntegrationService.connect(accountId, provider, req.body?.config);
     res.json(connected);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.delete('/integrations/:provider', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const result = await jobIntegrationService.disconnect(accountId, req.params.provider);
+    res.json(result);
   } catch (e) {
     next(e);
   }

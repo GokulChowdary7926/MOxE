@@ -112,7 +112,7 @@ export class TestEnvironment {
       phone: '+10000000001',
       email: 'emma@test.local',
       accountId: 'test-account-emma',
-      username: 'emma_test',
+      username: 'emmatest',
       displayName: 'Emma Test',
       accountType: 'PERSONAL',
     });
@@ -135,7 +135,7 @@ export class TestEnvironment {
       data: {
         id: 'test-account-lena',
         userId: 'test-user-lena',
-        username: 'lena_test',
+        username: 'lenatest',
         displayName: 'Lena Test',
         accountType: 'PERSONAL',
         subscriptionTier: 'FREE',
@@ -151,7 +151,7 @@ export class TestEnvironment {
       phone: '+10000000003',
       email: 'marcus@test.local',
       accountId: 'test-account-marcus',
-      username: 'marcus_test',
+      username: 'marcustest',
       displayName: 'Marcus Test',
       accountType: 'BUSINESS',
     });
@@ -162,7 +162,7 @@ export class TestEnvironment {
       phone: '+10000000004',
       email: 'david@test.local',
       accountId: 'test-account-david',
-      username: 'david_test',
+      username: 'davidtest',
       displayName: 'David Test',
       accountType: 'CREATOR',
     });
@@ -173,7 +173,7 @@ export class TestEnvironment {
       phone: '+10000000005',
       email: 'chief@test.local',
       accountId: 'test-account-chief',
-      username: 'chief_test',
+      username: 'chieftest',
       displayName: 'Chief Test',
       accountType: 'CREATOR',
     });

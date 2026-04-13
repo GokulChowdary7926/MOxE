@@ -18,7 +18,8 @@ export function safeFirstProperty<T, K extends keyof T>(
   property: K
 ): (T[K] | null) {
   const first = safeFirst(arr);
-  return first != null && property in first ? (first[property] as T[K]) : null;
+  if (first == null || typeof first !== 'object') return null;
+  return property in first ? (first as T)[property] : null;
 }
 
 export function safeMap<T, R>(

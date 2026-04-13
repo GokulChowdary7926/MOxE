@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useCurrentAccount } from '../../hooks/useAccountCapabilities';
+import { useIsOwnProfile } from '../../hooks/useIsOwnProfile';
 import { ThemedView, ThemedText, ThemedHeader } from '../../components/ui/Themed';
 import { Avatar } from '../../components/ui/Avatar';
+import { getApiBase } from '../../services/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type Follower = {
   id: string;
@@ -15,12 +16,11 @@ type Follower = {
 
 export default function Followers() {
   const { username } = useParams<{ username: string }>();
-  const currentAccount = useCurrentAccount() as { username?: string; id?: string } | null;
   const [followers, setFollowers] = useState<Follower[]>([]);
   const [loading, setLoading] = useState(true);
   const [removingId, setRemovingId] = useState<string | null>(null);
 
-  const isOwn = Boolean(username && currentAccount?.username === username);
+  const isOwn = useIsOwnProfile();
 
   useEffect(() => {
     if (!username) {

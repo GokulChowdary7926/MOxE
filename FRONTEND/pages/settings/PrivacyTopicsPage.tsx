@@ -19,7 +19,7 @@ export default function PrivacyTopicsPage() {
           {TOPICS.map((t) => (
             <Link
               key={t.id}
-              to="#"
+              to={`/settings/info/privacy-${t.id}`}
               className="flex items-center justify-between px-4 py-3 border-b border-[#262626] last:border-b-0 text-white active:bg-white/5"
             >
               <span className="font-medium text-sm">{t.title}</span>

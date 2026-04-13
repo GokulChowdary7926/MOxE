@@ -1,4 +1,5 @@
 import { io, Socket } from 'socket.io-client';
+import { getBackendOrigin } from './api';
 
 let translateSocket: Socket | null = null;
 
@@ -7,8 +8,7 @@ export function getTranslateSocket(): Socket | null {
 }
 
 export function connectTranslateSocket(token: string) {
-  const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
-  const base = apiBase.replace(/\/api$/, '');
+  const base = getBackendOrigin();
   if (translateSocket && translateSocket.connected) return translateSocket;
   translateSocket = io(`${base}/translate`, {
     auth: { token },

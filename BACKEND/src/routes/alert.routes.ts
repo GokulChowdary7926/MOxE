@@ -18,6 +18,17 @@ router.get('/schedules', async (req, res, next) => {
   }
 });
 
+router.get('/rules', async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId || (req as any).user?.userId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const list = await alerts.listRules(accountId);
+    res.json(list);
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.post('/schedules', async (req, res, next) => {
   try {
     const accountId = (req as any).user?.accountId || (req as any).user?.userId;

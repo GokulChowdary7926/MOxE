@@ -37,9 +37,9 @@ export default function HideStoryFrom() {
     fetch(`${base}/explore/search?q=${encodeURIComponent(query.trim())}&type=users&limit=15`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => (r.ok ? r.json() : {}))
-      .then((data) => {
-        const users = (data.users ?? []) as Person[];
+      .then((r) => (r.ok ? r.json() : Promise.resolve({})))
+      .then((data: unknown) => {
+        const users = (data as { users?: Person[] }).users ?? [];
         const hiddenIds = new Set(hiddenList.map((p) => p.id));
         setSearchResults(users.filter((u) => !hiddenIds.has(u.id)));
       })

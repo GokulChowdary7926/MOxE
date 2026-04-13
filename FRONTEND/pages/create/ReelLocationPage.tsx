@@ -1,27 +1,57 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Send, MapPin } from 'lucide-react';
 import { ThemedView, ThemedText } from '../../components/ui/Themed';
 import { MobileShell } from '../../components/layout/MobileShell';
+import { fetchApi, getToken } from '../../services/api';
 
-const SUGGESTED_LOCATIONS = [
-  { name: 'Latteri, Tamil Nadu, India', detail: '1 km • Katpadi' },
-  { name: 'Vellore', detail: '9.1 km • Vellore' },
-  { name: 'Chennai, India', detail: 'Chennai' },
-  { name: 'Latheri Police Station', detail: '0.3 km • National Highway 234' },
-  { name: 'லத்தேரி - Latteri', detail: '2.6 km • Latteri' },
-  { name: 'Vellore, Tamilnadu', detail: '9.9 km • Katpadi' },
-  { name: 'Katpadi, Vellore', detail: '7.6 km • Katpadi' },
-];
+type PlaceRow = { id: string; name: string; detail?: string };
 
 /**
- * Locations page for reels – same for all accounts.
- * Choose a location to tag. Search. List. Add location. Preview on map.
+ * Reel location tag — uses `GET /location/search` (distinct post locations); no hardcoded city list.
  */
 export default function ReelLocationPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
+  const [places, setPlaces] = useState<PlaceRow[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const runSearch = useCallback(async (q: string) => {
+    if (!getToken() || q.trim().length < 2) {
+      setPlaces([]);
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetchApi(`location/search?q=${encodeURIComponent(q.trim())}&limit=15`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPlaces([]);
+        return;
+      }
+      const raw = data.places ?? data;
+      const list = Array.isArray(raw)
+        ? raw.map((p: { id?: string; name?: string }) => ({
+            id: String(p.id ?? p.name ?? ''),
+            name: String(p.name ?? ''),
+            detail: undefined as string | undefined,
+          }))
+        : [];
+      setPlaces(list.filter((p) => p.name));
+    } catch {
+      setPlaces([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      void runSearch(search);
+    }, 320);
+    return () => window.clearTimeout(t);
+  }, [search, runSearch]);
 
   return (
     <ThemedView className="min-h-screen flex flex-col bg-black">
@@ -41,6 +71,7 @@ export default function ReelLocationPage() {
             <p className="text-white font-semibold text-lg mb-1">Choose a location to tag</p>
             <p className="text-[#a8a8a8] text-sm mb-4">
               People that you share this content with can see the location that you tag and view this content on the map.
+              Results come from locations already used on public posts; type at least 2 characters.
             </p>
             <div className="relative mb-4">
               <input
@@ -51,9 +82,19 @@ export default function ReelLocationPage() {
                 className="w-full pl-4 pr-4 py-3 rounded-lg bg-[#262626] text-white placeholder:text-[#737373] text-sm border border-[#363636]"
               />
             </div>
+            {loading ? (
+              <ThemedText secondary className="text-sm py-2">
+                Searching…
+              </ThemedText>
+            ) : null}
+            {!loading && search.trim().length >= 2 && places.length === 0 ? (
+              <ThemedText secondary className="text-sm py-2">
+                No matching locations yet. Try another name or tag a location on a post first.
+              </ThemedText>
+            ) : null}
             <ul className="space-y-0 border-t border-[#262626]">
-              {SUGGESTED_LOCATIONS.map((loc) => (
-                <li key={loc.name}>
+              {places.map((loc) => (
+                <li key={`${loc.id}-${loc.name}`}>
                   <button
                     type="button"
                     onClick={() => setSelected(loc.name)}
@@ -62,7 +103,7 @@ export default function ReelLocationPage() {
                     <MapPin className="w-5 h-5 text-[#737373] flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <span className="text-white text-sm block">{loc.name}</span>
-                      <span className="text-[#737373] text-xs block">{loc.detail}</span>
+                      {loc.detail ? <span className="text-[#737373] text-xs block">{loc.detail}</span> : null}
                     </div>
                   </button>
                 </li>
@@ -78,6 +119,11 @@ export default function ReelLocationPage() {
           <button type="button" className="w-full text-[#0095f6] text-sm font-medium">
             Preview on map
           </button>
+          {selected ? (
+            <p className="text-[#a8a8a8] text-xs text-center truncate" title={selected}>
+              Selected: {selected}
+            </p>
+          ) : null}
         </div>
       </MobileShell>
     </ThemedView>

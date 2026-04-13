@@ -1,11 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { SettingsPageShell } from '../../components/layout/SettingsPageShell';
-import { UserPlus, MessageCircle, AlertTriangle, Facebook } from 'lucide-react';
+import { UserPlus, MessageCircle, AlertTriangle, Sparkles } from 'lucide-react';
 
 const RESOURCES = [
   { to: '/settings/helpful-resources/follow-creators', icon: UserPlus, label: 'Follow creators' },
-  { to: '/settings/helpful-resources/facebook-creators', icon: Facebook, label: 'Facebook for creators' },
+  { to: '/settings/helpful-resources/moxe-creators', icon: Sparkles, label: 'MOxE creators' },
   { to: '/settings/comments', icon: MessageCircle, label: 'Manage comments' },
   { to: '/settings/help/report', icon: AlertTriangle, label: 'Report spam or abuse' },
 ];

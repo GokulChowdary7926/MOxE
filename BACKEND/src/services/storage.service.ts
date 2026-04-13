@@ -27,10 +27,13 @@ const s3 = new AWS.S3(
     : undefined,
 );
 
+export type StorageBackend = 'local' | 's3';
+
 export type StoredObject = {
   url: string;
   key: string;
   size: number;
+  storageBackend: StorageBackend;
 };
 
 function getLocalBaseUrl(): string {
@@ -79,6 +82,7 @@ export async function storeBuffer(
       url: `${baseUrl}/${key}`,
       key,
       size,
+      storageBackend: 's3',
     };
   }
 
@@ -93,6 +97,26 @@ export async function storeBuffer(
     url: `${baseUrl}/uploads/${name}`,
     key: name,
     size,
+    storageBackend: 'local',
   };
+}
+
+/** Remove blob from S3 or local uploads/ — key must match storeBuffer output. */
+export async function deleteStoredObject(key: string, backend: StorageBackend): Promise<void> {
+  if (backend === 's3') {
+    if (!isS3Configured()) {
+      console.warn('[storage] deleteStoredObject(s3) but S3 not configured; skipping blob delete');
+      return;
+    }
+    const bucket = process.env.AWS_S3_BUCKET as string;
+    await s3.deleteObject({ Bucket: bucket, Key: key }).promise();
+    return;
+  }
+  const filePath = path.join(uploadsDir, key);
+  try {
+    await fs.promises.unlink(filePath);
+  } catch (e: any) {
+    if (e?.code !== 'ENOENT') throw e;
+  }
 }
 

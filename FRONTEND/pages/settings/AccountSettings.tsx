@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PageLayout } from '../../components/layout/PageLayout';
 import { ThemedView, ThemedText } from '../../components/ui/Themed';
+import { getApiBase } from '../../services/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5007/api';
+const API_BASE = getApiBase();
 
 type RowProps = {
   label: string;

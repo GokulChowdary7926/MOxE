@@ -17,7 +17,7 @@ export default function SecurityPaymentsSettings() {
         label="Use Face ID instead of PIN"
         checked={useFaceId}
         onChange={setUseFaceId}
-        description="To use Face ID on Facebook or Messenger, you'll need to turn it on in that app's payments settings. PIN will still need to be turned on to use Face ID."
+        description="To use Face ID with payments in another app you use with MOxE, turn it on in that app’s payment settings. You may still need a PIN enabled for MOxE Pay."
       />
     </SettingsPageShell>
   );

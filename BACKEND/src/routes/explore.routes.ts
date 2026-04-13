@@ -17,6 +17,30 @@ router.get('/trending', authenticate, async (req, res, next) => {
   }
 });
 
+router.get('/hashtag/:name/posts', authenticate, async (req, res, next) => {
+  try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
+    const name = decodeURIComponent(req.params.name || '');
+    const limit = Math.min(Number(req.query.limit) || 30, 50);
+    const result = await exploreService.getHashtagPosts(accountId, name, limit);
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+/** Masonry-friendly public posts when personalized ranking / feed have no items. */
+router.get('/discover', authenticate, async (req, res, next) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 30, 50);
+    const posts = await exploreService.getRecentPublicPosts(limit);
+    res.json({ posts });
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.get('/search', authenticate, async (req, res, next) => {
   try {
     const accountId = (req as any).user?.accountId;

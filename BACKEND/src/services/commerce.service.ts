@@ -1,7 +1,140 @@
+import Stripe from 'stripe';
 import { prisma } from '../server';
 import { AppError } from '../utils/AppError';
+import { getStripe } from '../utils/stripeClient';
+import { getCommerceCnameTarget, verifyCustomDomainCname } from './commerce-domain-verify';
+
+function isStripePaymentIntentId(paymentId: string | null | undefined): boolean {
+  return typeof paymentId === 'string' && paymentId.startsWith('pi_');
+}
+
+/** Full refund for a successful PaymentIntent; idempotent per order. */
+async function refundStripePaymentIntentForOrder(orderId: string, paymentIntentId: string): Promise<string> {
+  const stripe = getStripe();
+  if (!stripe) throw new AppError('Stripe is not configured (STRIPE_SECRET_KEY)', 503);
+  try {
+    const refund = await stripe.refunds.create(
+      { payment_intent: paymentIntentId },
+      { idempotencyKey: `moxe_order_refund_${orderId}` },
+    );
+    return refund.id;
+  } catch (err) {
+    const e = err as Stripe.StripeRawError;
+    const alreadyRefunded =
+      e?.code === 'charge_already_refunded' ||
+      (typeof e?.message === 'string' && e.message.toLowerCase().includes('already been fully refunded'));
+    if (alreadyRefunded) {
+      const list = await stripe.refunds.list({ payment_intent: paymentIntentId, limit: 5 });
+      const id = list.data[0]?.id;
+      if (id) return id;
+    }
+    const msg = (e && 'message' in e && typeof e.message === 'string' && e.message) || 'Stripe refund failed';
+    throw new AppError(msg, 502);
+  }
+}
 
 export class CommerceService {
+  /** Public catalog for marketplace browsing (all active business products). */
+  async listPublicCatalog(params?: {
+    q?: string;
+    limit?: number;
+    cursor?: string;
+    category?: 'all' | 'mobiles' | 'fashion' | 'home' | 'gifts';
+    sort?: 'relevance' | 'price-asc' | 'price-desc';
+    dealsOnly?: boolean;
+    minPrice?: number;
+    maxPrice?: number;
+  }) {
+    const q = (params?.q || '').trim();
+    const limit = Math.min(Math.max(params?.limit ?? 24, 1), 60);
+
+    const category = params?.category || 'all';
+    const dealsOnly = !!params?.dealsOnly;
+    const minPrice = typeof params?.minPrice === 'number' && !Number.isNaN(params.minPrice) ? Math.max(0, params.minPrice) : null;
+    const maxPrice = typeof params?.maxPrice === 'number' && !Number.isNaN(params.maxPrice) ? Math.max(0, params.maxPrice) : null;
+    const categoryFilter =
+      category === 'mobiles'
+        ? [{ name: { contains: 'mobile', mode: 'insensitive' as const } }, { name: { contains: 'phone', mode: 'insensitive' as const } }, { description: { contains: 'smart', mode: 'insensitive' as const } }]
+        : category === 'fashion'
+          ? [{ name: { contains: 'shirt', mode: 'insensitive' as const } }, { name: { contains: 'dress', mode: 'insensitive' as const } }, { description: { contains: 'fashion', mode: 'insensitive' as const } }]
+          : category === 'home'
+            ? [{ name: { contains: 'home', mode: 'insensitive' as const } }, { description: { contains: 'kitchen', mode: 'insensitive' as const } }, { description: { contains: 'furniture', mode: 'insensitive' as const } }]
+            : category === 'gifts'
+              ? [{ name: { contains: 'gift', mode: 'insensitive' as const } }, { description: { contains: 'gift', mode: 'insensitive' as const } }, { description: { contains: 'combo', mode: 'insensitive' as const } }]
+              : [];
+
+    const searchFilter = q
+      ? {
+          OR: [
+            { name: { contains: q, mode: 'insensitive' as const } },
+            { description: { contains: q, mode: 'insensitive' as const } },
+            { account: { username: { contains: q, mode: 'insensitive' as const } } },
+            { account: { displayName: { contains: q, mode: 'insensitive' as const } } },
+          ],
+        }
+      : null;
+
+    const where: any = {
+      isActive: true,
+      account: { accountType: 'BUSINESS', isActive: true },
+      ...(dealsOnly ? { compareAtPrice: { gt: 0 } } : {}),
+      ...(minPrice != null || maxPrice != null
+        ? {
+            price: {
+              ...(minPrice != null ? { gte: minPrice } : {}),
+              ...(maxPrice != null ? { lte: maxPrice } : {}),
+            },
+          }
+        : {}),
+      ...(categoryFilter.length || searchFilter
+        ? {
+            AND: [
+              ...(categoryFilter.length ? [{ OR: categoryFilter }] : []),
+              ...(searchFilter ? [searchFilter] : []),
+            ],
+          }
+        : {}),
+    };
+
+    const orderBy =
+      params?.sort === 'price-asc'
+        ? ({ price: 'asc' } as const)
+        : params?.sort === 'price-desc'
+          ? ({ price: 'desc' } as const)
+          : ({ createdAt: 'desc' } as const);
+
+    const rows = await prisma.product.findMany({
+      where,
+      take: limit + 1,
+      ...(params?.cursor ? { skip: 1, cursor: { id: params.cursor } } : {}),
+      orderBy,
+      include: {
+        account: { select: { id: true, username: true, displayName: true, profilePhoto: true } },
+      },
+    });
+
+    const hasMore = rows.length > limit;
+    const items = hasMore ? rows.slice(0, -1) : rows;
+    const nextCursor = hasMore ? items[items.length - 1]?.id ?? null : null;
+    return { items, nextCursor };
+  }
+
+  async getPublicCatalogProduct(productId: string) {
+    const item = await prisma.product.findFirst({
+      where: {
+        id: productId,
+        isActive: true,
+        account: { accountType: 'BUSINESS', isActive: true },
+      },
+      include: {
+        account: { select: { id: true, username: true, displayName: true, profilePhoto: true } },
+        variants: true,
+      },
+    });
+    if (!item) throw new AppError('Product not found', 404);
+    return item;
+  }
+
   async ensureBusinessAccount(accountId: string) {
     const account = await prisma.account.findUnique({
       where: { id: accountId },
@@ -174,7 +307,7 @@ export class CommerceService {
     });
   }
 
-  /** Get single order by id; caller must be buyer or seller. */
+  /** Get single order by id; caller must be buyer or seller. Includes `viewerRole` for UI (returns / refund actions). */
   async getOrder(accountId: string, orderId: string) {
     const order = await prisma.order.findFirst({
       where: {
@@ -188,7 +321,8 @@ export class CommerceService {
       },
     });
     if (!order) throw new AppError('Order not found', 404);
-    return order;
+    const viewerRole = order.buyerId === accountId ? ('buyer' as const) : ('seller' as const);
+    return { ...order, viewerRole };
   }
 
   async updateOrderStatus(accountId: string, orderId: string, status: string, trackingNumber?: string) {
@@ -437,17 +571,38 @@ export class CommerceService {
     });
   }
 
-  /** Seller processes refund after receiving return. */
+  /** Seller processes refund after receiving return. Stripe PaymentIntents (`pi_…`) are refunded via Stripe when configured; other payments stay ledger-only. */
   async refundOrder(sellerId: string, orderId: string) {
     await this.ensureBusinessAccount(sellerId);
     const order = await prisma.order.findFirst({
       where: { id: orderId, sellerId },
     });
     if (!order) throw new AppError('Order not found', 404);
+    if (order.returnStatus === 'REFUNDED' && order.refundedAt) {
+      if (order.status !== 'REFUNDED') {
+        return prisma.order.update({
+          where: { id: orderId },
+          data: { status: 'REFUNDED' },
+        });
+      }
+      return order;
+    }
     if (order.returnStatus !== 'RECEIVED') throw new AppError('Mark return as received first', 400);
+    let stripeRefundId = order.stripeRefundId ?? null;
+    const pid = order.paymentId?.trim() || null;
+    if (isStripePaymentIntentId(pid)) {
+      if (!stripeRefundId) {
+        stripeRefundId = await refundStripePaymentIntentForOrder(orderId, pid!);
+      }
+    }
     return prisma.order.update({
       where: { id: orderId },
-      data: { returnStatus: 'REFUNDED', refundedAt: new Date() },
+      data: {
+        status: 'REFUNDED',
+        returnStatus: 'REFUNDED',
+        refundedAt: new Date(),
+        ...(stripeRefundId && { stripeRefundId }),
+      },
     });
   }
 
@@ -595,7 +750,7 @@ export class CommerceService {
     return prisma.account.update({ where: { id: sellerId }, data: update as any });
   }
 
-  /** 2.20 Verify custom domain (stub: real impl would check CNAME to shop.moxe.store or similar). */
+  /** 2.20 Verify custom domain: CNAME must point to COMMERCE_CUSTOM_DOMAIN_CNAME_TARGET (NBK-024). */
   async verifyCustomDomain(sellerId: string) {
     await this.ensureBusinessAccount(sellerId);
     const account = await prisma.account.findFirst({
@@ -603,12 +758,59 @@ export class CommerceService {
       select: { customDomain: true },
     });
     if (!account?.customDomain) throw new AppError('No custom domain set', 400);
-    // Stub: in production, verify CNAME points to platform; for now mark verified
+    const domain = account.customDomain;
+
+    const isProd = process.env.NODE_ENV === 'production';
+    const devDnsBypass = !isProd && (process.env.COMMERCE_DOMAIN_VERIFY_MOCK || '').toLowerCase().trim() === 'true';
+    if (devDnsBypass) {
+      await prisma.account.update({
+        where: { id: sellerId },
+        data: { customDomainVerifiedAt: new Date() },
+      });
+      return {
+        verified: true,
+        domain,
+        devDnsBypass: true,
+        message: 'Verified via COMMERCE_DOMAIN_VERIFY_MOCK (non-production only).',
+      };
+    }
+
+    const expectedTarget = getCommerceCnameTarget();
+    if (!expectedTarget) {
+      return {
+        verified: false,
+        domain,
+        message: isProd
+          ? 'Custom domain verification is not configured (COMMERCE_CUSTOM_DOMAIN_CNAME_TARGET).'
+          : 'Set COMMERCE_CUSTOM_DOMAIN_CNAME_TARGET for DNS checks, or COMMERCE_DOMAIN_VERIFY_MOCK=true in development.',
+      };
+    }
+
+    const { ok, aliases } = await verifyCustomDomainCname(domain, expectedTarget);
+    if (!ok) {
+      return {
+        verified: false,
+        domain,
+        expectedTarget,
+        cnameAliases: aliases,
+        message:
+          aliases.length === 0
+            ? `No CNAME record found for ${domain}. Point a CNAME to ${expectedTarget}.`
+            : `CNAME for ${domain} does not point to ${expectedTarget}.`,
+      };
+    }
+
     await prisma.account.update({
       where: { id: sellerId },
       data: { customDomainVerifiedAt: new Date() },
     });
-    return { ok: true, verified: true, domain: account.customDomain };
+    return {
+      verified: true,
+      domain,
+      expectedTarget,
+      cnameAliases: aliases,
+      message: 'Domain verified.',
+    };
   }
 
   /** Collections CRUD (seller). */

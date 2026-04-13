@@ -80,9 +80,11 @@ router.post('/:id/items', authenticate, async (req, res, next) => {
   try {
     const accountId = (req as any).user?.accountId;
     if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
-    const { archivedStoryId } = req.body;
-    if (!archivedStoryId) return res.status(400).json({ error: 'archivedStoryId required' });
-    const h = await highlightService.addItem(accountId, req.params.id, archivedStoryId);
+    const body = req.body as { archivedStoryId?: string; storyId?: string };
+    const h = await highlightService.addItem(accountId, req.params.id, {
+      archivedStoryId: body.archivedStoryId,
+      storyId: body.storyId,
+    });
     res.json(h);
   } catch (e) {
     next(e);

@@ -1,9 +1,19 @@
-import React, { useEffect } from 'react';
+import React, { useLayoutEffect } from 'react';
 
-/** Always apply dark theme on documentElement so all pages use dark. */
+/**
+ * Dark theme only (no light mode). Sets CSS variables, Tailwind `.dark`, and persists theme key for legacy callers.
+ */
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', 'dark');
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute('data-theme', 'dark');
+    root.classList.add('dark');
+    root.classList.remove('light');
+    try {
+      localStorage.setItem('moxe_app_theme', 'dark');
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   return <>{children}</>;

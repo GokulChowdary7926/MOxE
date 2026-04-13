@@ -30,6 +30,7 @@ export default function Activity() {
           <section className="py-2">
             <h2 className="text-[#737373] text-xs font-semibold uppercase tracking-wide px-4 py-2">Time & content</h2>
             <Row to="/settings/your-activity/time-management" label="Time management" />
+            <Row to="/settings/your-activity/time-spent" label="Time spent" />
             <Row to="/settings/your-activity/watch-history" label="Watch history" />
             <Row to="/settings/your-activity/account-history" label="Account history" />
             <Row to="/settings/your-activity/recent-searches" label="Recent searches" />

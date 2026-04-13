@@ -7,7 +7,7 @@ import { AppError } from '../utils/AppError';
 export class CollectionService {
   async list(accountId: string) {
     const collections = await prisma.collection.findMany({
-      where: { accountId },
+      where: { accountId, deletedAt: null },
       orderBy: [{ order: 'asc' }, { createdAt: 'desc' }],
       include: { _count: { select: { savedPosts: true } } },
     });
@@ -23,7 +23,7 @@ export class CollectionService {
 
   async create(accountId: string, name: string, coverImage?: string) {
     const maxOrder = await prisma.collection.aggregate({
-      where: { accountId },
+      where: { accountId, deletedAt: null },
       _max: { order: true },
     });
     const order = (maxOrder._max.order ?? -1) + 1;
@@ -33,7 +33,7 @@ export class CollectionService {
   }
 
   async update(accountId: string, collectionId: string, data: { name?: string; coverImage?: string; order?: number }) {
-    const c = await prisma.collection.findFirst({ where: { id: collectionId, accountId } });
+    const c = await prisma.collection.findFirst({ where: { id: collectionId, accountId, deletedAt: null } });
     if (!c) throw new AppError('Collection not found', 404);
     return prisma.collection.update({
       where: { id: collectionId },
@@ -46,15 +46,18 @@ export class CollectionService {
   }
 
   async delete(accountId: string, collectionId: string) {
-    const c = await prisma.collection.findFirst({ where: { id: collectionId, accountId } });
+    const c = await prisma.collection.findFirst({ where: { id: collectionId, accountId, deletedAt: null } });
     if (!c) throw new AppError('Collection not found', 404);
     await prisma.savedPost.updateMany({ where: { collectionId }, data: { collectionId: null } });
-    await prisma.collection.delete({ where: { id: collectionId } });
+    await prisma.collection.update({
+      where: { id: collectionId },
+      data: { deletedAt: new Date(), deletedBy: accountId },
+    });
     return { deleted: true };
   }
 
   async createShareToken(accountId: string, collectionId: string): Promise<{ shareUrl: string; shareToken: string }> {
-    const c = await prisma.collection.findFirst({ where: { id: collectionId, accountId } });
+    const c = await prisma.collection.findFirst({ where: { id: collectionId, accountId, deletedAt: null } });
     if (!c) throw new AppError('Collection not found', 404);
     const shareToken = `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
     await prisma.collection.update({
@@ -66,7 +69,7 @@ export class CollectionService {
   }
 
   async getByShareToken(shareToken: string) {
-    const c = await prisma.collection.findUnique({
+    const c = await prisma.collection.findFirst({
       where: { shareToken },
       include: {
         account: { select: { id: true, username: true, displayName: true, profilePhoto: true } },
@@ -82,6 +85,7 @@ export class CollectionService {
         post: {
           include: {
             account: { select: { id: true, username: true, displayName: true, profilePhoto: true } },
+            _count: { select: { likes: true, comments: true } },
           },
         },
       },
@@ -102,9 +106,15 @@ export class CollectionService {
           username: s.post.account?.username,
           displayName: s.post.account?.displayName,
           profilePhoto: s.post.account?.profilePhoto,
+          account: s.post.account,
           media: s.post.media,
           caption: s.post.caption,
           createdAt: s.post.createdAt,
+          allowComments: s.post.allowComments !== false,
+          _count: {
+            likes: s.post._count?.likes ?? 0,
+            comments: s.post._count?.comments ?? 0,
+          },
         },
       })),
     };
@@ -130,7 +140,10 @@ export class CollectionService {
     });
 
     const nextCursor = saved.length > limit ? saved[limit - 1].id : null;
-    const items = saved.slice(0, limit).map((s) => ({
+    const items = saved
+      .filter((s) => !s.post.isDeleted)
+      .slice(0, limit)
+      .map((s) => ({
       id: s.id,
       postId: s.postId,
       collectionId: s.collectionId,
@@ -150,7 +163,7 @@ export class CollectionService {
         isSaved: true,
         createdAt: s.post.createdAt,
       },
-    }));
+      }));
 
     return { items, nextCursor };
   }

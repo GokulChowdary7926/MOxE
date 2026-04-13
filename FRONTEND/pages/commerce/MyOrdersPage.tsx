@@ -15,6 +15,8 @@ type Order = {
   total: number;
   status: string;
   createdAt: string;
+  returnStatus?: string | null;
+  refundedAt?: string | null;
   seller?: { id: string; username: string; displayName?: string | null };
   items?: OrderItem[];
   hasReview?: boolean;
@@ -83,6 +85,10 @@ export default function MyOrdersPage() {
                       </ThemedText>
                       <ThemedText secondary className="text-xs mt-0.5">
                         {new Date(o.createdAt).toLocaleDateString()} · {o.status}
+                        {o.returnStatus && o.status !== 'REFUNDED' && o.returnStatus !== 'REFUNDED'
+                          ? ` · Return: ${o.returnStatus}`
+                          : ''}
+                        {(o.status === 'REFUNDED' || o.returnStatus === 'REFUNDED') ? ' · Refunded' : ''}
                       </ThemedText>
                     </div>
                     <ThemedText className="font-semibold text-moxe-text">${Number(o.total).toFixed(2)}</ThemedText>

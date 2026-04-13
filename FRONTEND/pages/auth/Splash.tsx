@@ -4,7 +4,7 @@ import { useSelector } from 'react-redux';
 import type { RootState } from '../../store';
 import { AUTH } from './authStyles';
 
-/** Instagram-style splash: MOxE logo, loading, then redirect to login or home */
+/** MOxE splash: logo, loading, then redirect to login or home */
 export default function Splash() {
   const navigate = useNavigate();
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);

@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, X, Camera, Image as ImageIcon } from 'lucide
 import { ThemedView, ThemedText } from '../../components/ui/Themed';
 import { Avatar } from '../../components/ui/Avatar';
 import { MobileShell } from '../../components/layout/MobileShell';
-import { getApiBase, getToken, fetchApi } from '../../services/api';
+import { getApiBase, getToken, fetchApi, getUploadUrl } from '../../services/api';
 import { useCamera } from '../../hooks/useCamera';
 
 export default function EditProfile() {
@@ -68,7 +68,7 @@ export default function EditProfile() {
     try {
       const form = new FormData();
       form.append('file', file);
-      const uploadRes = await fetch(`${getApiBase()}/upload`, {
+      const uploadRes = await fetch(getUploadUrl(), {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: form,
@@ -244,7 +244,7 @@ export default function EditProfile() {
 
           <div className="border-t border-[#262626] px-4 py-3">
             <div className="flex items-center justify-between">
-              <span className="text-white text-sm">Show Threads banner</span>
+              <span className="text-white text-sm">Show MOxE updates on profile</span>
               <button
                 type="button"
                 role="switch"
@@ -267,7 +267,7 @@ export default function EditProfile() {
               className="flex items-center justify-between px-4 py-3 border-b border-[#262626]"
             >
               <span className="text-white text-sm">Gender</span>
-              <span className="text-[#a8a8a8] text-sm">{gender || 'Male'}</span>
+              <span className="text-[#a8a8a8] text-sm">{gender || 'Not set'}</span>
               <ChevronRight className="w-4 h-4 text-[#a8a8a8] ml-1" />
             </Link>
           </div>

@@ -1,6 +1,5 @@
 /**
- * Auth UI tokens – theme-aware via CSS variables (--moxe-*).
- * Matches app theme (dark/light) so login, register, verify, forgot-password match Profile and rest of app.
+ * Auth UI tokens via CSS variables (--moxe-*). App is dark-only; these always resolve to dark tokens.
  */
 export const AUTH = {
   bg: 'min-h-screen', // parent uses var(--moxe-bg) from body

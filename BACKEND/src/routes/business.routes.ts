@@ -84,7 +84,7 @@ router.get('/promotions/:promotionId/performance', authenticate, async (req, res
   }
 });
 
-/** Record mock ad event (IMPRESSION or CLICK). Call when showing/clicking boosted content. */
+/** Record ad interaction (IMPRESSION or CLICK). Call when showing/clicking boosted content. */
 router.post('/promotions/:promotionId/record-event', authenticate, async (req, res, next) => {
   try {
     const viewerId = (req as any).user?.accountId;

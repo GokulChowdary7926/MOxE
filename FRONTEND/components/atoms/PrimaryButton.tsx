@@ -1,6 +1,6 @@
 import React from 'react';
 
-/** Instagram blue primary CTA – full width or inline */
+/** MOxE primary CTA (social accent) – full width or inline */
 export function PrimaryButton({
   children,
   onClick,

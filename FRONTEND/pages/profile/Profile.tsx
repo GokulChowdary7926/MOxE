@@ -1,18 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAccountCapabilities, useCurrentAccount } from '../../hooks/useAccountCapabilities';
+import { useIsOwnProfile } from '../../hooks/useIsOwnProfile';
 import { ACCOUNT_TYPE_LABELS } from '../../constants/accountTypes';
 import { ThemedView, ThemedText, ThemedButton } from '../../components/ui/Themed';
 import { Avatar } from '../../components/ui/Avatar';
 import { FollowButton } from '../../components/atoms/FollowButton';
 import { VerifiedBadge } from '../../components/atoms/VerifiedBadge';
-import { Grid3X3, User2, ChevronDown, Plus, Menu, Film, Bookmark } from 'lucide-react';
+import { Grid3X3, User2, ChevronDown, Plus, Menu, Film, Bookmark, Star } from 'lucide-react';
 import QR from 'qrcode';
 import { getApiBase, getToken } from '../../services/api';
 import { getFirstMediaUrl, ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
 import { MobileShell } from '../../components/layout/MobileShell';
 import { MoxePageHeader } from '../../components/layout/MoxePageHeader';
-
+import { getSocket } from '../../services/socket';
 export default function Profile() {
   const { username } = useParams();
   const navigate = useNavigate();
@@ -20,7 +21,7 @@ export default function Profile() {
   const currentAccount = useCurrentAccount();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const isOwn = !username || (currentAccount as any)?.username === username;
+  const isOwn = useIsOwnProfile();
   const accountType = (profile?.accountType || (currentAccount as any)?.accountType || 'PERSONAL').toLowerCase();
   const effectiveAccountType = (profile?.accountType || (currentAccount as any)?.accountType || 'PERSONAL') as keyof typeof ACCOUNT_TYPE_LABELS;
   const label = ACCOUNT_TYPE_LABELS[effectiveAccountType] ?? 'Personal';
@@ -31,8 +32,12 @@ export default function Profile() {
   const [streakBadge, setStreakBadge] = useState<string | null>(null);
   const [qrReady, setQrReady] = useState(false);
   const [profilePosts, setProfilePosts] = useState<any[]>([]);
+  const [taggedPosts, setTaggedPosts] = useState<any[]>([]);
   const [profileTab, setProfileTab] = useState<'grid' | 'reels' | 'tagged' | 'saved'>('grid');
   const [isFollowing, setFollowing] = useState(false);
+  const [isFollowRequested, setFollowRequested] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [favoriting, setFavoriting] = useState(false);
   const [creatorTiers, setCreatorTiers] = useState<{ key: string; name?: string; price?: number; perks?: string[] }[]>([]);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
@@ -42,7 +47,7 @@ export default function Profile() {
   useEffect(() => {
     const token = getToken();
     const API_BASE = getApiBase();
-    const ownProfile = !username || (currentAccount as any)?.username === username;
+    const ownProfile = isOwn;
     const url = username ? `${API_BASE}/accounts/username/${username}` : `${API_BASE}/accounts/me`;
     const opts: RequestInit = {};
     if (token) opts.headers = { Authorization: `Bearer ${token}` };
@@ -99,20 +104,33 @@ export default function Profile() {
         }
       })
       .finally(() => setLoading(false));
-  }, [username, currentAccount?.id, (currentAccount as any)?.username]);
+  }, [username, currentAccount?.id, (currentAccount as any)?.username, isOwn]);
 
   useEffect(() => {
     const token = getToken();
-    if (!token || !isOwn) return;
-    fetch(`${getApiBase()}/highlights`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    if (!profile?.id) return;
+    if (isOwn) {
+      if (!token) return;
+      fetch(`${getApiBase()}/highlights`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.highlights) setHighlights(data.highlights);
+        })
+        .catch(() => {});
+      return;
+    }
+    const headers: HeadersInit = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    fetch(`${getApiBase()}/accounts/${encodeURIComponent(profile.id)}/highlights`, { headers })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.highlights) setHighlights(data.highlights);
+        else setHighlights([]);
       })
-      .catch(() => {});
-  }, [isOwn]);
+      .catch(() => setHighlights([]));
+  }, [isOwn, profile?.id]);
 
   useEffect(() => {
     if (isOwn || !profile?.id) return;
@@ -122,6 +140,9 @@ export default function Profile() {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data && typeof data.isFollowing === 'boolean') setFollowing(data.isFollowing);
+        if (data && typeof data.isRequested === 'boolean') setFollowRequested(data.isRequested);
+        else if (data && typeof data.followRequested === 'boolean') setFollowRequested(data.followRequested);
+        if (data && typeof data.isFavorite === 'boolean') setIsFavorite(data.isFavorite);
       })
       .catch(() => {});
   }, [isOwn, profile?.id]);
@@ -197,7 +218,7 @@ export default function Profile() {
     loadStreakBadge();
   }, [isOwn]);
 
-  useEffect(() => {
+  const loadProfilePosts = useCallback(() => {
     if (!profile?.id) {
       setProfilePosts([]);
       return;
@@ -215,6 +236,42 @@ export default function Profile() {
         setProfilePosts([]);
       });
   }, [profile?.id]);
+
+  useEffect(() => {
+    if (profileTab !== 'tagged' || !profile?.id) {
+      if (profileTab !== 'tagged') setTaggedPosts([]);
+      return;
+    }
+    const token = getToken();
+    const headers: HeadersInit = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    fetch(`${getApiBase()}/posts/tagged/by/${encodeURIComponent(profile.id)}?limit=30`, { headers })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        setTaggedPosts(Array.isArray(data?.items) ? data.items : []);
+      })
+      .catch(() => setTaggedPosts([]));
+  }, [profileTab, profile?.id]);
+
+  useEffect(() => {
+    loadProfilePosts();
+  }, [loadProfilePosts]);
+
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const onNewPost = () => loadProfilePosts();
+    socket.on('feed:new-post', onNewPost);
+    return () => {
+      socket.off('feed:new-post', onNewPost);
+    };
+  }, [loadProfilePosts]);
+
+  useEffect(() => {
+    if (!isOwn && profileTab === 'saved') {
+      setProfileTab('grid');
+    }
+  }, [isOwn, profileTab]);
 
   if (loading) {
     return (
@@ -256,6 +313,7 @@ export default function Profile() {
   const displayName = profile.displayName || profile.username || 'User';
   const uname = profile.username || 'username';
   const targetId = profile.id;
+  const canViewProfileContent = isOwn || !profile?.isPrivate || isFollowing;
 
   async function toggleBlock() {
     if (!targetId || isOwn) return;
@@ -287,14 +345,33 @@ export default function Profile() {
     }
   }
 
+  async function toggleFavorite() {
+    if (!targetId || isOwn || !getToken()) return;
+    setFavoriting(true);
+    try {
+      const next = !isFavorite;
+      const r = await fetch(`${getApiBase()}/follow/${encodeURIComponent(targetId)}/favorite`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ isFavorite: next }),
+      });
+      if (r.ok) setIsFavorite(next);
+    } finally {
+      setFavoriting(false);
+    }
+  }
+
   return (
     <ThemedView className="min-h-screen flex flex-col bg-moxe-background">
       <MobileShell>
       {/* Header: username shown on left, actions on the right */}
       <MoxePageHeader
         title=""
-        className="bg-moxe-surface border-moxe-border"
-        left={<span className="text-moxe-text font-semibold text-base truncate max-w-[180px]">{uname}</span>}
+        className="!bg-black border-b border-[#262626]"
+        left={<span className="text-white font-semibold text-base truncate max-w-[180px]">{uname}</span>}
         right={
           <div className="flex items-center gap-2">
             {!isOwn && (
@@ -306,12 +383,16 @@ export default function Profile() {
                 {blocking ? '…' : isBlocked ? 'Unblock' : 'Block'}
               </button>
             )}
-            <Link to="/create" className="p-2 -m-2 text-black" aria-label="Create">
-              <Plus className="w-6 h-6" />
-            </Link>
-            <Link to="/settings" className="p-2 -m-2 text-moxe-text" aria-label="Menu">
-              <Menu className="w-6 h-6" />
-            </Link>
+            {isOwn && (
+              <>
+                <Link to="/create" className="p-2 -m-2 text-white active:opacity-70" aria-label="Create">
+                  <Plus className="w-6 h-6" />
+                </Link>
+                <Link to="/settings" className="p-2 -m-2 text-white active:opacity-70" aria-label="Menu">
+                  <Menu className="w-6 h-6" />
+                </Link>
+              </>
+            )}
           </div>
         }
       />
@@ -454,22 +535,36 @@ export default function Profile() {
           <div className="flex flex-wrap gap-2 mb-4">
             <FollowButton
               isFollowing={isFollowing}
+              isRequested={isFollowRequested}
+              showRequestLabel={!!profile?.isPrivate}
               onClick={async () => {
                 if (!targetId || !getToken()) return;
                 try {
-                  if (isFollowing) {
+                  if (isFollowing || isFollowRequested) {
                     const r = await fetch(`${getApiBase()}/follow/${targetId}`, {
                       method: 'DELETE',
                       headers: { Authorization: `Bearer ${getToken()}` },
                     });
-                    if (r.ok) setFollowing(false);
+                    if (r.ok) {
+                      setFollowing(false);
+                      setFollowRequested(false);
+                    }
                   } else {
                     const r = await fetch(`${getApiBase()}/follow`, {
                       method: 'POST',
                       headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
                       body: JSON.stringify({ accountId: targetId }),
                     });
-                    if (r.ok) setFollowing(true);
+                    if (r.ok) {
+                      const data = await r.json().catch(() => null);
+                      if (data?.pending) {
+                        setFollowRequested(true);
+                        setFollowing(false);
+                      } else {
+                        setFollowing(true);
+                        setFollowRequested(false);
+                      }
+                    }
                   }
                 } catch {
                   // ignore
@@ -518,6 +613,20 @@ export default function Profile() {
             >
               Message
             </button>
+            <button
+              type="button"
+              onClick={toggleFavorite}
+              disabled={favoriting}
+              className={`px-3 py-2.5 rounded-xl border font-semibold text-sm inline-flex items-center justify-center ${
+                isFavorite
+                  ? 'bg-[#facc15]/20 border-[#facc15] text-[#facc15]'
+                  : 'bg-moxe-surface border-moxe-border text-moxe-text'
+              }`}
+              aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+              title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+            >
+              <Star className="w-4 h-4" fill={isFavorite ? 'currentColor' : 'none'} />
+            </button>
           </div>
         )}
 
@@ -554,20 +663,30 @@ export default function Profile() {
           ))}
         </div>
 
-        {/* Tabs: Posts / Reels / Tagged / Saved – Instagram style */}
+        {/* Tabs: Posts / Reels / Tagged / Saved – MOxE profile */}
+        {!canViewProfileContent && (
+          <div className="mb-4 rounded-xl border border-moxe-border bg-moxe-surface p-4 text-center">
+            <ThemedText className="text-moxe-text font-semibold">This account is private</ThemedText>
+            <ThemedText secondary className="text-moxe-caption mt-1">
+              Follow this account to see posts and reels.
+            </ThemedText>
+          </div>
+        )}
+        {canViewProfileContent && (
+          <>
         <div className="flex border-b border-[#262626] mb-2 text-xs">
           {[
             { key: 'grid' as const, Icon: Grid3X3, label: 'Posts' },
             { key: 'reels' as const, Icon: Film, label: 'Reels' },
             { key: 'tagged' as const, Icon: User2, label: 'Tagged' },
-            { key: 'saved' as const, Icon: Bookmark, label: 'Saved' },
+            ...(isOwn ? [{ key: 'saved' as const, Icon: Bookmark, label: 'Saved' }] : []),
           ].map(({ key, Icon, label }) => (
             <button
               key={key}
               type="button"
               onClick={() => setProfileTab(key)}
-              className={`flex-1 text-center py-2 border-b-2 font-semibold ${
-                profileTab === key ? 'border-[#0095f6] text-[#0095f6]' : 'border-transparent text-[#737373]'
+              className={`flex-1 text-center py-2.5 border-b-2 font-semibold transition-colors ${
+                profileTab === key ? 'border-white text-white' : 'border-transparent text-[#8e8e8e]'
               }`}
             >
               <span className="inline-flex items-center justify-center gap-1">
@@ -586,7 +705,7 @@ export default function Profile() {
                   key={p.id}
                   type="button"
                   className="aspect-square bg-moxe-surface overflow-hidden"
-                  // Instagram-style: tap thumbnail to open post detail (to be implemented)
+                  // MOxE profile grid: tap thumbnail to open post detail (to be implemented)
                   onClick={() => {
                     navigate(`/post/${p.id}`);
                   }}
@@ -614,12 +733,34 @@ export default function Profile() {
               <ThemedText secondary className="text-moxe-caption">No posts yet</ThemedText>
             </div>
           )}
-          {profileTab === 'tagged' && (
+          {profileTab === 'tagged' &&
+            taggedPosts.map((p) => {
+              const thumb = p.media?.[0]?.url ?? p.mediaUrl ?? p.media_uri;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  className="aspect-square bg-moxe-surface overflow-hidden"
+                  onClick={() => navigate(`/post/${p.id}`)}
+                >
+                  {thumb ? (
+                    <img src={ensureAbsoluteMediaUrl(thumb)} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-moxe-textSecondary" />
+                  )}
+                </button>
+              );
+            })}
+          {profileTab === 'tagged' && taggedPosts.length === 0 && !loading && (
             <div className="col-span-3 py-8 text-center">
-              <ThemedText secondary className="text-moxe-caption">Tagged posts appear here</ThemedText>
+              <ThemedText secondary className="text-moxe-caption">
+                {isOwn ? 'No approved tagged posts yet. Review pending tags in Settings → Tags and mentions.' : 'No tagged posts.'}
+              </ThemedText>
             </div>
           )}
         </div>
+          </>
+        )}
       </div>
       </div>
       {showQr && (

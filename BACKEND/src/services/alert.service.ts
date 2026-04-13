@@ -20,6 +20,18 @@ export class AlertService {
     });
   }
 
+  /** Alert rules owned by this account (via schedule). */
+  async listRules(accountId: string) {
+    return prisma.alertRule.findMany({
+      where: { schedule: { accountId } },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        schedule: { select: { id: true, name: true, timezone: true } },
+        _count: { select: { events: true } },
+      },
+    });
+  }
+
   async createSchedule(
     accountId: string,
     data: {

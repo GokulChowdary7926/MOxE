@@ -1,6 +1,6 @@
 /**
  * MOxE design tokens – shared spacing, radius, typography.
- * Theme-specific colors live in ThemeContext (Instagram dark / Atlassian light).
+ * Theme-specific colors live in ThemeContext (MOxE social dark / Job workspace light).
  */
 export const spacing = {
   xs: 4,

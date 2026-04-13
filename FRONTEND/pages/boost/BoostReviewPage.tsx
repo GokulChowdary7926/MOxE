@@ -1,10 +1,16 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BoostLayout } from './BoostLayout';
 import { ChevronRight } from 'lucide-react';
+import { readBoostDraft } from '../../utils/boostDraft';
 
 export default function BoostReviewPage() {
   const navigate = useNavigate();
+  const draft = useMemo(() => readBoostDraft(), []);
+  const budgetLine =
+    draft.dailyBudget != null && draft.durationDays != null
+      ? `₹${draft.dailyBudget * draft.durationDays} over ${draft.durationDays} days`
+      : '—';
 
   return (
     <BoostLayout title="Review" step={4} onCancel={() => navigate(-1)}>
@@ -14,15 +20,15 @@ export default function BoostReviewPage() {
         <div className="space-y-4">
           <div>
             <p className="text-[#737373] text-xs font-semibold mb-1">Goal</p>
-            <p className="text-white">Profile visits to @username</p>
+            <p className="text-white">{draft.goalLabel ?? '—'}</p>
           </div>
           <div>
             <p className="text-[#737373] text-xs font-semibold mb-1">Audience</p>
-            <p className="text-white">People similar to your followers</p>
+            <p className="text-white">{draft.audienceSummary ?? '—'}</p>
           </div>
           <div>
             <p className="text-[#737373] text-xs font-semibold mb-1">Budget and duration</p>
-            <p className="text-white">₹1110 over 3 days</p>
+            <p className="text-white">{budgetLine}</p>
           </div>
           <Link to="/boost/preview" className="flex items-center justify-between py-3 border-b border-[#262626] text-white">
             <span className="text-[#737373] font-semibold text-xs">Preview ad</span>

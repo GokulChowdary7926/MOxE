@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { X, Zap, RefreshCw, Type, Infinity, LayoutGrid, Sparkles, Circle, ChevronUp, Image as ImageIcon } from 'lucide-react';
 import { ThemedView, ThemedText } from '../../components/ui/Themed';
 import { useCamera } from '../../hooks/useCamera';
+import { chromaKeyBlobToPng } from '../../lib/reelCompositeRecord';
 
 type ContentMode = 'POST' | 'STORY' | 'REEL' | 'LIVE';
 
@@ -16,6 +17,7 @@ export default function CameraPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [mode, setMode] = React.useState<ContentMode>('STORY');
   const [flashOff, setFlashOff] = React.useState(true);
+  const [greenScreenBeta, setGreenScreenBeta] = React.useState(false);
 
   const {
     stream,
@@ -62,7 +64,10 @@ export default function CameraPage() {
       return;
     }
     // Photo for POST / STORY
-    const blob = await capturePhoto();
+    let blob = await capturePhoto();
+    if (blob && greenScreenBeta && (mode === 'STORY' || mode === 'POST')) {
+      blob = (await chromaKeyBlobToPng(blob, '#1a1a1a')) ?? blob;
+    }
     if (blob) {
       const file = blobToFile(blob, `capture-${Date.now()}.png`, 'image/png');
       if (mode === 'STORY') {
@@ -78,21 +83,32 @@ export default function CameraPage() {
   return (
     <ThemedView className="fixed inset-0 z-50 flex flex-col bg-black">
       <div className="w-full max-w-[428px] h-full flex flex-col mx-auto">
-        <div className="flex items-center justify-between px-4 py-3 safe-area-pt">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 safe-area-pt">
           <button type="button" onClick={() => { stop(); navigate(-1); }} className="p-2 -m-2 text-white" aria-label="Close">
             <X className="w-6 h-6" />
           </button>
-          <button
-            type="button"
-            onClick={() => setFlashOff((v) => !v)}
-            className="p-2 -m-2 text-white"
-            aria-label={flashOff ? 'Flash off' : 'Flash on'}
-          >
-            <Zap className={`w-6 h-6 ${flashOff ? 'opacity-50' : ''}`} />
-          </button>
-          <button type="button" onClick={handleSwitchCamera} className="p-2 -m-2 text-white" aria-label="Switch camera">
-            <RefreshCw className="w-6 h-6" />
-          </button>
+          <div className="flex items-center gap-2 flex-wrap justify-end flex-1">
+            <button
+              type="button"
+              onClick={() => setFlashOff((v) => !v)}
+              className="p-2 -m-2 text-white"
+              aria-label={flashOff ? 'Flash off' : 'Flash on'}
+            >
+              <Zap className={`w-6 h-6 ${flashOff ? 'opacity-50' : ''}`} />
+            </button>
+            <button type="button" onClick={handleSwitchCamera} className="p-2 -m-2 text-white" aria-label="Switch camera">
+              <RefreshCw className="w-6 h-6" />
+            </button>
+            <label className="flex items-center gap-1 text-white text-[10px] cursor-pointer whitespace-nowrap">
+              <input
+                type="checkbox"
+                checked={greenScreenBeta}
+                onChange={(e) => setGreenScreenBeta(e.target.checked)}
+                className="rounded border-white/40 shrink-0"
+              />
+              Green screen
+            </label>
+          </div>
         </div>
 
         <div className="flex-1 flex min-h-0 relative">

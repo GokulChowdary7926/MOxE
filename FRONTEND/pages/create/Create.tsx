@@ -36,6 +36,7 @@ export default function Create() {
               <Link
                 key={key}
                 to={to}
+                data-testid={key === 'post' ? 'create-post-link-post' : undefined}
                 className="flex items-center gap-4 py-3.5 border-b border-[#262626] last:border-0 active:bg-white/5"
               >
                 <div className="w-10 h-10 rounded-full bg-[#262626] flex items-center justify-center text-white">

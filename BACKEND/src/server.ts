@@ -41,6 +41,7 @@ import archiveRoutes from './routes/archive.routes';
 import highlightRoutes from './routes/highlight.routes';
 import groupRoutes from './routes/group.routes';
 import supportRoutes from './routes/support.routes';
+import legalRoutes from './routes/legal.routes';
 import contentRoutes from './routes/content.routes';
 import safetyRoutes from './routes/safety.routes';
 import streakRoutes from './routes/streak.routes';
@@ -68,6 +69,8 @@ import rankingRoutes from './routes/ranking.routes';
 import healthRoutes from './routes/health.routes';
 import subscriptionRoutes from './routes/subscription.routes';
 import noteRoutes from './routes/note.routes';
+import campaignRoutes from './routes/campaign.routes';
+import recentlyDeletedRoutes from './routes/recentlyDeleted.routes';
 
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/logging';
@@ -80,16 +83,23 @@ import { publishDueScheduledContent } from './services/scheduling.service';
 import { MediaExpirationService } from './services/mediaExpiration.service';
 import { NoteService } from './services/note.service';
 import { emitNotesRefresh } from './sockets';
+import { purgeExpiredSoftDeleted } from './jobs/purgeSoftDeleted';
 
 export const prisma = new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
 });
 
 const app = express();
+// API clients in this app expect JSON bodies; conditional 304 responses can return empty bodies and break screens.
+app.set('etag', false);
 const httpServer = createServer(app);
+const isDev = process.env.NODE_ENV !== 'production';
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:3000',
+    // Must include the Vite dev port (3001); default was 3000 only and blocked Socket.IO from this app.
+    origin: isDev
+      ? true
+      : ([process.env.CLIENT_URL, 'http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3001'].filter(Boolean) as string[]),
     credentials: true,
   },
 });
@@ -121,7 +131,6 @@ const allowedOrigins = [
   'http://127.0.0.1:5173',
   'http://127.0.0.1:7926',
 ].filter(Boolean) as string[];
-const isDev = process.env.NODE_ENV !== 'production';
 app.use(
   cors({
     origin: (origin, cb) => {
@@ -138,6 +147,12 @@ app.use(
 );
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use('/api', (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
 app.use(requestLogger);
 
 // Ensure uploads directory exists at runtime (for multipart uploads and static serving)
@@ -188,10 +203,13 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/drafts', draftRoutes);
 app.use('/api/emergency-contacts', emergencyContactRoutes);
 app.use('/api/upload', uploadRoutes);
+// Also mount at /upload so Vite dev proxy (`/upload` → backend) and getUploadUrl() clients match.
+app.use('/upload', uploadRoutes);
 app.use('/api/archive', archiveRoutes);
 app.use('/api/highlights', highlightRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/support', supportRoutes);
+app.use('/api/legal', legalRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/safety', safetyRoutes);
 app.use('/api/streaks', streakRoutes);
@@ -218,6 +236,8 @@ app.use('/api/search', searchRoutes);
 app.use('/api/ranking', rankingRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/notes', noteRoutes);
+app.use('/api/campaigns', campaignRoutes);
+app.use('/api/recently-deleted', recentlyDeletedRoutes);
 app.use('/api/health', healthRoutes);
 
 app.get('/health', async (_req, res) => {
@@ -251,56 +271,71 @@ const flowService = new FlowService();
 const compassService = new CompassService();
 const mediaTTLService = new MediaExpirationService();
 const noteService = new NoteService();
-setInterval(() => {
-  archiveService.runArchiveJob()
-    .then((r) => { if (r.archived > 0) console.log('[Archive]', r.archived, 'stories archived'); })
-    .catch((e: Error) => console.error('[Archive]', e.message));
-}, 60 * 60 * 1000);
-setInterval(() => {
-  storyService.processDueReminders()
-    .then((n) => { if (n > 0) console.log('[StoryReminder]', n, 'reminders sent'); })
-    .catch((e: Error) => console.error('[StoryReminder]', e.message));
-}, 60 * 1000);
-setInterval(() => {
-  flowService.processDueReminders()
-    .then((n) => { if (n > 0) console.log('[FlowReminder]', n, 'reminders sent'); })
-    .catch((e: Error) => console.error('[FlowReminder]', e.message));
-}, 60 * 1000);
-setInterval(() => {
-  publishDueScheduledContent()
-    .then((r) => { if (r.posts > 0 || r.reels > 0) console.log('[Scheduling]', r.posts, 'posts,', r.reels, 'reels published'); })
-    .catch((e: Error) => console.error('[Scheduling]', e.message));
-}, 60 * 1000);
-setInterval(() => {
-  compassService
-    .runHealthChecks()
-    .then((n) => {
-      if (n > 0) console.log('[CompassHealth]', n, 'services checked');
-    })
-    .catch((e: Error) => console.error('[CompassHealth]', e.message));
-}, 60 * 1000);
 
-// View‑once DM media TTL worker – run every minute.
-setInterval(() => {
-  mediaTTLService
-    .processDue()
-    .then((n) => {
-      if (n > 0) console.log('[MediaTTL]', n, 'expired DM media items cleaned');
-    })
-    .catch((e: Error) => console.error('[MediaTTL]', e.message));
-}, 60 * 1000);
+/** Skip background intervals in Jest / NODE_ENV=test so Supertest E2E exits cleanly. */
+const runBackgroundWorkers = process.env.NODE_ENV !== 'test';
+if (runBackgroundWorkers) {
+  setInterval(() => {
+    archiveService.runArchiveJob()
+      .then((r) => { if (r.archived > 0) console.log('[Archive]', r.archived, 'stories archived'); })
+      .catch((e: Error) => console.error('[Archive]', e.message));
+  }, 60 * 60 * 1000);
+  setInterval(() => {
+    storyService.processDueReminders()
+      .then((n) => { if (n > 0) console.log('[StoryReminder]', n, 'reminders sent'); })
+      .catch((e: Error) => console.error('[StoryReminder]', e.message));
+  }, 60 * 1000);
+  setInterval(() => {
+    flowService.processDueReminders()
+      .then((n) => { if (n > 0) console.log('[FlowReminder]', n, 'reminders sent'); })
+      .catch((e: Error) => console.error('[FlowReminder]', e.message));
+  }, 60 * 1000);
+  setInterval(() => {
+    publishDueScheduledContent()
+      .then((r) => { if (r.posts > 0 || r.reels > 0) console.log('[Scheduling]', r.posts, 'posts,', r.reels, 'reels published'); })
+      .catch((e: Error) => console.error('[Scheduling]', e.message));
+  }, 60 * 1000);
+  setInterval(() => {
+    compassService
+      .runHealthChecks()
+      .then((n) => {
+        if (n > 0) console.log('[CompassHealth]', n, 'services checked');
+      })
+      .catch((e: Error) => console.error('[CompassHealth]', e.message));
+  }, 60 * 1000);
 
-setInterval(() => {
-  noteService
-    .processDueStatusTransitions()
-    .then((r) => {
-      if (r.expired > 0 || r.published > 0) {
-        console.log('[Notes]', r.expired, 'expired,', r.published, 'published');
-        emitNotesRefresh();
-      }
-    })
-    .catch((e: Error) => console.error('[Notes]', e.message));
-}, 60 * 1000);
+  // View‑once DM media TTL worker – run every minute.
+  setInterval(() => {
+    mediaTTLService
+      .processDue()
+      .then((n) => {
+        if (n > 0) console.log('[MediaTTL]', n, 'expired DM media items cleaned');
+      })
+      .catch((e: Error) => console.error('[MediaTTL]', e.message));
+  }, 60 * 1000);
+
+  setInterval(() => {
+    noteService
+      .processDueStatusTransitions()
+      .then((r) => {
+        if (r.expired > 0 || r.published > 0) {
+          console.log('[Notes]', r.expired, 'expired,', r.published, 'published');
+          emitNotesRefresh();
+        }
+      })
+      .catch((e: Error) => console.error('[Notes]', e.message));
+  }, 60 * 1000);
+
+  // Soft-delete retention purge: run daily.
+  setInterval(() => {
+    purgeExpiredSoftDeleted()
+      .then((summary) => {
+        const total = Object.values(summary).reduce((n, c) => n + c, 0);
+        if (total > 0) console.log('[SoftDeletePurge]', summary);
+      })
+      .catch((e: Error) => console.error('[SoftDeletePurge]', e.message));
+  }, 24 * 60 * 60 * 1000);
+}
 
 if (require.main === module) {
   const PORT = process.env.PORT || 5007;
