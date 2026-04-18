@@ -24,7 +24,7 @@ git fetch origin
 git checkout "$MOXE_BRANCH"
 git pull origin "$MOXE_BRANCH"
 
-MOXE_NODE_HEAP_DEFAULT='--max-old-space-size=1024'
+MOXE_NODE_HEAP_DEFAULT='--max-old-space-size=2048'
 export NODE_OPTIONS="${NODE_OPTIONS:-$MOXE_NODE_HEAP_DEFAULT}"
 
 echo "==> Backend build + PM2"

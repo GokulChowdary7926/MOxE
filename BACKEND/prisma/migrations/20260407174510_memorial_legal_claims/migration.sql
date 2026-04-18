@@ -1,5 +1,5 @@
--- DropIndex
-DROP INDEX "Tag_taggedById_idx";
+-- DropIndex (IF EXISTS: index is created in a later migration 20260407203000; fresh DBs hit DROP first)
+DROP INDEX IF EXISTS "Tag_taggedById_idx";
 
 -- AlterTable
 ALTER TABLE "Account" ADD COLUMN     "isMemorialized" BOOLEAN NOT NULL DEFAULT false,
