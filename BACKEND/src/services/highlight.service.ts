@@ -3,9 +3,42 @@
  */
 import { prisma } from '../server';
 import { AppError } from '../utils/AppError';
+import { normalizeStoredMediaUrl } from '../utils/mediaUrl';
 
 const MAX_ITEMS_PER_HIGHLIGHT = 100;
 const MAX_HIGHLIGHTS = 50;
+
+function normalizeHighlightMedia<T extends { coverImage?: string | null; items?: any[] }>(h: T): T {
+  const normalizedItems = Array.isArray(h.items)
+    ? h.items.map((item) => ({
+        ...item,
+        story: item.story
+          ? {
+              ...item.story,
+              media:
+                typeof item.story.media === 'string'
+                  ? normalizeStoredMediaUrl(item.story.media)
+                  : item.story.media,
+            }
+          : item.story,
+        archivedStory: item.archivedStory
+          ? {
+              ...item.archivedStory,
+              media:
+                typeof item.archivedStory.media === 'string'
+                  ? normalizeStoredMediaUrl(item.archivedStory.media)
+                  : item.archivedStory.media,
+            }
+          : item.archivedStory,
+      }))
+    : h.items;
+  return {
+    ...h,
+    coverImage:
+      typeof h.coverImage === 'string' ? normalizeStoredMediaUrl(h.coverImage) : h.coverImage,
+    items: normalizedItems,
+  };
+}
 
 export class HighlightService {
   async list(accountId: string) {
@@ -22,7 +55,7 @@ export class HighlightService {
         },
       },
     });
-    return list;
+    return list.map((h) => normalizeHighlightMedia(h));
   }
 
   async getById(accountId: string, highlightId: string) {
@@ -39,7 +72,7 @@ export class HighlightService {
       },
     });
     if (!h) throw new AppError('Highlight not found', 404);
-    return h;
+    return normalizeHighlightMedia(h);
   }
 
   /** Public: get any highlight by id (for viewing on profile). */
@@ -57,7 +90,7 @@ export class HighlightService {
       },
     });
     if (!h) throw new AppError('Highlight not found', 404);
-    return h;
+    return normalizeHighlightMedia(h);
   }
 
   async create(accountId: string, data: { name: string; coverImage?: string; archivedStoryIds: string[] }) {

@@ -13,6 +13,7 @@ import { logger } from '../utils/logger';
 import {
   normalizeUsername,
   validateUsernameFormat,
+  validateDisplayNameFormat,
   suggestUsernameFromEmailLocalPart,
   randomAlphabeticLower,
 } from '../utils/usernameValidation';
@@ -243,8 +244,9 @@ router.post('/register', rateLimit({ windowMs: 60 * 60 * 1000, max: 20 }), async
     const uCheck = validateUsernameFormat(username);
     if (!uCheck.valid) throw new AppError(uCheck.message, 400);
     const u = uCheck.normalized;
-    const d = displayName.trim();
-    if (!d || d.length < 2) throw new AppError('Display name must be at least 2 characters', 400);
+    const dCheck = validateDisplayNameFormat(displayName);
+    if (!dCheck.valid) throw new AppError(dCheck.message, 400);
+    const d = dCheck.normalized;
     if (password.length < 6) throw new AppError('Password must be at least 6 characters', 400);
     const existing = await prisma.account.findUnique({ where: { username: u } });
     if (existing) throw new AppError('Username is already taken', 400);

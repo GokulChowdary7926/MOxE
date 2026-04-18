@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ShoppingCart, ClipboardList, Search, Smartphone, Shirt, Home as HomeIcon, Gift } from 'lucide-react';
 import { useAccountCapabilities } from '../../hooks/useAccountCapabilities';
 import { getApiBase, getUploadUrl } from '../../services/api';
+import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
 
 const API_BASE = getApiBase();
 
@@ -706,7 +707,7 @@ export default function Commerce() {
                 />
                 {shopBannerUrl && (
                   <div className="mt-2 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 max-h-24">
-                    <img src={shopBannerUrl} alt="Banner preview" className="w-full h-24 object-cover" />
+                    <img src={ensureAbsoluteMediaUrl(shopBannerUrl)} alt="Banner preview" className="w-full h-24 object-cover" />
                   </div>
                 )}
               </div>
@@ -788,7 +789,7 @@ export default function Commerce() {
                           <div className="flex items-center gap-2">
                             {p.images && p.images.length > 0 && (
                               <img
-                                src={p.images[0]}
+                                src={ensureAbsoluteMediaUrl(p.images[0])}
                                 alt=""
                                 className="w-8 h-8 rounded-md object-cover border border-slate-200 dark:border-slate-700"
                               />
@@ -1221,7 +1222,7 @@ export default function Commerce() {
                   {productForm.images.map((url, i) => (
                     <div key={i} className="relative">
                       <img
-                        src={url}
+                        src={ensureAbsoluteMediaUrl(url)}
                         alt=""
                         className="w-16 h-16 rounded-lg object-cover border border-slate-200 dark:border-slate-700"
                       />

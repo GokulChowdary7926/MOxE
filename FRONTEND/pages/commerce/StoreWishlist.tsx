@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getApiBase } from '../../services/api';
+import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
 
 type WishItem = {
   id: string;
@@ -84,7 +85,7 @@ export default function StoreWishlistPage() {
               <Link to={`/store/p/${encodeURIComponent(w.product.id)}`} className="block">
                 <div className="aspect-square rounded-md bg-[#f6f7fb] dark:bg-slate-800 overflow-hidden">
                   {w.product.images?.[0] ? (
-                    <img src={w.product.images[0]} alt={w.product.name} className="w-full h-full object-cover" />
+                    <img src={ensureAbsoluteMediaUrl(w.product.images[0])} alt={w.product.name} className="w-full h-full object-cover" />
                   ) : null}
                 </div>
                 <p className="mt-1 text-[11px] text-slate-800 dark:text-slate-100 line-clamp-2 min-h-[28px]">

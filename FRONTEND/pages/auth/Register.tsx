@@ -7,7 +7,7 @@ import { register, fetchMe } from '../../store/authSlice';
 import { setCurrentAccount } from '../../store/accountSlice';
 import { ACCOUNT_TYPES, ACCOUNT_TYPE_LABELS } from '../../constants/accountTypes';
 import { getHomeRouteForAccountType } from '../../constants/accountTypes';
-import { validateUsernameClient } from '../../utils/usernameValidation';
+import { validateDisplayNameClient, validateUsernameClient } from '../../utils/usernameValidation';
 import { AUTH } from './authStyles';
 
 const ACCOUNT_CARDS: Array<{
@@ -85,15 +85,12 @@ export default function Register() {
       return;
     }
     const u = uCheck.normalized;
-    const d = displayName.trim();
-    if (!d) {
-      setError('Enter a display name.');
+    const dCheck = validateDisplayNameClient(displayName);
+    if (!dCheck.ok) {
+      setError(dCheck.message);
       return;
     }
-    if (d.length < 2) {
-      setError('Display name must be at least 2 characters.');
-      return;
-    }
+    const d = dCheck.normalized;
     if (!password) {
       setError('Enter a password.');
       return;
@@ -180,8 +177,8 @@ export default function Register() {
               <input
               type="text"
               value={username}
-              onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z]/g, ''))}
-              placeholder="Username (lowercase letters only)"
+              onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, ''))}
+              placeholder="Username (a-z, 0-9, ., _)"
               autoComplete="username"
               className={AUTH.input}
               maxLength={30}
@@ -193,6 +190,7 @@ export default function Register() {
               placeholder="Display name"
               autoComplete="name"
               className={AUTH.input}
+              maxLength={64}
             />
                   <input
               type="password"

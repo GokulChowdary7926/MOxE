@@ -2,6 +2,7 @@ import { Server } from 'socket.io';
 import { setupTranslateNamespace } from './translate';
 import { LocationService } from '../services/location.service';
 import { AppError } from '../utils/AppError';
+import { NEARBY_HISTORY_MAX, NEARBY_HISTORY_TTL_MS, pruneNearbyHistoryEntries } from './nearbyHistory';
 
 let ioRef: Server | null = null;
 
@@ -28,6 +29,7 @@ const NEARBY_LOCATION_THROTTLE_MS = 800;
 const DM_TYPING_THROTTLE_MS = 400;
 const NEARBY_MAX_TEXT_LENGTH = 1200;
 const NEARBY_MAX_IMAGE_URL_LENGTH = 2048;
+const nearbyRecentMessages: Array<{ payload: any; at: number }> = [];
 
 function pruneNearbyDedupMap(now = Date.now()): void {
   for (const [accountId, entry] of nearbyRecentMessageByAccount.entries()) {
@@ -43,6 +45,11 @@ function pruneNearbyDedupMap(now = Date.now()): void {
   for (let i = 0; i < toDelete; i++) {
     nearbyRecentMessageByAccount.delete(sorted[i][0]);
   }
+}
+
+function pruneNearbyHistory(now = Date.now()): void {
+  const pruned = pruneNearbyHistoryEntries(nearbyRecentMessages, now);
+  nearbyRecentMessages.splice(0, nearbyRecentMessages.length, ...pruned);
 }
 
 function haversineKm(a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }): number {
@@ -100,6 +107,11 @@ export function setupSocketHandlers(io: Server, prismaInstance?: PrismaLike) {
 
     socket.on('nearby:join', async () => {
       await socket.join(NEARBY_FEED_ROOM);
+      const now = Date.now();
+      pruneNearbyHistory(now);
+      if (nearbyRecentMessages.length > 0) {
+        socket.emit('nearby:history', { messages: nearbyRecentMessages.map((m) => m.payload) });
+      }
     });
     socket.on('nearby:leave', async () => {
       await socket.leave(NEARBY_FEED_ROOM);
@@ -236,6 +248,10 @@ export function setupSocketHandlers(io: Server, prismaInstance?: PrismaLike) {
         socket.emit('nearby:message:error', { code: 'LIMIT', message: msg, status });
         return;
       }
+
+      const historyNow = Date.now();
+      nearbyRecentMessages.push({ payload: messagePayload, at: historyNow });
+      pruneNearbyHistory(historyNow);
 
       // Deliver to everyone in the Nearby feed room (must have emitted nearby:join on the client).
       // If sender has GPS: only deliver to peers within radiusKm, OR peers who haven't sent coords yet

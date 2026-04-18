@@ -1,25 +1,77 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { X, Settings, Search } from 'lucide-react';
 import { ThemedView, ThemedText } from '../../components/ui/Themed';
 import { MobileShell } from '../../components/layout/MobileShell';
+import { searchSpotifyTracks, type SpotifyTrack } from '../../services/spotifyApi';
 
 const PILLS = ['For you', 'Trending', 'Original audio', 'Saved'];
-const TRACKS = [
-  { id: '1', title: 'back to friends', artist: 'sombr', reels: '814K', duration: '3:20' },
-  { id: '2', title: 'Tenu Sang Rakhna', artist: 'Arijit Singh, Achint...', reels: '120K', duration: '3:45' },
-  { id: '3', title: 'Chekuthan (Reprise)', artist: 'Ribin Richard, Nihal Sadiq', reels: '95K', duration: '1:41' },
-  { id: '4', title: 'Night Changes', artist: 'One Direction', reels: '651K', duration: '3:47' },
-];
+
+function formatDuration(ms?: number): string {
+  if (ms == null || !Number.isFinite(ms)) return '—';
+  const s = Math.round(ms / 1000);
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${r.toString().padStart(2, '0')}`;
+}
 
 /**
- * Music page for story – same for all accounts.
- * Header: X, Add to story, gear. Search. Pills: For you, Trending, Original audio, Saved. Featured card. Track list.
+ * Music for story — search via backend Spotify integration; album art + 30s preview when available.
  */
 export default function StoryMusicPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isPostMusicFlow = location.pathname.includes('/create/post/music');
   const [search, setSearch] = useState('');
   const [pill, setPill] = useState(0);
+  const [tracks, setTracks] = useState<SpotifyTrack[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [playingId, setPlayingId] = useState<string | null>(null);
+
+  const defaultQuery = useMemo(() => {
+    if (pill === 1) return 'trending';
+    if (pill === 2) return 'original';
+    return 'popular';
+  }, [pill]);
+
+  const loadTracks = useCallback(async (raw: string) => {
+    const trimmed = raw.trim();
+    const effective = trimmed.length >= 2 ? trimmed : defaultQuery;
+    setLoading(true);
+    setError(null);
+    try {
+      const results = await searchSpotifyTracks(effective, 20);
+      setTracks(results);
+    } catch (e) {
+      setError((e as Error).message || 'Music search failed. Set SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET on the server.');
+      setTracks([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [defaultQuery]);
+
+  useEffect(() => {
+    const delay = search.trim().length >= 2 ? 400 : 0;
+    const t = window.setTimeout(() => {
+      void loadTracks(search);
+    }, delay);
+    return () => window.clearTimeout(t);
+  }, [search, defaultQuery, loadTracks]);
+
+  const featured = tracks[0];
+
+  const selectTrack = (t: SpotifyTrack) => {
+    if (isPostMusicFlow) {
+      navigate('/create/post/share', {
+        state: { ...(location.state as Record<string, unknown>), prefillMusic: t },
+      });
+      return;
+    }
+    navigate('/stories/create/editor', {
+      state: { prefillMusic: t },
+    });
+  };
 
   return (
     <ThemedView className="min-h-screen flex flex-col bg-black">
@@ -28,7 +80,7 @@ export default function StoryMusicPage() {
           <button type="button" onClick={() => navigate(-1)} className="p-2 -m-2 text-white" aria-label="Close">
             <X className="w-6 h-6" />
           </button>
-          <span className="text-white font-semibold text-base">Add to story</span>
+          <span className="text-white font-semibold text-base">{isPostMusicFlow ? 'Add audio' : 'Add to story'}</span>
           <Link to="/settings/camera" className="p-2 -m-2 text-white" aria-label="Settings">
             <Settings className="w-6 h-6" />
           </Link>
@@ -39,7 +91,7 @@ export default function StoryMusicPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#737373]" />
             <input
               type="text"
-              placeholder="Search..."
+              placeholder="Search songs…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-[#262626] border border-[#363636] text-white placeholder:text-[#737373] text-sm"
@@ -61,35 +113,102 @@ export default function StoryMusicPage() {
             ))}
           </div>
 
-          {/* Featured */}
-          <div className="rounded-xl bg-[#262626] border border-[#363636] overflow-hidden mb-4">
-            <div className="aspect-[2/1] bg-[#363636] flex items-center justify-center">
-              <span className="text-[#737373] text-sm">Featured</span>
+          {error && (
+            <div className="mb-3 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2">
+              <ThemedText className="text-red-300 text-xs">{error}</ThemedText>
             </div>
-            <div className="p-3">
-              <p className="text-white font-semibold">Sanu Hi Pata</p>
-              <p className="text-[#a8a8a8] text-xs">Kunwarr</p>
-            </div>
-          </div>
+          )}
 
-          <p className="text-white font-semibold text-sm mb-2">Music</p>
+          {featured && (
+            <button
+              type="button"
+              onClick={() => selectTrack(featured)}
+              className="w-full text-left rounded-xl bg-[#262626] border border-[#363636] overflow-hidden mb-4 active:opacity-90"
+            >
+              <div className="aspect-[2/1] bg-[#363636] overflow-hidden flex items-center justify-center">
+                {featured.album_image_url ? (
+                  <img src={featured.album_image_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-[#737373] text-sm">Featured</span>
+                )}
+              </div>
+              <div className="p-3">
+                <p className="text-white font-semibold truncate">{featured.name}</p>
+                <p className="text-[#a8a8a8] text-xs truncate">{featured.artists}</p>
+                {featured.preview_url && (
+                  <audio
+                    controls
+                    className="w-full mt-2 h-8"
+                    src={featured.preview_url}
+                    onPlay={() => setPlayingId(featured.id)}
+                    onEnded={() => setPlayingId(null)}
+                  />
+                )}
+              </div>
+            </button>
+          )}
+
+          <p className="text-white font-semibold text-sm mb-2">{loading ? 'Loading…' : 'Music'}</p>
           <div className="space-y-2">
-            {TRACKS.map((t) => (
-              <div
-                key={t.id}
-                className="w-full flex items-center gap-3 py-2 rounded-lg active:bg-white/5"
-              >
-                <div className="w-12 h-12 rounded-lg bg-[#262626] flex-shrink-0" />
-                <div className="flex-1 min-w-0 text-left">
-                  <p className="text-white font-medium text-sm truncate">{t.title}</p>
-                  <p className="text-[#a8a8a8] text-xs truncate">{t.artist}</p>
-                </div>
-                <span className="text-[#737373] text-xs flex-shrink-0">{t.reels} reels</span>
-                <span className="text-[#737373] text-xs flex-shrink-0">{t.duration}</span>
-                <button type="button" className="p-1 text-[#737373]" aria-label={`Favorite ${t.title}`}>♡</button>
+            {tracks.map((t) => (
+              <div key={t.id} className="w-full flex items-center gap-3 py-2 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => selectTrack(t)}
+                  className="flex flex-1 min-w-0 items-center gap-3 text-left active:bg-white/5 rounded-lg pr-1"
+                >
+                  <div className="w-12 h-12 rounded-lg bg-[#262626] flex-shrink-0 overflow-hidden flex items-center justify-center">
+                    {t.album_image_url ? (
+                      <img src={t.album_image_url} alt="" className="w-full h-full object-cover" />
+                    ) : null}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-medium text-sm truncate">{t.name}</p>
+                    <p className="text-[#a8a8a8] text-xs truncate">{t.artists}</p>
+                  </div>
+                  <span className="text-[#737373] text-xs flex-shrink-0">{formatDuration(t.duration_ms)}</span>
+                </button>
+                {t.preview_url ? (
+                  <>
+                    <button
+                      type="button"
+                      className="p-2 text-[#0095f6] flex-shrink-0"
+                      aria-label={playingId === t.id ? 'Pause preview' : 'Play preview'}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const el = document.getElementById(`preview-${t.id}`) as HTMLAudioElement | null;
+                        if (!el) return;
+                        if (playingId && playingId !== t.id) {
+                          document.querySelectorAll('audio[data-story-music-preview]').forEach((a) => (a as HTMLAudioElement).pause());
+                        }
+                        if (el.paused) {
+                          void el.play();
+                          setPlayingId(t.id);
+                        } else {
+                          el.pause();
+                          setPlayingId(null);
+                        }
+                      }}
+                    >
+                      {playingId === t.id ? '❚❚' : '▶'}
+                    </button>
+                    <audio
+                      id={`preview-${t.id}`}
+                      data-story-music-preview
+                      className="hidden"
+                      src={t.preview_url}
+                      onEnded={() => setPlayingId(null)}
+                    />
+                  </>
+                ) : null}
               </div>
             ))}
           </div>
+          {!loading && tracks.length === 0 && !error && (
+            <ThemedText secondary className="text-sm py-6 text-center">
+              No tracks yet. Type at least 2 characters to search, or check Spotify credentials on the server.
+            </ThemedText>
+          )}
         </div>
       </MobileShell>
     </ThemedView>

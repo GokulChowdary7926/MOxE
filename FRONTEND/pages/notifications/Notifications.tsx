@@ -9,6 +9,7 @@ import { Avatar } from '../../components/ui/Avatar';
 import { UI } from '../../constants/uiTheme';
 import { getApiBase, getToken } from '../../services/api';
 import { readApiError } from '../../utils/readApiError';
+import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
 import { useCurrentAccount } from '../../hooks/useAccountCapabilities';
 import { getSocket } from '../../services/socket';
 import { MoxePageHeader } from '../../components/layout/MoxePageHeader';
@@ -99,11 +100,11 @@ export default function Notifications() {
       type: String(n.type || ''),
       actorId: String((sender?.id as string | undefined) ?? n.actorId ?? n.accountId ?? ''),
       actorUsername,
-      actorAvatar: actorAvatar ?? null,
+      actorAvatar: actorAvatar ? ensureAbsoluteMediaUrl(actorAvatar) : null,
       message: String(n.message ?? n.text ?? n.content ?? ''),
       createdAt: String(n.createdAt ?? n.timestamp ?? new Date().toISOString()),
       targetPostId,
-      postThumbUrl: postThumbUrl ?? null,
+      postThumbUrl: postThumbUrl ? ensureAbsoluteMediaUrl(postThumbUrl) : null,
       blockedMessageId: (data.messageId as string | undefined) ?? undefined,
       blockedSenderId: (data.senderId as string | undefined) ?? undefined,
       read: Boolean(n.read),
@@ -306,7 +307,7 @@ export default function Notifications() {
               {followPreview.slice(0, 3).map((r) => (
                 <div key={r.id} className="w-8 h-8 rounded-full border-2 border-black overflow-hidden bg-[#262626]">
                   {r.profilePhoto ? (
-                    <img src={r.profilePhoto} alt="" className="w-full h-full object-cover" />
+                    <img src={ensureAbsoluteMediaUrl(r.profilePhoto)} alt="" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full bg-[#363636] flex items-center justify-center text-[10px] text-white">
                       {r.username.charAt(0).toUpperCase()}
@@ -446,7 +447,7 @@ export default function Notifications() {
                         </div>
                         {n.postThumbUrl ? (
                           <div className={UI.listThumb}>
-                            <img src={n.postThumbUrl} alt="" className="w-full h-full object-cover" />
+                            <img src={ensureAbsoluteMediaUrl(n.postThumbUrl)} alt="" className="w-full h-full object-cover" />
                           </div>
                         ) : (
                           <div className={UI.listThumb} />

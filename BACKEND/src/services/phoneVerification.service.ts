@@ -3,7 +3,7 @@
  */
 import { prisma } from '../server';
 import { AppError } from '../utils/AppError';
-import { validateUsernameFormat } from '../utils/usernameValidation';
+import { validateDisplayNameFormat, validateUsernameFormat } from '../utils/usernameValidation';
 import { sendSms, isTwilioConfigured } from './twilio.service';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
@@ -130,6 +130,8 @@ export async function verifyCode(
   const uCheck = validateUsernameFormat(registration.username);
   if (!uCheck.valid) throw new AppError(uCheck.message, 400);
   const usernameNorm = uCheck.normalized;
+  const dCheck = validateDisplayNameFormat(registration.displayName);
+  if (!dCheck.valid) throw new AppError(dCheck.message, 400);
 
   const existingUsername = await prisma.account.findUnique({ where: { username: usernameNorm } });
   if (existingUsername) throw new AppError('Username already taken', 400);
@@ -152,7 +154,7 @@ export async function verifyCode(
     data: {
       userId: user.id,
       username: usernameNorm,
-      displayName: registration.displayName.trim(),
+      displayName: dCheck.normalized,
       accountType,
       subscriptionTier: 'FREE',
       isPrivate: age < 18,

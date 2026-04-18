@@ -18,14 +18,17 @@ export function MapScreen() {
   const [nearbyOn, setNearbyOn] = useState(false);
   const [alerts, setAlerts] = useState<ProximityAlert[]>([]);
   const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState<string | null>(null);
 
   const loadAlerts = async () => {
     try {
+      setStatus(null);
       const data = await apiGet<{ alerts?: ProximityAlert[] }>('proximity-alerts');
       const list = data?.alerts ?? [];
       setAlerts(list);
-    } catch {
+    } catch (e: any) {
       setAlerts([]);
+      setStatus(e?.message || 'Could not load map data.');
     } finally {
       setLoading(false);
     }
@@ -52,7 +55,9 @@ export function MapScreen() {
     try {
       await apiPatch(`proximity-alerts/${id}`, { isActive: !isActive });
       loadAlerts();
-    } catch (_) {}
+    } catch (e: any) {
+      setStatus(e?.message || 'Failed to update alert.');
+    }
   };
 
   const deleteAlert = (id: string) => {
@@ -75,6 +80,7 @@ export function MapScreen() {
       <ScrollView style={styles.flex} contentContainerStyle={styles.content}>
         <View style={styles.section}>
           <ThemedText style={styles.sectionTitle}>Nearby</ThemedText>
+          {status ? <ThemedText style={styles.errorText}>{status}</ThemedText> : null}
           <View style={styles.row}>
             <ThemedText>Background location (for Nearby & alerts)</ThemedText>
             <Switch value={nearbyOn} onValueChange={toggleNearby} />
@@ -82,6 +88,9 @@ export function MapScreen() {
           <ThemedText secondary style={styles.hint}>
             When on, your location is sent periodically so you can use Nearby and proximity alerts.
           </ThemedText>
+          <TouchableOpacity style={styles.refreshBtn} onPress={loadAlerts}>
+            <ThemedText style={styles.refreshBtnText}>Refresh map status</ThemedText>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
@@ -121,6 +130,9 @@ const styles = StyleSheet.create({
   sectionTitle: { fontWeight: '600', marginBottom: 8 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   hint: { fontSize: 12, marginTop: 4 },
+  errorText: { color: '#fca5a5', marginBottom: 6 },
+  refreshBtn: { marginTop: 10, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.08)', alignSelf: 'flex-start' },
+  refreshBtnText: { fontSize: 12, fontWeight: '600' },
   alertRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.1)' },
   alertText: { flex: 1 },
   danger: { color: '#ff6b6b' },

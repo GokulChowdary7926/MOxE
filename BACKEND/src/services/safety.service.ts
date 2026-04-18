@@ -45,7 +45,9 @@ export class SafetyService {
 
     let notifiedCount = 0;
     for (const ec of contacts) {
-      const n = await notificationService.create(ec.contactId, 'SOS_ALERT', accountId, content, data).catch(() => null);
+      const n = await notificationService
+        .create(ec.contactId, 'SOS_ALERT', accountId, content, data, { bypassQuietMode: true })
+        .catch(() => null);
       if (n) notifiedCount++;
     }
 

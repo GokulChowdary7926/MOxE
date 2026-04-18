@@ -1,5 +1,6 @@
 import { prisma } from '../server';
 import { AppError } from '../utils/AppError';
+import { normalizeStoredMediaUrl } from '../utils/mediaUrl';
 
 /** Accept CDN / uploaded paths for VOD; reject javascript: etc. */
 export function normalizeLiveRecordingUrl(raw: string): string {
@@ -9,6 +10,22 @@ export function normalizeLiveRecordingUrl(raw: string): string {
   if (/^https:\/\//i.test(u)) return u.slice(0, 2000);
   if (/^http:\/\/localhost(:\d+)?\//i.test(u)) return u.slice(0, 2000);
   throw new AppError('Invalid recording URL (use https:// or /uploads/…)', 400);
+}
+
+function normalizeLiveForApi<T extends { recording?: unknown; liveProducts?: Array<{ product?: { images?: unknown } }> }>(live: T): T {
+  const normalizedRecording =
+    typeof live.recording === 'string' ? normalizeStoredMediaUrl(live.recording) : live.recording;
+  const normalizedProducts = Array.isArray(live.liveProducts)
+    ? live.liveProducts.map((lp) => {
+        const images = lp.product?.images;
+        if (!Array.isArray(images)) return lp;
+        const normalized = images.map((img) =>
+          typeof img === 'string' ? normalizeStoredMediaUrl(img) : img
+        );
+        return { ...lp, product: { ...(lp.product ?? {}), images: normalized } };
+      })
+    : live.liveProducts;
+  return { ...live, recording: normalizedRecording, liveProducts: normalizedProducts };
 }
 import {
   assertBadgePaymentIntent,
@@ -82,7 +99,7 @@ export class LiveService {
         : null;
     const fundCur = (data.fundraiserCurrency || 'USD').trim().slice(0, 10) || 'USD';
     const hasFund = !!(fundTitle || fundUrl || fundGoal != null);
-    return prisma.live.create({
+    const created = await prisma.live.create({
       data: {
         accountId,
         title: (data.title || 'Live').slice(0, 200),
@@ -100,6 +117,7 @@ export class LiveService {
         liveProducts: { include: { product: { select: { id: true, name: true, price: true, images: true } } }, orderBy: { sortOrder: 'asc' } },
       },
     });
+    return normalizeLiveForApi(created);
   }
 
   async list(viewerId: string | null = null) {
@@ -114,7 +132,7 @@ export class LiveService {
     const items = [];
     for (const live of baseItems) {
       const allowed = await this.canViewerAccessLive(viewerId, live.accountId, live.privacy as any);
-      if (allowed) items.push(live);
+      if (allowed) items.push(normalizeLiveForApi(live));
     }
     return { items, nextCursor: null as string | null };
   }
@@ -145,7 +163,7 @@ export class LiveService {
     const items = [];
     for (const live of baseItems) {
       const allowed = await this.canViewerAccessLive(viewerId, live.accountId, live.privacy as any);
-      if (allowed) items.push(live);
+      if (allowed) items.push(normalizeLiveForApi(live));
     }
     return { items };
   }
@@ -161,7 +179,7 @@ export class LiveService {
     if (!live || live.deletedAt) throw new AppError('Live not found', 404);
     const allowed = await this.canViewerAccessLive(viewerId, live.accountId, live.privacy as any);
     if (!allowed) throw new AppError('Live not found', 404);
-    return live;
+    return normalizeLiveForApi(live);
   }
 
   /** 4.8 Live replay: ended live with recording URL and product tray for replay view. */
@@ -185,7 +203,7 @@ export class LiveService {
     }
     const allowed = await this.canViewerAccessLive(viewerId, live.accountId, live.privacy as any);
     if (!allowed) throw new AppError('Replay not found', 404);
-    return {
+    return normalizeLiveForApi({
       id: live.id,
       title: live.title,
       description: live.description,
@@ -195,7 +213,7 @@ export class LiveService {
       privacy: live.privacy,
       account: live.account,
       liveProducts: live.liveProducts,
-    };
+    });
   }
 
   /** Ensure live belongs to accountId and return the live row */
@@ -210,7 +228,7 @@ export class LiveService {
   async startLive(accountId: string, liveId: string) {
     const live = await this.assertOwnLive(accountId, liveId);
     if (live.status !== 'SCHEDULED') throw new AppError('Live can only be started when scheduled', 400);
-    return prisma.live.update({
+    const updated = await prisma.live.update({
       where: { id: liveId },
       data: { status: 'LIVE', startedAt: new Date() },
       include: {
@@ -218,6 +236,7 @@ export class LiveService {
         liveProducts: { include: { product: { select: { id: true, name: true, price: true, images: true } } }, orderBy: { sortOrder: 'asc' } },
       },
     });
+    return normalizeLiveForApi(updated);
   }
 
   /** End an active live (set status ENDED, endedAt). Optionally attach a VOD `recording` URL (https or /uploads/…). */
@@ -232,7 +251,7 @@ export class LiveService {
     if (recRaw != null && String(recRaw).trim() !== '') {
       data.recording = normalizeLiveRecordingUrl(String(recRaw));
     }
-    return prisma.live.update({
+    const updated = await prisma.live.update({
       where: { id: liveId },
       data,
       include: {
@@ -240,6 +259,7 @@ export class LiveService {
         liveProducts: { include: { product: { select: { id: true, name: true, price: true, images: true } } }, orderBy: { sortOrder: 'asc' } },
       },
     });
+    return normalizeLiveForApi(updated);
   }
 
   /** After a live has ended, set or replace the replay recording URL (host only). */
@@ -247,7 +267,7 @@ export class LiveService {
     const live = await this.assertOwnLive(accountId, liveId);
     if (live.status !== 'ENDED') throw new AppError('Recording can only be set after the live has ended', 400);
     const url = normalizeLiveRecordingUrl(recording);
-    return prisma.live.update({
+    const updated = await prisma.live.update({
       where: { id: liveId },
       data: { recording: url },
       include: {
@@ -255,6 +275,7 @@ export class LiveService {
         liveProducts: { include: { product: { select: { id: true, name: true, price: true, images: true } } }, orderBy: { sortOrder: 'asc' } },
       },
     });
+    return normalizeLiveForApi(updated);
   }
 
   async updateFundraiser(
@@ -286,7 +307,7 @@ export class LiveService {
         ? (body.fundraiserCurrency || 'USD').trim().slice(0, 10) || 'USD'
         : live.fundraiserCurrency;
     const hasFund = !!(title || url || goal != null);
-    return prisma.live.update({
+    const updated = await prisma.live.update({
       where: { id: liveId },
       data: {
         fundraiserTitle: title,
@@ -299,6 +320,7 @@ export class LiveService {
         liveProducts: { include: { product: { select: { id: true, name: true, price: true, images: true } } }, orderBy: { sortOrder: 'asc' } },
       },
     });
+    return normalizeLiveForApi(updated);
   }
 
   /** Add products to a live (Live Shopping). Products must belong to the same account as the live. */

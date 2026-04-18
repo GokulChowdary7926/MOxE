@@ -4,6 +4,8 @@ import { ArrowLeft, Hash, List, MessageCircle, Music, UserPlus, MapPin, Sparkles
 import { ThemedView } from '../../components/ui/Themed';
 import { MobileShell } from '../../components/layout/MobileShell';
 import { getApiBase, getToken, getUploadUrl } from '../../services/api';
+import { messageFromUnknown, userFacingApiError, userFacingUploadError } from '../../utils/userFacingErrors';
+import type { SpotifyTrack } from '../../services/spotifyApi';
 import { useCurrentAccount, useAccountCapabilities } from '../../hooks/useAccountCapabilities';
 
 /**
@@ -12,7 +14,9 @@ import { useCurrentAccount, useAccountCapabilities } from '../../hooks/useAccoun
  */
 export default function PostSharePage() {
   const navigate = useNavigate();
-  const location = useLocation() as { state?: { files?: File[]; location?: string; selectedLocation?: string } };
+  const location = useLocation() as {
+    state?: { files?: File[]; location?: string; selectedLocation?: string; mentionedUserIds?: string[]; prefillMusic?: SpotifyTrack };
+  };
   const account = useCurrentAccount() as { accountType?: string } | null;
   const isBusiness = account?.accountType === 'BUSINESS';
   const files = location.state?.files as File[] | undefined;
@@ -36,7 +40,13 @@ export default function PostSharePage() {
   const [videoTrimEnd, setVideoTrimEnd] = useState<number | ''>('');
   const [videoCoverSec, setVideoCoverSec] = useState(0);
   const [scheduledFor, setScheduledFor] = useState('');
+  const [selectedMusic, setSelectedMusic] = useState<SpotifyTrack | null>(null);
   const cap = useAccountCapabilities();
+
+  useEffect(() => {
+    const pm = location.state?.prefillMusic;
+    if (pm?.id) setSelectedMusic(pm);
+  }, [location.state?.prefillMusic]);
 
   useEffect(() => {
     setLocationName((prev) => locationFromState || prev);
@@ -92,8 +102,11 @@ export default function PostSharePage() {
           headers: { Authorization: `Bearer ${token}` },
           body: form,
         });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data.url) throw new Error(data.error || 'Upload failed');
+        if (!res.ok) {
+          throw new Error(await userFacingUploadError(res, 'Could not upload your media.'));
+        }
+        const data = (await res.json().catch(() => ({}))) as { url?: string };
+        if (!data.url) throw new Error('Could not upload your media.');
         uploadedUrls.push(data.url);
       }
       const mediaPayload = uploadedUrls.map((url, idx) => {
@@ -113,9 +126,16 @@ export default function PostSharePage() {
         }
         return item;
       });
+      let captionOut = caption.trim();
+      if (selectedMusic?.id) {
+        const line = `🎵 ${selectedMusic.name} — ${selectedMusic.artists}`;
+        if (!captionOut.includes(selectedMusic.name)) {
+          captionOut = captionOut ? `${captionOut}\n\n${line}` : line;
+        }
+      }
       const body: Record<string, unknown> = {
         media: mediaPayload,
-        caption: caption || undefined,
+        caption: captionOut || undefined,
         altText: altText.trim() || undefined,
         location: locationName.trim() || undefined,
         allowComments,
@@ -135,11 +155,12 @@ export default function PostSharePage() {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Failed to create post');
+      if (!res.ok) {
+        throw new Error(await userFacingApiError(res, 'Could not publish your post.'));
+      }
       navigate('/');
-    } catch (e: any) {
-      setError(e.message || 'Something went wrong.');
+    } catch (e: unknown) {
+      setError(messageFromUnknown(e, 'Something went wrong.'));
     } finally {
       setSubmitting(false);
     }
@@ -220,18 +241,52 @@ export default function PostSharePage() {
           {/* Add audio (Music – same as Reels/Story) */}
           <button
             type="button"
-            onClick={() => navigate('/create/post/music')}
+            onClick={() =>
+              navigate('/create/post/music', {
+                state: {
+                  files: location.state?.files,
+                  location: location.state?.location,
+                  selectedLocation: location.state?.selectedLocation,
+                  mentionedUserIds,
+                  prefillMusic: selectedMusic ?? undefined,
+                },
+              })
+            }
             className="w-full flex items-center gap-3 px-4 py-3 border-t border-b border-[#262626] text-white"
           >
             <Music className="w-5 h-5 text-[#a8a8a8]" />
             <span className="flex-1 text-left">Add audio</span>
             <span className="text-[#737373]">›</span>
           </button>
+          {selectedMusic && (
+            <div className="px-4 pb-3 flex items-center gap-2">
+              <span className="text-xs text-[#a8a8a8] truncate flex-1">
+                Audio: {selectedMusic.name} — {selectedMusic.artists}
+              </span>
+              <button
+                type="button"
+                className="text-xs text-red-400 shrink-0"
+                onClick={() => setSelectedMusic(null)}
+              >
+                Remove
+              </button>
+            </div>
+          )}
 
           {/* Tag people – passes state so Tag page can return mentionedUserIds */}
           <button
             type="button"
-            onClick={() => navigate('/create/post/tag', { state: { files: location.state?.files, mentionedUserIds } })}
+            onClick={() =>
+              navigate('/create/post/tag', {
+                state: {
+                  files: location.state?.files,
+                  mentionedUserIds,
+                  prefillMusic: selectedMusic ?? undefined,
+                  location: location.state?.location,
+                  selectedLocation: location.state?.selectedLocation,
+                },
+              })
+            }
             className="w-full flex items-center gap-3 px-4 py-3 border-b border-[#262626] text-white"
           >
             <UserPlus className="w-5 h-5 text-[#a8a8a8]" />

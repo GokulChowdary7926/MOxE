@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ThemedView, ThemedText } from '../../components/ui/Themed';
+import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
 
 import { getApiBase } from '../../services/api';
 const API_BASE = getApiBase();
@@ -10,6 +11,26 @@ type HighlightStory = {
   mediaUrl: string;
   text?: string | null;
 };
+
+function extractHighlightMediaUrl(story: any): string {
+  const media = story?.media;
+  if (typeof media === 'string' && media.trim()) return media.trim();
+  if (Array.isArray(media) && media.length > 0) {
+    const first = media[0];
+    if (typeof first === 'string' && first.trim()) return first.trim();
+    if (first && typeof first === 'object') {
+      const fromObj = (first as { url?: string; uri?: string; mediaUrl?: string }).url
+        ?? (first as { url?: string; uri?: string; mediaUrl?: string }).uri
+        ?? (first as { url?: string; uri?: string; mediaUrl?: string }).mediaUrl;
+      if (typeof fromObj === 'string' && fromObj.trim()) return fromObj.trim();
+    }
+  }
+  for (const key of ['mediaUrl', 'url', 'imageUrl', 'thumbnail'] as const) {
+    const candidate = story?.[key];
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+  }
+  return '';
+}
 
 export default function HighlightViewer() {
   const { highlightId } = useParams();
@@ -34,7 +55,7 @@ export default function HighlightViewer() {
         if (cancelled) return;
         const stories: HighlightStory[] = (data.items ?? data.stories ?? []).map((s: any) => ({
           id: s.id,
-          mediaUrl: s.media?.[0]?.url ?? s.mediaUrl ?? '',
+          mediaUrl: extractHighlightMediaUrl(s),
           text: s.text ?? s.caption ?? null,
         }));
         setItems(stories);
@@ -98,7 +119,7 @@ export default function HighlightViewer() {
           )}
           {current && (
             <div className="relative w-full aspect-[9/16] max-h-[80vh] bg-moxe-surface rounded-moxe-lg overflow-hidden">
-              <img src={current.mediaUrl} alt={current.text || 'Story'} className="w-full h-full object-cover" />
+              <img src={ensureAbsoluteMediaUrl(current.mediaUrl)} alt={current.text || 'Story'} className="w-full h-full object-cover" />
               {current.text && (
                 <div className="absolute bottom-4 left-4 right-4 bg-black/40 rounded-moxe-md px-3 py-2">
                   <ThemedText className="text-moxe-body">{current.text}</ThemedText>

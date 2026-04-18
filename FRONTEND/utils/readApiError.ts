@@ -2,6 +2,9 @@
  * Sync parse of an error response body (already read as text).
  */
 export function parseApiErrorBody(text: string, statusText: string, status?: number): string {
+  if (status === 413) {
+    return 'This file is too large. Use a smaller file (under 20 MB for standard uploads).';
+  }
   const t = text.trim();
   if (!t) return statusText || (status != null ? `Request failed (${status})` : 'Request failed');
   try {

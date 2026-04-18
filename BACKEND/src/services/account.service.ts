@@ -1,7 +1,7 @@
 import { prisma } from '../server';
 import { AppError } from '../utils/AppError';
 import { ReviewService } from './review.service';
-import { normalizeUsername, validateUsernameFormat } from '../utils/usernameValidation';
+import { normalizeUsername, validateDisplayNameFormat, validateUsernameFormat } from '../utils/usernameValidation';
 import { AccountType as PrismaAccountType, SubscriptionTier as PrismaTier } from '@prisma/client';
 import { getCapabilities, type AccountType, type SubscriptionTier } from '../constants/capabilities';
 
@@ -240,6 +240,11 @@ export class AccountService {
 
       // Always store normalized username (no leading @, trimmed).
       (data as any).username = requested;
+    }
+    if (typeof data.displayName === 'string') {
+      const displayNameValidation = validateDisplayNameFormat(data.displayName);
+      if (!displayNameValidation.valid) throw new AppError(displayNameValidation.message, 400);
+      (data as any).displayName = displayNameValidation.normalized;
     }
     // Account type conversion (e.g. Personal → Business)
     if (data.accountType && data.accountType !== account.accountType) {

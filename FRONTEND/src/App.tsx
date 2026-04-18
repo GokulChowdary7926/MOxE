@@ -342,6 +342,7 @@ import { RootState, store } from '../store';
 import { disconnectLiveSocket, disconnectSocket, initializeSocket, registerAccount } from '../services/socket';
 import { disconnectDmSocket } from '../services/dmSocket';
 import { fetchApi, getToken } from '../services/api';
+import { canUseBrowserGeolocation } from '../utils/browserFeatures';
 import { setCurrentAccount, setCapabilities } from '../store/accountSlice';
 import { fetchMe, logoutThunk, setCredentials } from '../store/authSlice';
 
@@ -432,7 +433,7 @@ function App() {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    if (!navigator.geolocation) return;
+    if (!canUseBrowserGeolocation()) return;
     const authToken = getToken();
     if (!authToken) return;
 

@@ -1,6 +1,7 @@
 path,filename
 FRONTEND/components/ComingSoon.tsx,ComingSoon.tsx
 FRONTEND/components/Feedback/index.ts,index.ts
+FRONTEND/components/ScreenTimeBeat.tsx,ScreenTimeBeat.tsx
 FRONTEND/components/ThemeProvider.tsx,ThemeProvider.tsx
 FRONTEND/components/ads/AdInjector.tsx,AdInjector.tsx
 FRONTEND/components/atoms/FollowButton.tsx,FollowButton.tsx
@@ -14,11 +15,15 @@ FRONTEND/components/comments/SocialCommentRow.tsx,SocialCommentRow.tsx
 FRONTEND/components/comments/SocialCommentsSheet.tsx,SocialCommentsSheet.tsx
 FRONTEND/components/comments/socialCommentUtils.ts,socialCommentUtils.ts
 FRONTEND/components/common/StorageIndicator.tsx,StorageIndicator.tsx
+FRONTEND/components/create/CreationModeBar.tsx,CreationModeBar.tsx
+FRONTEND/components/create/VideoPostsAsReelsModal.tsx,VideoPostsAsReelsModal.tsx
+FRONTEND/components/create/index.ts,index.ts
 FRONTEND/components/icons/ShopIcon.tsx,ShopIcon.tsx
 FRONTEND/components/job/JobMobileLayout.tsx,JobMobileLayout.tsx
 FRONTEND/components/job/JobPageContent.tsx,JobPageContent.tsx
 FRONTEND/components/job/bible/BibleToolPage.tsx,BibleToolPage.tsx
 FRONTEND/components/job/bible/JobBibleReferenceSection.tsx,JobBibleReferenceSection.tsx
+FRONTEND/components/job/bible/JobDesignBiblePanel.tsx,JobDesignBiblePanel.tsx
 FRONTEND/components/job/bible/JobToolBibleShell.tsx,JobToolBibleShell.tsx
 FRONTEND/components/job/bible/index.ts,index.ts
 FRONTEND/components/job/bible/jobBibleDrawerNav.ts,jobBibleDrawerNav.ts
@@ -40,11 +45,13 @@ FRONTEND/components/layout/SettingsPageShell.tsx,SettingsPageShell.tsx
 FRONTEND/components/layout/SocialTopBar.tsx,SocialTopBar.tsx
 FRONTEND/components/layout/SplitLayout.tsx,SplitLayout.tsx
 FRONTEND/components/map/LeafletMap.tsx,LeafletMap.tsx
+FRONTEND/components/map/MapLocationSearch.tsx,MapLocationSearch.tsx
 FRONTEND/components/profile/ProfileBadge.tsx,ProfileBadge.tsx
 FRONTEND/components/recruiter/CandidatePipelinePanel.tsx,CandidatePipelinePanel.tsx
 FRONTEND/components/recruiter/JobRequisitionsPanel.tsx,JobRequisitionsPanel.tsx
 FRONTEND/components/track/TrackAgileApp.tsx,TrackAgileApp.tsx
 FRONTEND/components/track/TrackBottomNav.tsx,TrackBottomNav.tsx
+FRONTEND/components/track/TrackJobToolsLive.tsx,TrackJobToolsLive.tsx
 FRONTEND/components/track/TrackTopBar.tsx,TrackTopBar.tsx
 FRONTEND/components/ui/Avatar.tsx,Avatar.tsx
 FRONTEND/components/ui/ContentGrid.tsx,ContentGrid.tsx

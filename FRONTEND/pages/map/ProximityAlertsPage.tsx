@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { SettingsPageShell } from '../../components/layout/SettingsPageShell';
 import { Bell, RefreshCw } from 'lucide-react';
 import { getApiBase, getToken } from '../../services/api';
+import { canUseBrowserGeolocation } from '../../utils/browserFeatures';
 
 type AlertItem = {
   id: string;
@@ -52,7 +53,7 @@ export default function ProximityAlertsPage() {
   }, [loadAlerts]);
 
   useEffect(() => {
-    if (!navigator.geolocation) return;
+    if (!canUseBrowserGeolocation() || !navigator.geolocation) return;
     const token = getToken();
     if (!token) return;
     const watchId = navigator.geolocation.watchPosition(

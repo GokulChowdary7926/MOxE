@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Heart, MessageCircle, Send, Bookmark, MoreVertical, Play } from 'lucide-react';
+import { Heart, MessageCircle, Send, Bookmark, MoreVertical, Play, Volume2, VolumeX } from 'lucide-react';
 import { ThemedView, ThemedText } from '../../components/ui/Themed';
 import { Avatar } from '../../components/ui/Avatar';
 import { VerifiedBadge } from '../../components/atoms/VerifiedBadge';
@@ -107,6 +107,8 @@ export default function Reels() {
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentSending, setCommentSending] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
+  const [isMuted, setIsMuted] = useState(true);
+  const activeVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const refreshClientPrefs = useCallback(() => {
     void fetchClientSettings()
@@ -323,6 +325,16 @@ export default function Reels() {
   }, [active?.id, commentInput]);
 
   useEffect(() => {
+    const video = activeVideoRef.current;
+    if (!video) return;
+    video.muted = isMuted;
+    if (!isMuted) {
+      video.volume = 1;
+      void video.play().catch(() => {});
+    }
+  }, [isMuted, currentIndex, active?.id]);
+
+  useEffect(() => {
     const token = getToken();
     if (!token || !active?.accountId) return;
     // Feed source telemetry for creator plays-source insights.
@@ -399,11 +411,12 @@ export default function Reels() {
               <div className="absolute inset-0 bg-[#050505] flex items-center justify-center">
                 <video
                   key={active.id}
+                  ref={activeVideoRef}
                   src={ensureAbsoluteMediaUrl(active.video)}
                   className="w-full h-full object-cover"
                   autoPlay
                   loop
-                  muted
+                  muted={isMuted}
                   playsInline
                   preload={deviceData.dataSaver ? 'metadata' : 'auto'}
                   onTimeUpdate={(e) => {
@@ -430,6 +443,15 @@ export default function Reels() {
                     <Play className="w-8 h-8 text-white fill-white" />
                   </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setIsMuted((prev) => !prev)}
+                  className="absolute top-3 right-3 z-20 w-10 h-10 rounded-full bg-black/50 text-white flex items-center justify-center"
+                  aria-label={isMuted ? 'Unmute video' : 'Mute video'}
+                  title={isMuted ? 'Unmute' : 'Mute'}
+                >
+                  {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                </button>
               </div>
 
               {/* Right-hand action bar */}

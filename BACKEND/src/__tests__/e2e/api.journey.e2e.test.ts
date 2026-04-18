@@ -8,8 +8,9 @@ import { app, prisma } from '../../server';
 const hasDb = Boolean(process.env.DATABASE_URL);
 
 (hasDb ? describe : describe.skip)('E2E API journey (requires DATABASE_URL)', () => {
-  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-  const username = `e2e_${suffix}`;
+  const uniqueSuffix = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+  const mkUsername = (prefix: string) => `${prefix}_${uniqueSuffix()}`.slice(0, 30);
+  const username = mkUsername('e2e');
   const password = 'testpass1';
   const displayName = 'E2E User';
 
@@ -59,8 +60,7 @@ const hasDb = Boolean(process.env.DATABASE_URL);
   });
 
   it('GET /api/commerce/catalog filters by minPrice and maxPrice', async () => {
-    const sellerSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const sellerUsername = `e2e_seller_${sellerSuffix}`;
+    const sellerUsername = mkUsername('e2e_seller');
 
     const sellerReg = await request(app)
       .post('/api/auth/register')

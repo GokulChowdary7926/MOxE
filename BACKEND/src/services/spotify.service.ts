@@ -33,6 +33,8 @@ export type SpotifyTrack = {
   name: string;
   artists: string;
   album?: string;
+  /** Smallest cover image URL from Spotify (HTTPS). */
+  album_image_url?: string | null;
   duration_ms?: number;
   preview_url?: string | null;
 };
@@ -48,12 +50,18 @@ export async function searchTracks(query: string, token: string, limit = 20): Pr
     throw new Error(data?.error?.message || 'Spotify search failed');
   }
   const items = data?.tracks?.items ?? [];
-  return items.map((t: any) => ({
-    id: t.id,
-    name: t.name,
-    artists: (t.artists ?? []).map((a: any) => a.name).join(', '),
-    album: t.album?.name,
-    duration_ms: t.duration_ms,
-    preview_url: t.preview_url ?? null,
-  }));
+  return items.map((t: any) => {
+    const imgs = Array.isArray(t.album?.images) ? t.album.images : [];
+    const albumImage =
+      imgs.length > 0 ? (imgs[imgs.length - 1] as { url?: string })?.url ?? null : null;
+    return {
+      id: t.id,
+      name: t.name,
+      artists: (t.artists ?? []).map((a: any) => a.name).join(', '),
+      album: t.album?.name,
+      album_image_url: albumImage,
+      duration_ms: t.duration_ms,
+      preview_url: t.preview_url ?? null,
+    };
+  });
 }

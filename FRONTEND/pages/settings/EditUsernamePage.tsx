@@ -79,20 +79,20 @@ export default function EditUsernamePage() {
         <MoxePageHeader title="Edit username" onBack={() => navigate(-1)} />
 
         <div className="flex-1 overflow-auto p-4">
-          <p className="text-[#a8a8a8] text-sm mb-4">Changing your username will also change your MOxE account address. Use 3–30 lowercase letters (a–z) only.</p>
+          <p className="text-[#a8a8a8] text-sm mb-4">Changing your username will also change your MOxE account address. Use 1-30 characters: lowercase letters, numbers, periods, or underscores.</p>
           <label className="block text-[#737373] text-xs mb-1">Username</label>
           <div className="relative">
             <input
               type="text"
               value={username}
               onChange={(e) => {
-                setUsername(e.target.value.toLowerCase().replace(/[^a-z]/g, ''));
+                setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, ''));
                 setAvailable(null);
                 setValidationError(null);
               }}
               onBlur={checkAvailability}
               className="w-full px-4 py-3 pr-10 rounded-lg bg-[#262626] border border-[#363636] text-white text-sm"
-              placeholder="lowercase letters only (a–z)"
+              placeholder="lowercase, numbers, ., _"
               maxLength={30}
             />
             {available === true && (

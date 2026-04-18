@@ -793,6 +793,11 @@ export function FeedPost({
           src={ensureAbsoluteMediaUrl(mediaUris[currentMediaIndex]) || ''}
           alt=""
           className="w-full h-full object-cover select-none"
+          onError={(e) => {
+            const t = e.currentTarget;
+            t.onerror = null;
+            t.src = 'https://via.placeholder.com/1080x1080/111111/666666?text=Media+Unavailable';
+          }}
           onClick={() => {
             if (isSponsored) recordAdClick();
           }}

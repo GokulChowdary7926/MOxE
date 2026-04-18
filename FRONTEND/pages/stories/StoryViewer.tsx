@@ -33,6 +33,32 @@ type StoryReplyRow = {
   account?: { username: string; displayName?: string | null; profilePhoto?: string | null };
 };
 
+function extractStoryMediaUrl(story: any): string {
+  const media = story?.media;
+  if (typeof media === 'string' && media.trim()) return media.trim();
+  if (Array.isArray(media) && media.length > 0) {
+    const first = media[0];
+    if (typeof first === 'string' && first.trim()) return first.trim();
+    if (first && typeof first === 'object') {
+      const fromObj = (first as { url?: string; uri?: string; mediaUrl?: string }).url
+        ?? (first as { url?: string; uri?: string; mediaUrl?: string }).uri
+        ?? (first as { url?: string; uri?: string; mediaUrl?: string }).mediaUrl;
+      if (typeof fromObj === 'string' && fromObj.trim()) return fromObj.trim();
+    }
+  }
+  if (media && typeof media === 'object') {
+    const fromObj = (media as { url?: string; uri?: string; mediaUrl?: string }).url
+      ?? (media as { url?: string; uri?: string; mediaUrl?: string }).uri
+      ?? (media as { url?: string; uri?: string; mediaUrl?: string }).mediaUrl;
+    if (typeof fromObj === 'string' && fromObj.trim()) return fromObj.trim();
+  }
+  for (const key of ['mediaUrl', 'url', 'imageUrl', 'thumbnail'] as const) {
+    const candidate = story?.[key];
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+  }
+  return '';
+}
+
 export default function StoryViewer() {
   const { username } = useParams();
   const navigate = useNavigate();
@@ -114,7 +140,7 @@ export default function StoryViewer() {
         const items: StoryItem[] = (data.items ?? data).flatMap((row: any) =>
           (row.stories ?? [row]).map((s: any) => ({
             id: s.id,
-            mediaUrl: s.media?.[0]?.url ?? s.mediaUrl ?? '',
+            mediaUrl: extractStoryMediaUrl(s),
             text: s.text ?? s.caption ?? null,
             createdAt: s.createdAt,
             isLiked: s.viewerHasLiked ?? false,
@@ -1129,7 +1155,7 @@ export default function StoryViewer() {
                       <div className="w-8 h-8 rounded-full bg-moxe-background flex items-center justify-center text-[11px] text-moxe-textSecondary overflow-hidden">
                         {u.profilePhoto ? (
                           // eslint-disable-next-line jsx-a11y/alt-text
-                          <img src={u.profilePhoto} className="w-full h-full object-cover" />
+                          <img src={ensureAbsoluteMediaUrl(u.profilePhoto)} className="w-full h-full object-cover" />
                         ) : (
                           (u.username || '?').charAt(0).toUpperCase()
                         )}

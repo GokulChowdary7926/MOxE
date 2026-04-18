@@ -7,6 +7,7 @@ import { getApiBase, getToken } from '../../services/api';
 import LeafletMap from '../../components/map/LeafletMap';
 import { fetchNearbySafePlaces, openDirections, type NearbyPlace } from '../../utils/nearbyPlaces';
 import { MoxePageHeader } from '../../components/layout/MoxePageHeader';
+import { canUseBrowserGeolocation } from '../../utils/browserFeatures';
 
 const DEFAULT_CENTER: [number, number] = [37.7749, -122.4194];
 const PRIMARY_KEYWORDS = ['HELP', 'EMERGENCY', 'SOS', 'SAVE ME'];
@@ -37,7 +38,7 @@ export default function SOSPage() {
   const [speechStatus, setSpeechStatus] = useState<'idle' | 'listening' | 'stopped' | 'unsupported'>('idle');
 
   useEffect(() => {
-    if (!navigator.geolocation) return;
+    if (!canUseBrowserGeolocation() || !navigator.geolocation) return;
     const id = navigator.geolocation.watchPosition(
       (pos) => {
         setUserCoords([pos.coords.latitude, pos.coords.longitude]);
@@ -71,7 +72,7 @@ export default function SOSPage() {
       let lng: number | undefined;
       if (userCoords) {
         [lat, lng] = userCoords;
-      } else {
+      } else if (canUseBrowserGeolocation()) {
         const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 });
         });

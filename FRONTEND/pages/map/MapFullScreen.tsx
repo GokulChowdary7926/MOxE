@@ -5,6 +5,7 @@ import { MobileShell } from '../../components/layout/MobileShell';
 import { MapPin, X, Locate } from 'lucide-react';
 import LeafletMap from '../../components/map/LeafletMap';
 import { MapLocationSearch, type MapPlaceResult } from '../../components/map/MapLocationSearch';
+import { canUseBrowserGeolocation, GEOLOCATION_HTTPS_HINT, isSecureContextHintMessage } from '../../utils/browserFeatures';
 
 const DEFAULT_CENTER: [number, number] = [37.7749, -122.4194];
 
@@ -14,9 +15,19 @@ export default function MapFullScreen() {
   const flyRevision = useRef(0);
   const [flyTo, setFlyTo] = useState<{ lat: number; lng: number; zoom?: number; revision: number } | null>(null);
   const [searchPin, setSearchPin] = useState<{ position: [number, number]; label: string } | null>(null);
+  const [geoStatus, setGeoStatus] = useState<string | null>(null);
+  const [offline, setOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false);
 
   useEffect(() => {
     setMounted(true);
+    const onOnline = () => setOffline(false);
+    const onOffline = () => setOffline(true);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
   }, []);
 
   const goToPlace = (p: MapPlaceResult) => {
@@ -35,9 +46,17 @@ export default function MapFullScreen() {
   };
 
   const handleLocate = () => {
-    if (!navigator.geolocation) return;
+    if (!canUseBrowserGeolocation()) {
+      setGeoStatus(GEOLOCATION_HTTPS_HINT);
+      return;
+    }
+    if (!navigator.geolocation) {
+      setGeoStatus('Geolocation is not supported on this device.');
+      return;
+    }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        setGeoStatus(null);
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
         flyRevision.current += 1;
@@ -48,7 +67,10 @@ export default function MapFullScreen() {
         });
         setFlyTo({ lat, lng, zoom: 17, revision: flyRevision.current });
       },
-      () => {},
+      (err) => {
+        const msg = err?.code === 1 ? 'Location permission denied.' : 'Unable to get current location.';
+        setGeoStatus(msg);
+      },
       { enableHighAccuracy: true, timeout: 15000 },
     );
   };
@@ -76,13 +98,15 @@ export default function MapFullScreen() {
             </div>
             <MapLocationSearch biasCenter={center} onSelect={goToPlace} />
           </header>
-          <div className="flex-1 min-h-0 min-h-[60vh] bg-[#1a1a1a]">
+          <div className="flex-1 min-h-0 min-h-[60vh] bg-[#0D0E11]">
             {mounted ? (
               <LeafletMap
                 center={center}
                 zoom={14}
                 showUserLocation={true}
                 showMarker={false}
+                appleStyle={false}
+                lightTiles={false}
                 markers={searchPin ? [searchPin] : []}
                 flyTo={flyTo ?? undefined}
                 className="w-full h-full min-h-[50vh] rounded-none"
@@ -91,8 +115,18 @@ export default function MapFullScreen() {
               <div className="w-full h-full min-h-[50vh] flex items-center justify-center">
                 <div className="text-center">
                   <MapPin className="w-16 h-16 text-[#737373] mx-auto mb-3" />
-                  <p className="text-white font-medium">Loading map…</p>
+                  <p className="text-white font-medium">Loading map...</p>
                 </div>
+              </div>
+            )}
+            {(offline || geoStatus) && (
+              <div className="px-4 py-2 border-t border-[#262626]">
+                {offline ? <p className="text-xs text-amber-300">You are offline. Live map data is unavailable.</p> : null}
+                {geoStatus ? (
+                  <p className={`text-xs ${isSecureContextHintMessage(geoStatus) ? 'text-[#a8a8a8]' : 'text-[#FCA5A5]'}`}>
+                    {geoStatus}
+                  </p>
+                ) : null}
               </div>
             )}
           </div>

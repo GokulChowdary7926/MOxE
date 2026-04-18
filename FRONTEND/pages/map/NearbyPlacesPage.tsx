@@ -4,6 +4,7 @@ import { MapPin } from 'lucide-react';
 import LeafletMap from '../../components/map/LeafletMap';
 import { MapLocationSearch, type MapPlaceResult } from '../../components/map/MapLocationSearch';
 import { fetchNearbyFamousPlaces, openDirections, type NearbyPlace } from '../../utils/nearbyPlaces';
+import { canUseBrowserGeolocation, GEOLOCATION_HTTPS_HINT, isSecureContextHintMessage } from '../../utils/browserFeatures';
 
 const MAP_CENTER: [number, number] = [37.7749, -122.4194];
 
@@ -16,12 +17,19 @@ export default function NearbyPlacesPage() {
   const [directionTo, setDirectionTo] = useState<NearbyPlace | null>(null);
   const flyRevision = useRef(0);
   const [flyTo, setFlyTo] = useState<{ lat: number; lng: number; zoom?: number; revision: number } | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!mounted) return;
+    if (!canUseBrowserGeolocation()) {
+      setStatusMessage(GEOLOCATION_HTTPS_HINT);
+      setLoading(false);
+      return;
+    }
     if (!navigator.geolocation) {
+      setStatusMessage('Geolocation is not available on this device.');
       setLoading(false);
       return;
     }
@@ -32,7 +40,10 @@ export default function NearbyPlacesPage() {
         setUserCoords([lat, lng]);
         // Places fetch happens in the effect that watches the active center.
       },
-      () => setLoading(false),
+      () => {
+        setStatusMessage('Location permission denied. Showing fallback location.');
+        setLoading(false);
+      },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   }, [mounted]);
@@ -44,9 +55,14 @@ export default function NearbyPlacesPage() {
   useEffect(() => {
     if (!mounted) return;
     if (!activeCenter) return;
+    setStatusMessage(null);
     setLoading(true);
     fetchNearbyFamousPlaces(activeCenter[0], activeCenter[1], 50)
       .then(setPlaces)
+      .catch(() => {
+        setPlaces([]);
+        setStatusMessage('Could not load nearby places right now.');
+      })
       .finally(() => setLoading(false));
   }, [mounted, activeCenter]);
 
@@ -74,6 +90,13 @@ export default function NearbyPlacesPage() {
     <SettingsPageShell title="Nearby Places" backTo="/map">
       <div className="px-4 py-4">
         <p className="text-[#a8a8a8] text-sm mb-4">Nearby famous places, tourist spots, and attractions within 50 km. Tap Directions to show route on map.</p>
+        {statusMessage ? (
+          <p
+            className={`text-xs mb-2 ${isSecureContextHintMessage(statusMessage) ? 'text-[#a8a8a8]' : 'text-amber-300'}`}
+          >
+            {statusMessage}
+          </p>
+        ) : null}
         <div className="mb-4">
           <MapLocationSearch
             biasCenter={mapCenter}

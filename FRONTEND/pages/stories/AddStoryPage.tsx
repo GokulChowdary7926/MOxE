@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { X, Settings, Users, Music, LayoutGrid, Sparkles, Camera, Image as ImageIcon } from 'lucide-react';
 import { ThemedView, ThemedText } from '../../components/ui/Themed';
 import { MobileShell } from '../../components/layout/MobileShell';
+import CreationModeBar from '../../components/create/CreationModeBar';
 
 /**
  * Add to story landing – same layout for all accounts.
@@ -32,7 +33,7 @@ export default function AddStoryPage() {
           </Link>
         </header>
 
-        <div className="flex-1 overflow-auto p-4 pb-20">
+        <div className="flex-1 overflow-auto p-4 pb-28">
           {/* Story creation option cards */}
           <div className="grid grid-cols-4 gap-3 mb-4">
             {cards.map(({ key, label, icon: Icon, to }) => (
@@ -78,6 +79,12 @@ export default function AddStoryPage() {
             >
               <ImageIcon className="w-8 h-8 text-[#737373]" />
             </button>
+          </div>
+        </div>
+
+        <div className="pointer-events-none fixed bottom-0 left-0 right-0 z-20 mx-auto flex max-w-[428px] justify-center pb-4 safe-area-pb">
+          <div className="pointer-events-auto">
+            <CreationModeBar />
           </div>
         </div>
       </MobileShell>

@@ -36,8 +36,11 @@ import { Avatar } from '../../components/ui/Avatar';
 import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
 import { SocialCommentsSheet, SocialCommentsEmpty } from '../../components/comments/SocialCommentsSheet';
 import toast from 'react-hot-toast';
+import { canUseBrowserGeolocation, GEOLOCATION_HTTPS_HINT, isSecureContextHintMessage } from '../../utils/browserFeatures';
+import { messageFromUnknown, sanitizeClientErrorMessage, userFacingUploadError } from '../../utils/userFacingErrors';
 
 const MESSAGE_RETENTION_MS = 24 * 60 * 60 * 1000; // 24 hours
+const MESSAGE_MAX_HISTORY = 5000;
 
 type NearbyUsageApi = {
   textRemaining?: number;
@@ -70,6 +73,12 @@ function toSecondBucket(iso?: string | null): number {
   if (!iso) return 0;
   const t = new Date(iso).getTime();
   return Number.isFinite(t) ? Math.floor(t / 1000) : 0;
+}
+
+function parseTimestamp(value?: string | null): number | null {
+  if (!value) return null;
+  const t = new Date(value).getTime();
+  return Number.isFinite(t) ? t : null;
 }
 
 function nearbyFingerprint(m: {
@@ -176,11 +185,49 @@ export default function NearbyMessagingPage() {
           pendingOptimisticSentAt.current = null;
           setMessages((prev) => prev.filter((m) => m.sentAt !== at));
         }
-        setNearbyError(e?.message || 'Could not send to Nearby.');
+        setNearbyError(sanitizeClientErrorMessage(e?.message ?? '') || 'Could not send to Nearby.');
       };
 
       socket.on('nearby:usage', onUsage);
       socket.on('nearby:message:error', onNearbyError);
+      socket.on('nearby:history', (payload: any) => {
+        const items = Array.isArray(payload?.messages) ? payload.messages : [];
+        if (items.length === 0) return;
+        setMessages((prev) => {
+          const now = Date.now();
+          const kept = prev.filter((m) => {
+            const ts = parseTimestamp(m.sentAt);
+            if (ts == null) return true;
+            return now - ts < MESSAGE_RETENTION_MS;
+          });
+          const seen = new Set(kept.map((m) => nearbyFingerprint(m)));
+          const toAdd: NearbyMessage[] = [];
+          for (const item of items) {
+            const text = (item?.text ?? '').toString();
+            const imageUrl = item?.imageUrl ?? null;
+            if (!text && !imageUrl) continue;
+            const candidate: NearbyMessage = {
+              text: text || '[Photo]',
+              messageId: typeof item?.messageId === 'string' ? item.messageId : undefined,
+              fromUserId: (item?.from?.userId ?? null) as string | null,
+              fromAccountId: (item?.from?.accountId ?? null) as string | null,
+              fromUsername: (item?.from?.username ?? null) as string | null,
+              fromDisplayName: (item?.from?.displayName ?? null) as string | null,
+              sentAt: (item?.sentAt as string) ?? new Date().toISOString(),
+              imageUrl,
+              replyCount: 0,
+              likeCount: 0,
+            };
+            const fp = nearbyFingerprint(candidate);
+            if (seen.has(fp)) continue;
+            seen.add(fp);
+            toAdd.push(candidate);
+          }
+          if (toAdd.length === 0) return kept.slice(0, MESSAGE_MAX_HISTORY);
+          toAdd.sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
+          return [...toAdd, ...kept].slice(0, MESSAGE_MAX_HISTORY);
+        });
+      });
 
       socket.on('nearby:message', (payload: any) => {
         const text = (payload?.text ?? '').toString();
@@ -218,7 +265,11 @@ export default function NearbyMessagingPage() {
         const isOwnEcho = last.text === text && last.imageUrl === imageUrl && Date.now() - last.at < 5000;
         setMessages((prev) => {
           const now = Date.now();
-          let kept = prev.filter((m) => now - new Date(m.sentAt).getTime() < MESSAGE_RETENTION_MS);
+          let kept = prev.filter((m) => {
+            const ts = parseTimestamp(m.sentAt);
+            if (ts == null) return true;
+            return now - ts < MESSAGE_RETENTION_MS;
+          });
           const isFromMe = !!myAccountId && !!fromAccountId && fromAccountId === myAccountId;
           if (isFromMe && pendingOptimisticSentAt.current) {
             const optimisticAt = new Date(pendingOptimisticSentAt.current).getTime();
@@ -249,16 +300,16 @@ export default function NearbyMessagingPage() {
               fromDisplayName: fromDisplayName ?? next[dupIdx].fromDisplayName,
               messageId: messageId ?? next[dupIdx].messageId,
             };
-            return next.slice(0, 200);
+            return next.slice(0, MESSAGE_MAX_HISTORY);
           }
           if (isOwnEcho) {
             const idx = kept.findIndex((m) => m.text === (text || '[Photo]') && (m.imageUrl || null) === (imageUrl || null) && Math.abs(new Date(m.sentAt).getTime() - new Date(sentAt).getTime()) < 2000);
             if (idx >= 0) {
               const next = [...kept];
               next[idx] = { ...next[idx], fromUsername: fromUsername ?? undefined, fromDisplayName: fromDisplayName ?? undefined, fromUserId, fromAccountId, messageId: messageId ?? next[idx].messageId };
-              return next.slice(0, 200);
+              return next.slice(0, MESSAGE_MAX_HISTORY);
             }
-            return kept.slice(0, 200);
+            return kept.slice(0, MESSAGE_MAX_HISTORY);
           }
           const newMsg: NearbyMessage = {
             text: text || '[Photo]',
@@ -272,7 +323,7 @@ export default function NearbyMessagingPage() {
             replyCount: 0,
             likeCount: 0,
           };
-          return [newMsg, ...kept].slice(0, 200);
+          return [newMsg, ...kept].slice(0, MESSAGE_MAX_HISTORY);
         });
       });
 
@@ -280,6 +331,7 @@ export default function NearbyMessagingPage() {
         socket.off('connect', joinNearby);
         socket.emit('nearby:leave');
         socket.off('nearby:message');
+        socket.off('nearby:history');
         socket.off('nearby:usage', onUsage);
         socket.off('nearby:message:error', onNearbyError);
       };
@@ -306,8 +358,8 @@ export default function NearbyMessagingPage() {
   }, [accountIdFromStore, currentAccount?.id]);
 
   useEffect(() => {
-    if (!('geolocation' in navigator)) {
-      setLocationStatus('Location not supported.');
+    if (!canUseBrowserGeolocation()) {
+      setLocationStatus(GEOLOCATION_HTTPS_HINT);
       return;
     }
     const id = navigator.geolocation.watchPosition(
@@ -334,7 +386,11 @@ export default function NearbyMessagingPage() {
     const interval = setInterval(() => {
       setMessages((prev) => {
         const cutoff = Date.now() - MESSAGE_RETENTION_MS;
-        const next = prev.filter((m) => new Date(m.sentAt).getTime() > cutoff);
+        const next = prev.filter((m) => {
+          const ts = parseTimestamp(m.sentAt);
+          if (ts == null) return true;
+          return ts > cutoff;
+        });
         return next.length === prev.length ? prev : next;
       });
     }, 60000);
@@ -356,7 +412,11 @@ export default function NearbyMessagingPage() {
     const fromUsername = anonymousMode ? 'anonymous' : (currentAccount?.username ?? 'you');
     setMessages((prev) => {
       const now = Date.now();
-      const kept = prev.filter((m) => now - new Date(m.sentAt).getTime() < MESSAGE_RETENTION_MS);
+      const kept = prev.filter((m) => {
+        const ts = parseTimestamp(m.sentAt);
+        if (ts == null) return true;
+        return now - ts < MESSAGE_RETENTION_MS;
+      });
       const optimistic: NearbyMessage = {
         text,
         fromUserId: null,
@@ -368,8 +428,8 @@ export default function NearbyMessagingPage() {
         likeCount: 0,
       };
       const fp = nearbyFingerprint(optimistic);
-      if (kept.some((m) => nearbyFingerprint(m) === fp)) return kept.slice(0, 200);
-      return [optimistic, ...kept].slice(0, 200);
+      if (kept.some((m) => nearbyFingerprint(m) === fp)) return kept.slice(0, MESSAGE_MAX_HISTORY);
+      return [optimistic, ...kept].slice(0, MESSAGE_MAX_HISTORY);
     });
     setMessage('');
     socket.emit('nearby:message', { text, anonymous: anonymousMode });
@@ -408,8 +468,11 @@ export default function NearbyMessagingPage() {
           headers: { Authorization: `Bearer ${token}` },
           body: form,
         });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data.url) throw new Error(data.error || 'Upload failed');
+        if (!res.ok) {
+          throw new Error(await userFacingUploadError(res, 'Could not upload photo.'));
+        }
+        const data = (await res.json().catch(() => ({}))) as { url?: string };
+        if (!data.url) throw new Error('Could not upload photo.');
         const imageUrl = data.url as string;
         const caption = composeCaption.trim() || '[Photo]';
         lastSentRef.current = { text: caption, imageUrl, at: Date.now() };
@@ -420,7 +483,11 @@ export default function NearbyMessagingPage() {
         const fromUsername = anonymousMode ? 'anonymous' : (currentAccount?.username ?? 'you');
         setMessages((prev) => {
           const now = Date.now();
-          const kept = prev.filter((m) => now - new Date(m.sentAt).getTime() < MESSAGE_RETENTION_MS);
+          const kept = prev.filter((m) => {
+            const ts = parseTimestamp(m.sentAt);
+            if (ts == null) return true;
+            return now - ts < MESSAGE_RETENTION_MS;
+          });
           const optimistic: NearbyMessage = {
             text: caption,
             fromUserId: null,
@@ -433,13 +500,13 @@ export default function NearbyMessagingPage() {
             likeCount: 0,
           };
           const fp = nearbyFingerprint(optimistic);
-          if (kept.some((m) => nearbyFingerprint(m) === fp)) return kept.slice(0, 200);
-          return [optimistic, ...kept].slice(0, 200);
+          if (kept.some((m) => nearbyFingerprint(m) === fp)) return kept.slice(0, MESSAGE_MAX_HISTORY);
+          return [optimistic, ...kept].slice(0, MESSAGE_MAX_HISTORY);
         });
         socket.emit('nearby:message', { text: caption, imageUrl, anonymous: anonymousMode });
         handleCancelCompose();
-      } catch (err) {
-        console.error(err);
+      } catch (err: unknown) {
+        setNearbyError(messageFromUnknown(err, 'Could not send photo.'));
       } finally {
         setUploadingPhoto(false);
       }
@@ -461,11 +528,23 @@ export default function NearbyMessagingPage() {
   const messageKey = (m: NearbyMessage, idx: number) =>
     m.messageId || `${m.sentAt}-${idx}-${(m.text + (m.imageUrl || '')).slice(0, 40)}`;
   const visibleMessages = useMemo(() => {
-    const fresh = messages.filter((m) => Date.now() - new Date(m.sentAt).getTime() < MESSAGE_RETENTION_MS);
+    const fresh = messages.filter((m) => {
+      const ts = parseTimestamp(m.sentAt);
+      if (ts == null) return true;
+      return Date.now() - ts < MESSAGE_RETENTION_MS;
+    });
     const seen = new Set<string>();
     const out: NearbyMessage[] = [];
     for (const m of fresh) {
-      const key = `${(m.fromAccountId || m.fromUserId || m.fromUsername || 'unknown').toLowerCase()}|${(m.text || '').trim().toLowerCase()}|${(m.imageUrl || '').trim()}|${toSecondBucket(m.sentAt)}`;
+      const key = nearbyFingerprint({
+        messageId: m.messageId,
+        fromUserId: m.fromUserId,
+        fromAccountId: m.fromAccountId,
+        fromUsername: m.fromUsername,
+        text: m.text,
+        imageUrl: m.imageUrl,
+        sentAt: m.sentAt,
+      });
       if (seen.has(key)) continue;
       seen.add(key);
       out.push(m);
@@ -718,7 +797,11 @@ export default function NearbyMessagingPage() {
         <div className="flex items-center justify-between px-4 py-2 text-[13px] text-[#71767b] border-b border-[#2f2f2f]">
           <div className="flex items-center gap-1.5 min-w-0">
             <MapPin className="w-4 h-4 flex-shrink-0" />
-            <span className="truncate">{locationStatus}</span>
+            <span
+              className={`truncate ${isSecureContextHintMessage(locationStatus) ? 'text-[#a8a8a8]' : ''}`}
+            >
+              {locationStatus}
+            </span>
           </div>
           <div className="flex flex-col items-end text-right gap-0.5 flex-shrink-0 pl-2">
             <span>

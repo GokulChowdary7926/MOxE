@@ -10,7 +10,9 @@ import { getApiBase, getToken } from '../../services/api';
  */
 export default function ReelTagPeoplePage() {
   const navigate = useNavigate();
-  const location = useLocation() as { state?: { mentionedUserIds?: string[] } };
+  const location = useLocation() as {
+    state?: { mentionedUserIds?: string[]; files?: File[]; prefillMusic?: unknown; location?: string; selectedLocation?: string };
+  };
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<{ id: string; username: string; displayName?: string | null }[]>([]);
   const [loading, setLoading] = useState(false);
@@ -47,12 +49,16 @@ export default function ReelTagPeoplePage() {
   const remove = (id: string) => setSelected((prev) => prev.filter((s) => s.id !== id));
 
   const onDone = () => {
+    const st = location.state ?? {};
     navigate('..', {
       relative: 'path',
       replace: true,
       state: {
         mentionedUserIds: selected.map((s) => s.id),
-        files: (location.state as { files?: File[] })?.files,
+        files: st.files,
+        prefillMusic: st.prefillMusic,
+        location: st.location,
+        selectedLocation: st.selectedLocation,
       },
     });
   };

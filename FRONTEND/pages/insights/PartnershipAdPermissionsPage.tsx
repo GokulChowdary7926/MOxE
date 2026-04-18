@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { SettingsPageShell } from '../../components/layout/SettingsPageShell';
 import { Search } from 'lucide-react';
 import { getApiBase, getToken } from '../../services/api';
+import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
 
 type Application = {
   id: string;
@@ -119,7 +120,7 @@ export default function PartnershipAdPermissionsPage() {
               <li key={a.id} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-[#262626] border border-[#363636]">
                 <div className="flex items-center gap-3 min-w-0">
                   {a.creator?.profilePhoto ? (
-                    <img src={a.creator.profilePhoto} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" />
+                    <img src={ensureAbsoluteMediaUrl(a.creator.profilePhoto)} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" />
                   ) : (
                     <div className="w-10 h-10 rounded-full bg-[#363636] shrink-0 flex items-center justify-center text-white text-sm font-medium">
                       {(a.creator?.displayName || a.creator?.username || '?')[0].toUpperCase()}

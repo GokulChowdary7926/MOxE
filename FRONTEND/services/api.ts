@@ -22,7 +22,10 @@ export function getApiBase(): string {
   if (import.meta.env.DEV) {
     return '/api';
   }
-  return 'http://localhost:5007/api';
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}/api`;
+  }
+  return 'http://127.0.0.1:5007/api';
 }
 
 /** Backend origin for Socket.IO (no `/api`). In dev with Vite, use the dev server origin so `/socket.io` is proxied to the API. */
@@ -37,20 +40,16 @@ export function getBackendOrigin(): string {
     }
     return 'http://127.0.0.1:3001';
   }
-  return 'http://localhost:5007';
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin;
+  }
+  return 'http://127.0.0.1:5007';
 }
 
-/** POST `/upload` is not under `/api`; use this for multipart uploads. */
+/** Upload endpoint under API namespace to share the same proxy/base rules across envs. */
 export function getUploadUrl(): string {
-  const fromEnv = import.meta.env.VITE_API_URL as string | undefined;
-  if (fromEnv && fromEnv.length > 0) {
-    const origin = fromEnv.replace(/\/api\/?$/, '').replace(/\/$/, '');
-    return `${origin}/upload`;
-  }
-  if (import.meta.env.DEV) {
-    return '/upload';
-  }
-  return 'http://localhost:5007/upload';
+  const apiBase = getApiBase().replace(/\/$/, '');
+  return `${apiBase}/upload`;
 }
 
 /**

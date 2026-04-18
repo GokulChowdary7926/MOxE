@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { canUseMediaDevices, MEDIA_DEVICES_HTTPS_HINT, normalizeCameraError } from '../utils/browserFeatures';
 
 export type FacingMode = 'user' | 'environment';
 
@@ -60,6 +61,11 @@ export function useCamera(options: UseCameraOptions = {}): UseCameraResult {
   const start = useCallback(
     async (overrides?: { video?: boolean | MediaTrackConstraints; audio?: boolean; facingMode?: FacingMode }) => {
       setError(null);
+      if (!canUseMediaDevices()) {
+        setError(MEDIA_DEVICES_HTTPS_HINT);
+        setStream(null);
+        return;
+      }
       const video = overrides?.video ?? options.video ?? true;
       const audio = overrides?.audio ?? options.audio ?? false;
       const mode = overrides?.facingMode ?? facingMode;
@@ -71,8 +77,8 @@ export function useCamera(options: UseCameraOptions = {}): UseCameraResult {
         const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
         setStream(mediaStream);
         setFacingMode(mode);
-      } catch (e: any) {
-        setError(e?.message ?? 'Could not access camera');
+      } catch (e: unknown) {
+        setError(normalizeCameraError(e));
         setStream(null);
       }
     },

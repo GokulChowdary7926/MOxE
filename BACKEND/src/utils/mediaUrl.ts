@@ -5,7 +5,14 @@
 export function normalizeStoredMediaUrl(raw: unknown): string {
   const value = typeof raw === 'string' ? raw.trim() : '';
   if (!value) return '';
-  if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:')) return value;
+  if (value.startsWith('data:')) return value;
+  if (value.startsWith('http://') || value.startsWith('https://')) {
+    // Migrate legacy/local absolute URLs (e.g. http://localhost:5007/uploads/x.jpg)
+    // into stable relative upload paths that frontend can resolve with current origin.
+    const match = value.match(/^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d+)?(\/uploads\/[^?#]+)/i);
+    if (match) return match[1];
+    return value;
+  }
   if (value.startsWith('/uploads/')) return value;
   if (value.startsWith('/')) return value;
   return `/uploads/${value.replace(/^\/+/, '')}`;
@@ -46,6 +53,27 @@ export function normalizeNoteContentJsonForApi(content: unknown): unknown {
   const c = { ...(content as Record<string, unknown>) };
   for (const k of ['image', 'imageUrl', 'mediaUrl', 'thumbnail', 'url', 'backgroundImage']) {
     if (typeof c[k] === 'string') c[k] = normalizeStoredMediaUrl(c[k]);
+  }
+  // Normalize common nested note payloads used by UI:
+  // - VIDEO: contentJson.video.url
+  // - MUSIC: contentJson.music.albumArt / previewUrl
+  // - LINK: contentJson.link.preview.image / imageUrl / thumbnail
+  // - Any nested object with url-like keys in one level.
+  for (const nestedKey of ['video', 'music', 'link', 'preview'] as const) {
+    const nested = c[nestedKey];
+    if (!nested || typeof nested !== 'object' || Array.isArray(nested)) continue;
+    const n = { ...(nested as Record<string, unknown>) };
+    for (const k of ['url', 'image', 'imageUrl', 'thumbnail', 'previewUrl', 'albumArt', 'src', 'uri'] as const) {
+      if (typeof n[k] === 'string') n[k] = normalizeStoredMediaUrl(n[k]);
+    }
+    if (n.preview && typeof n.preview === 'object' && !Array.isArray(n.preview)) {
+      const p = { ...(n.preview as Record<string, unknown>) };
+      for (const k of ['image', 'imageUrl', 'thumbnail', 'url', 'src', 'uri'] as const) {
+        if (typeof p[k] === 'string') p[k] = normalizeStoredMediaUrl(p[k]);
+      }
+      n.preview = p;
+    }
+    c[nestedKey] = n;
   }
   if (Array.isArray(c.media)) c.media = normalizeMediaJsonForApi(c.media);
   return c;

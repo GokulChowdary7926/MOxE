@@ -4,7 +4,7 @@ import { Search, X, Layers, Clapperboard } from 'lucide-react';
 import { ThemedView, ThemedText } from '../../components/ui/Themed';
 import { getApiBase, getToken } from '../../services/api';
 import { normalizeToArray } from '../../utils/safeAccess';
-import { getFirstMediaUrl } from '../../utils/mediaUtils';
+import { getFirstMediaUrl, ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
 import {
   loadSearchRecent,
   saveSearchRecent,
@@ -290,7 +290,7 @@ export default function Explore() {
                     >
                       <div className="w-9 h-9 rounded-full bg-[#262626] border border-[#363636] shrink-0 overflow-hidden flex items-center justify-center">
                         {av ? (
-                          <img src={av} alt="" className="w-full h-full object-cover" />
+                          <img src={ensureAbsoluteMediaUrl(av)} alt="" className="w-full h-full object-cover" />
                         ) : (
                           <span className="text-[13px] font-semibold text-[#a8a8a8]" aria-hidden>
                             {initial}
@@ -357,7 +357,7 @@ export default function Explore() {
                   }`}
                 >
                   <img
-                    src={item.thumbUrl}
+                    src={ensureAbsoluteMediaUrl(item.thumbUrl)}
                     alt=""
                     className="w-full h-full object-cover select-none"
                     onContextMenu={(e) => {

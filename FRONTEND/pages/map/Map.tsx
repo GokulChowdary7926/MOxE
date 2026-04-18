@@ -7,6 +7,7 @@ import { MapPin, MapPinned, Radio, AlertTriangle, Bell, UserPlus, Maximize2, Loc
 import LeafletMap from '../../components/map/LeafletMap';
 import { MapLocationSearch, type MapPlaceResult } from '../../components/map/MapLocationSearch';
 import { getApiBase, getToken } from '../../services/api';
+import { canUseBrowserGeolocation, GEOLOCATION_HTTPS_HINT, isSecureContextHintMessage } from '../../utils/browserFeatures';
 
 const DEFAULT_CENTER: [number, number] = [37.7749, -122.4194];
 
@@ -23,6 +24,9 @@ export default function Map() {
   const flyRevision = useRef(0);
   const [flyTo, setFlyTo] = useState<{ lat: number; lng: number; zoom?: number; revision: number } | null>(null);
   const [searchPin, setSearchPin] = useState<{ position: [number, number]; label: string } | null>(null);
+  const [geoStatus, setGeoStatus] = useState<string | null>(null);
+  const [networkError, setNetworkError] = useState<string | null>(null);
+  const [offline, setOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false);
 
   const goToPlace = (p: MapPlaceResult) => {
     flyRevision.current += 1;
@@ -40,9 +44,13 @@ export default function Map() {
   };
 
   const goToMyLocation = () => {
-    if (!navigator.geolocation) return;
+    if (!canUseBrowserGeolocation()) {
+      setGeoStatus(GEOLOCATION_HTTPS_HINT);
+      return;
+    }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        setGeoStatus(null);
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
         flyRevision.current += 1;
@@ -53,24 +61,41 @@ export default function Map() {
         });
         setFlyTo({ lat, lng, zoom: 16, revision: flyRevision.current });
       },
-      () => {},
+      (err) => {
+        const msg = err?.code === 1 ? 'Location permission denied.' : 'Unable to get current location.';
+        setGeoStatus(msg);
+      },
       { enableHighAccuracy: true, timeout: 15000 },
     );
   };
 
   useEffect(() => {
     setMounted(true);
-    if (navigator.geolocation) {
+    if (canUseBrowserGeolocation()) {
       navigator.geolocation.getCurrentPosition(
         (pos) => setCenter([pos.coords.latitude, pos.coords.longitude]),
-        () => {}
+        () => setGeoStatus('Unable to get current location.')
       );
+    } else {
+      setGeoStatus(GEOLOCATION_HTTPS_HINT);
     }
+  }, []);
+
+  useEffect(() => {
+    const onOnline = () => setOffline(false);
+    const onOffline = () => setOffline(true);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
   }, []);
 
   useEffect(() => {
     const token = getToken();
     if (!token) return;
+    setNetworkError(null);
     fetch(`${getApiBase()}/location/network?scope=${encodeURIComponent(networkScope)}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -84,7 +109,10 @@ export default function Map() {
           })),
         );
       })
-      .catch(() => setNetworkMarkers([]));
+      .catch(() => {
+        setNetworkMarkers([]);
+        setNetworkError('Could not load network locations.');
+      });
   }, [networkScope]);
 
   useEffect(() => {
@@ -103,7 +131,10 @@ export default function Map() {
           })),
         );
       })
-      .catch(() => setTagMarkers([]));
+      .catch(() => {
+        setTagMarkers([]);
+        setNetworkError((prev) => prev ?? 'Could not load tagged locations.');
+      });
   }, [networkScope]);
 
   return (
@@ -113,11 +144,11 @@ export default function Map() {
 
         <div className="flex-1 overflow-auto px-4 py-4">
           {/* MOxE Map (Leaflet preview) */}
-          <div className="rounded-xl bg-[#262626] border border-[#363636] overflow-hidden mb-4">
-            <div className="px-4 py-3 border-b border-[#363636] space-y-3">
+          <div className="rounded-2xl bg-[#111214] border border-[#2B2D31] overflow-hidden mb-4 shadow-sm">
+            <div className="px-4 py-3 border-b border-[#2B2D31] space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
-                  <MapPin className="w-5 h-5 text-[#a855f7] shrink-0" />
+                  <MapPin className="w-5 h-5 text-[#0A84FF] shrink-0" />
                   <span className="text-white font-semibold">MOxE Map</span>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
@@ -129,7 +160,7 @@ export default function Map() {
                   >
                     <Locate className="w-4 h-4" />
                   </button>
-                  <Link to="/map/full" className="flex items-center gap-1 text-[#a8a8a8] text-sm font-medium px-2 py-1 rounded-lg hover:bg-white/5">
+                  <Link to="/map/full" className="flex items-center gap-1 text-[#C2C7D0] text-sm font-medium px-2 py-1 rounded-lg hover:bg-white/10">
                     <Maximize2 className="w-4 h-4" />
                     Full screen
                   </Link>
@@ -137,13 +168,15 @@ export default function Map() {
               </div>
               <MapLocationSearch biasCenter={center} onSelect={goToPlace} />
             </div>
-            <div className="relative aspect-[4/3] bg-[#1a1a1a]">
+            <div className="relative aspect-[4/3] bg-[#0D0E11]">
               {mounted ? (
                 <LeafletMap
                   center={center}
                   zoom={14}
                   showMarker={false}
                   className="w-full h-full"
+                  appleStyle={false}
+                  lightTiles={false}
                   markers={[
                     ...networkMarkers,
                     ...tagMarkers,
@@ -157,11 +190,22 @@ export default function Map() {
                 </div>
               )}
             </div>
+            {(offline || geoStatus || networkError) && (
+              <div className="px-4 py-2 border-t border-[#2B2D31] space-y-1">
+                {offline ? <p className="text-xs text-amber-300">You are offline. Map data may be stale.</p> : null}
+                {geoStatus ? (
+                  <p className={`text-xs ${isSecureContextHintMessage(geoStatus) ? 'text-[#a8a8a8]' : 'text-[#FCA5A5]'}`}>
+                    {geoStatus}
+                  </p>
+                ) : null}
+                {networkError ? <p className="text-xs text-[#FCA5A5]">{networkError}</p> : null}
+              </div>
+            )}
           </div>
 
-          <div className="rounded-xl bg-[#262626] border border-[#363636] p-4 mb-4">
+          <div className="rounded-2xl bg-[#111214] border border-[#2B2D31] p-4 mb-4 shadow-sm">
             <p className="text-white font-semibold mb-2">Network locations</p>
-            <p className="text-[#a8a8a8] text-sm mb-3">Show live map locations for followers/following/friends/close friends.</p>
+            <p className="text-[#9CA3AF] text-sm mb-3">Show live map locations for followers/following/friends/close friends.</p>
             <div className="grid grid-cols-2 gap-2">
               {[
                 { id: 'followers', label: 'Followers' },
@@ -175,8 +219,8 @@ export default function Map() {
                   onClick={() => setNetworkScope(opt.id as 'followers' | 'following' | 'friends' | 'close_friends')}
                   className={`px-3 py-2 rounded-lg text-sm border ${
                     networkScope === opt.id
-                      ? 'bg-[#a855f7] text-white border-[#a855f7]'
-                      : 'bg-[#1f1f1f] text-[#a8a8a8] border-[#363636]'
+                      ? 'bg-[#0A84FF] text-white border-[#0A84FF]'
+                      : 'bg-[#1B1D22] text-[#D1D5DB] border-[#333844]'
                   }`}
                 >
                   {opt.label}

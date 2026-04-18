@@ -1,4 +1,5 @@
 mount_path
+/api
 /uploads
 /api
 /api/auth
@@ -26,10 +27,12 @@ mount_path
 /api/drafts
 /api/emergency-contacts
 /api/upload
+/upload
 /api/archive
 /api/highlights
 /api/groups
 /api/support
+/api/legal
 /api/content
 /api/safety
 /api/streaks
@@ -57,4 +60,5 @@ mount_path
 /api/subscription
 /api/notes
 /api/campaigns
+/api/recently-deleted
 /api/health

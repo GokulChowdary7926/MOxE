@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { fetchRouteForMap } from '../../utils/nearbyPlaces';
+import { canUseBrowserGeolocation } from '../../utils/browserFeatures';
 
 /** Fix default marker icons in Leaflet with bundlers (e.g. Vite) */
 const defaultIcon = L.icon({
@@ -21,6 +22,14 @@ const userLocationIcon = L.divIcon({
   html: '<div style="width:16px;height:16px;border-radius:50%;background:#3388ff;border:3px solid white;box-shadow:0 0 6px rgba(0,0,0,0.4);"></div>',
   iconSize: [22, 22],
   iconAnchor: [11, 11],
+});
+
+/** Soft blue pin used for searched/network places in Apple-like theme. */
+const applePinIcon = L.divIcon({
+  className: 'apple-map-pin',
+  html: '<div style="width:18px;height:18px;border-radius:50%;background:#0A84FF;border:3px solid #ffffff;box-shadow:0 6px 16px rgba(10,132,255,0.45);"></div>',
+  iconSize: [24, 24],
+  iconAnchor: [12, 12],
 });
 
 export interface LeafletMapProps {
@@ -54,6 +63,8 @@ export interface LeafletMapProps {
   routeTo?: [number, number];
   /** Fly the map to this point when `revision` changes (search / "my location"). */
   flyTo?: { lat: number; lng: number; zoom?: number; revision: number };
+  /** Apple Maps-like visual treatment (light tiles + custom pins). */
+  appleStyle?: boolean;
 }
 
 const DEFAULT_CENTER: [number, number] = [37.7749, -122.4194];
@@ -64,7 +75,7 @@ function UserLocationLayer({ zoom, onLocation }: { zoom: number; onLocation?: (l
   const hasCentered = React.useRef(false);
 
   useEffect(() => {
-    if (!navigator.geolocation) return;
+    if (!canUseBrowserGeolocation() || !navigator.geolocation) return;
     const id = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude, longitude } = pos.coords;
@@ -171,6 +182,7 @@ export default function LeafletMap({
   routeTo,
   lightTiles = false,
   flyTo,
+  appleStyle = false,
 }: LeafletMapProps) {
   const [internalPos, setInternalPos] = useState<[number, number]>(markerPosition ?? center);
   const pos = markerPosition ?? internalPos;
@@ -189,18 +201,20 @@ export default function LeafletMap({
       center={center}
       zoom={zoom}
       className={className}
-      style={{ background: '#0e0e0e' }}
+      style={{ background: appleStyle ? '#F2F2F7' : '#0e0e0e' }}
       zoomControl={true}
       scrollWheelZoom={true}
     >
       <TileLayer
         attribution={
-          lightTiles
+          lightTiles || appleStyle
             ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
         }
         url={
-          lightTiles
+          appleStyle
+            ? 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+            : lightTiles
             ? 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
             : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
         }
@@ -215,7 +229,7 @@ export default function LeafletMap({
         />
       )}
       {markers.map((m, i) => (
-        <Marker key={i} position={m.position}>
+        <Marker key={i} position={m.position} icon={appleStyle ? applePinIcon : defaultIcon}>
           {m.label ? <Popup>{m.label}</Popup> : null}
         </Marker>
       ))}

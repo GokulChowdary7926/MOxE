@@ -5,6 +5,8 @@ import { ThemedView, ThemedHeader, ThemedText, ThemedButton, ThemedInput } from 
 import { getApiBase, getUploadUrl } from '../../services/api';
 import { useCamera } from '../../hooks/useCamera';
 import { startCanvasRecording } from '../../lib/reelCompositeRecord';
+import { canUseMediaDevices, isSecureContextHintMessage } from '../../utils/browserFeatures';
+import { messageFromUnknown, userFacingApiError, userFacingUploadError } from '../../utils/userFacingErrors';
 
 const API_BASE = getApiBase();
 
@@ -90,6 +92,10 @@ export default function CreateReel() {
         prev?.getTracks().forEach((t) => t.stop());
         return null;
       });
+      return;
+    }
+    if (!canUseMediaDevices()) {
+      setPipStream(null);
       return;
     }
     let cancelled = false;
@@ -223,9 +229,12 @@ export default function CreateReel() {
         headers: { Authorization: `Bearer ${token}` },
         body: form,
       });
-      const uploadData = await uploadRes.json().catch(() => ({}));
-      if (!uploadRes.ok || !uploadData.url) {
-        throw new Error(uploadData.error || 'Failed to upload reel media.');
+      if (!uploadRes.ok) {
+        throw new Error(await userFacingUploadError(uploadRes, 'Could not upload your video.'));
+      }
+      const uploadData = (await uploadRes.json().catch(() => ({}))) as { url?: string };
+      if (!uploadData.url) {
+        throw new Error('Could not upload your video.');
       }
       const body = {
         media: [{ url: uploadData.url }],
@@ -260,13 +269,12 @@ export default function CreateReel() {
         },
         body: JSON.stringify(body),
       });
-      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to create reel.');
+        throw new Error(await userFacingApiError(res, 'Could not publish your reel.'));
       }
       navigate('/');
-    } catch (e: any) {
-      setError(e.message || 'Failed to create reel.');
+    } catch (e: unknown) {
+      setError(messageFromUnknown(e, 'Could not publish your reel.'));
     } finally {
       setLoading(false);
     }
@@ -510,7 +518,11 @@ export default function CreateReel() {
             <div className="absolute inset-x-2 top-2 bottom-0 rounded-lg overflow-hidden bg-black">
               {cameraError ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
-                  <ThemedText className="text-red-400 text-center mb-2">{cameraError}</ThemedText>
+                  <ThemedText
+                    className={`text-center mb-2 ${isSecureContextHintMessage(cameraError) ? 'text-[#a3a3a3]' : 'text-red-400'}`}
+                  >
+                    {cameraError}
+                  </ThemedText>
                   <button type="button" onClick={() => start()} className="text-[#0095f6] text-sm font-semibold">
                     Try again
                   </button>

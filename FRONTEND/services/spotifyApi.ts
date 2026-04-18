@@ -9,6 +9,7 @@ export type SpotifyTrack = {
   name: string;
   artists: string;
   album?: string;
+  album_image_url?: string | null;
   duration_ms?: number;
   preview_url?: string | null;
 };

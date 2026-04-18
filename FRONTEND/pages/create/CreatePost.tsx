@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { MapPin, Users, Settings } from 'lucide-react';
 import { useAccountCapabilities, useCurrentAccount } from '../../hooks/useAccountCapabilities';
 import { getApiBase, getUploadUrl } from '../../services/api';
+import { messageFromUnknown, userFacingApiError, userFacingUploadError } from '../../utils/userFacingErrors';
 
 const API_BASE = getApiBase();
 
@@ -339,9 +340,12 @@ export default function CreatePost() {
           },
           body: form,
         });
-        const uploadData = await uploadRes.json().catch(() => ({}));
-        if (!uploadRes.ok || !uploadData.url) {
-          throw new Error(uploadData.error || 'Failed to upload media.');
+        if (!uploadRes.ok) {
+          throw new Error(await userFacingUploadError(uploadRes, 'Could not upload your media.'));
+        }
+        const uploadData = (await uploadRes.json().catch(() => ({}))) as { url?: string };
+        if (!uploadData.url) {
+          throw new Error('Could not upload your media.');
         }
         uploadedUrls.push(uploadData.url);
       }
@@ -408,10 +412,10 @@ export default function CreatePost() {
         },
         body: JSON.stringify(body),
       });
-      const postData = await postRes.json().catch(() => ({}));
       if (!postRes.ok) {
-        throw new Error(postData.error || 'Failed to create post.');
+        throw new Error(await userFacingApiError(postRes, 'Could not publish your post.'));
       }
+      await postRes.json().catch(() => ({}));
 
       clearDraft();
       setFiles([]);
@@ -428,8 +432,8 @@ export default function CreatePost() {
 
       // Navigate back to Home so the new post appears in feed
       navigate('/');
-    } catch (e: any) {
-      setError(e.message || 'Something went wrong.');
+    } catch (e: unknown) {
+      setError(messageFromUnknown(e, 'Something went wrong.'));
     } finally {
       setSubmitting(false);
     }

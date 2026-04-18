@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ThemedView, ThemedText, ThemedButton } from '../../components/ui/Themed';
 import { getApiBase, getToken } from '../../services/api';
+import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
 
 const API_BASE = getApiBase();
 
@@ -77,7 +78,7 @@ export default function LiveReplay() {
                 {replay.recording ? (
                   <video
                     key={replay.recording}
-                    src={replay.recording}
+                    src={ensureAbsoluteMediaUrl(replay.recording)}
                     controls
                     className="w-full h-full object-contain bg-black"
                   />
@@ -101,7 +102,7 @@ export default function LiveReplay() {
                           className="relative flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 border-white/30 bg-moxe-surface hover:border-white/60 transition-colors"
                         >
                           {image ? (
-                            <img src={image} alt={p.name} className="w-full h-full object-cover" />
+                            <img src={ensureAbsoluteMediaUrl(image)} alt={p.name} className="w-full h-full object-cover" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-[10px] text-moxe-textSecondary">No image</div>
                           )}
@@ -164,7 +165,7 @@ export default function LiveReplay() {
                         <div className="w-14 h-14 rounded-moxe-md bg-moxe-background overflow-hidden flex-shrink-0">
                           {image ? (
                             <img
-                              src={image}
+                              src={ensureAbsoluteMediaUrl(image)}
                               alt={p.name}
                               className="w-full h-full object-cover"
                             />

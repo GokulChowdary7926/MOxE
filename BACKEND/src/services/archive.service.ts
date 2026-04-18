@@ -1,4 +1,5 @@
 import { prisma } from '../server';
+import { normalizeStoredMediaUrl } from '../utils/mediaUrl';
 
 export class ArchiveService {
   async runArchiveJob(): Promise<{ archived: number }> {
@@ -48,6 +49,14 @@ export class ArchiveService {
       where: { accountId },
       orderBy: { archivedAt: 'desc' },
     });
-    return { items };
+    return {
+      items: items.map((item) => ({
+        ...item,
+        media:
+          typeof item.media === 'string'
+            ? normalizeStoredMediaUrl(item.media)
+            : item.media,
+      })),
+    };
   }
 }

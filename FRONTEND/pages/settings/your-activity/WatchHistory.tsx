@@ -6,6 +6,7 @@ import { EmptyState } from '../../../components/ui/EmptyState';
 import { ErrorState } from '../../../components/ui/ErrorState';
 import { UI } from '../../../constants/uiTheme';
 import { fetchApi, getToken } from '../../../services/api';
+import { ensureAbsoluteMediaUrl } from '../../../utils/mediaUtils';
 
 type WatchItem = {
   id: string;
@@ -146,7 +147,7 @@ export default function WatchHistory() {
                 <div className={`${UI.gridItem} relative`}>
                   {item.isReel ? (
                     <video
-                      src={item.thumbUrl}
+                      src={ensureAbsoluteMediaUrl(item.thumbUrl)}
                       className="w-full h-full object-cover"
                       muted
                       playsInline
@@ -157,7 +158,7 @@ export default function WatchHistory() {
                       }}
                     />
                   ) : (
-                    <img src={item.thumbUrl} alt="" className="w-full h-full object-cover" />
+                    <img src={ensureAbsoluteMediaUrl(item.thumbUrl)} alt="" className="w-full h-full object-cover" />
                   )}
                   {item.isReel && (
                     <span className="absolute inset-0 flex items-center justify-center pointer-events-none">

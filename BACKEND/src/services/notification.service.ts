@@ -53,12 +53,19 @@ export class NotificationService {
     return { ok: true };
   }
 
-  async create(recipientId: string, type: string, senderId?: string, content?: string, data?: object) {
+  async create(
+    recipientId: string,
+    type: string,
+    senderId?: string,
+    content?: string,
+    data?: object,
+    options?: { bypassQuietMode?: boolean },
+  ) {
     const recipient = await prisma.account.findUnique({
       where: { id: recipientId },
       select: { quietModeEnabled: true, quietModeStart: true, quietModeEnd: true, quietModeDays: true },
     });
-    if (isInQuietWindow(recipient)) return null;
+    if (!options?.bypassQuietMode && isInQuietWindow(recipient)) return null;
     const notification = await prisma.notification.create({
       data: { recipientId, senderId: senderId || null, type, content: content || null, data: data || undefined },
       include: { sender: { select: { id: true, username: true, displayName: true, profilePhoto: true } } },

@@ -4,6 +4,9 @@ import { JobPageContent, JobCard } from '../../components/job/JobPageContent';
 import { JOB_MOBILE } from '../../components/job/jobMobileStyles';
 import { JobBibleReferenceSection, JobToolBibleShell } from '../../components/job/bible';
 import { safeFirst } from '../../utils/safeAccess';
+import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
+import { canUseMediaDevices, MEDIA_DEVICES_HTTPS_HINT, normalizeCameraError } from '../../utils/browserFeatures';
+import { messageFromUnknown, userFacingUploadError } from '../../utils/userFacingErrors';
 
 type JobVideo = {
   id: string;
@@ -62,7 +65,18 @@ export default function Video() {
     setRecordUrl(null);
     setRecordDuration(null);
     try {
-      const stream = await (navigator.mediaDevices as any).getDisplayMedia({
+      if (!canUseMediaDevices()) {
+        setRecordError(MEDIA_DEVICES_HTTPS_HINT);
+        return;
+      }
+      const md = navigator.mediaDevices as MediaDevices & {
+        getDisplayMedia?: (constraints: { video?: boolean; audio?: boolean }) => Promise<MediaStream>;
+      };
+      if (typeof md?.getDisplayMedia !== 'function') {
+        setRecordError('Screen recording is not supported in this browser.');
+        return;
+      }
+      const stream = await md.getDisplayMedia({
         video: true,
         audio: true,
       });
@@ -96,7 +110,7 @@ export default function Video() {
       mediaRecorder.start();
       setIsRecording(true);
     } catch (e: unknown) {
-      setRecordError(e instanceof Error ? e.message : 'Failed to start screen recording. Allow screen capture.');
+      setRecordError(normalizeCameraError(e));
       setIsRecording(false);
     }
   };
@@ -106,7 +120,7 @@ export default function Video() {
       const rec = mediaRecorderRef.current;
       if (rec && rec.state !== 'inactive') rec.stop();
     } catch (e: unknown) {
-      setRecordError(e instanceof Error ? e.message : 'Failed to stop recording');
+      setRecordError(normalizeCameraError(e));
     }
   };
 
@@ -125,8 +139,7 @@ export default function Video() {
         body: form,
       });
       if (!uploadRes.ok) {
-        const text = await uploadRes.text();
-        throw new Error(text || 'Failed to upload video');
+        throw new Error(await userFacingUploadError(uploadRes, 'Could not upload video.'));
       }
       const uploadJson = await uploadRes.json();
       const url = uploadJson.url as string;
@@ -154,7 +167,7 @@ export default function Video() {
       setRecordDuration(null);
       await loadVideos();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to save recording');
+      setError(messageFromUnknown(e, 'Could not save recording.'));
     } finally {
       setSaving(false);
     }
@@ -276,7 +289,7 @@ export default function Video() {
               </button>
             </div>
             <div className="p-4">
-              <video src={selected.url} controls className="w-full rounded-lg bg-black" />
+              <video src={ensureAbsoluteMediaUrl(selected.url)} controls className="w-full rounded-lg bg-black" />
               {selected.description && (
                 <p className="text-sm text-[#5E6C84] dark:text-[#8C9BAB] mt-2 whitespace-pre-line">{selected.description}</p>
               )}

@@ -3,6 +3,8 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ThemedView, ThemedHeader, ThemedText, ThemedButton, ThemedInput } from '../../components/ui/Themed';
 import { useAccountCapabilities } from '../../hooks/useAccountCapabilities';
 import { getApiBase, getUploadUrl } from '../../services/api';
+import { messageFromUnknown, userFacingApiError, userFacingUploadError } from '../../utils/userFacingErrors';
+import type { SpotifyTrack } from '../../services/spotifyApi';
 import { Star } from 'lucide-react';
 
 const API_BASE = getApiBase();
@@ -13,7 +15,15 @@ type StorySticker =
   | { type: 'countdown'; title: string; notifyAt: string }
   | { type: 'link'; url: string; label?: string }
   | { type: 'donation'; url: string; label?: string; amountSuggestion?: number }
-  | { type: 'emoji_slider'; emoji: string; label?: string };
+  | { type: 'emoji_slider'; emoji: string; label?: string }
+  | {
+      type: 'music';
+      trackName: string;
+      artist: string;
+      spotifyId?: string;
+      previewUrl?: string | null;
+      albumArt?: string | null;
+    };
 
 export default function CreateStory() {
   const navigate = useNavigate();
@@ -77,6 +87,25 @@ export default function CreateStory() {
     }
   }, [location?.state]);
 
+  // Music sticker from Story music picker (Spotify)
+  React.useEffect(() => {
+    const state = (location.state as { prefillMusic?: SpotifyTrack; file?: File } | null) || null;
+    const pm = state?.prefillMusic;
+    if (!pm?.id) return;
+    setStickers((prev) => [
+      ...prev.filter((x) => x.type !== 'music'),
+      {
+        type: 'music',
+        trackName: pm.name,
+        artist: pm.artists,
+        spotifyId: pm.id,
+        previewUrl: pm.preview_url ?? null,
+        albumArt: pm.album_image_url ?? null,
+      },
+    ]);
+    navigate(location.pathname, { replace: true, state: { ...state, prefillMusic: undefined } });
+  }, [location.pathname, location.state, navigate]);
+
   // Prefill from "share question answer as story" flow
   React.useEffect(() => {
     const state = (location && (location.state as any)) || null;
@@ -121,9 +150,12 @@ export default function CreateStory() {
         headers: { Authorization: `Bearer ${token}` },
         body: form,
       });
-      const uploadData = await uploadRes.json().catch(() => ({}));
-      if (!uploadRes.ok || !uploadData.url) {
-        throw new Error(uploadData.error || 'Failed to upload story media.');
+      if (!uploadRes.ok) {
+        throw new Error(await userFacingUploadError(uploadRes, 'Could not upload your media.'));
+      }
+      const uploadData = (await uploadRes.json().catch(() => ({}))) as { url?: string };
+      if (!uploadData.url) {
+        throw new Error('Could not upload your media.');
       }
 
       const body = {
@@ -157,10 +189,10 @@ export default function CreateStory() {
         },
         body: JSON.stringify(body),
       });
-      const storyData = await storyRes.json().catch(() => ({}));
       if (!storyRes.ok) {
-        throw new Error(storyData.error || 'Failed to create story.');
+        throw new Error(await userFacingApiError(storyRes, 'Could not post your story.'));
       }
+      const storyData = await storyRes.json().catch(() => ({}));
 
       const ctx = (location.state as { linkQuestionContext?: { sourceStoryId: string; questionId: string } } | null)
         ?.linkQuestionContext;
@@ -177,15 +209,15 @@ export default function CreateStory() {
             body: JSON.stringify({ answerStoryId: newStoryId }),
           },
         );
-        const linkData = await linkRes.json().catch(() => ({}));
         if (!linkRes.ok) {
-          throw new Error((linkData as { error?: string }).error || 'Story posted, but linking the Q&A answer failed.');
+          throw new Error(await userFacingApiError(linkRes, 'Story posted, but linking the Q&A answer failed.'));
         }
+        await linkRes.json().catch(() => ({}));
       }
 
       navigate('/');
-    } catch (e: any) {
-      setError(e.message || 'Something went wrong.');
+    } catch (e: unknown) {
+      setError(messageFromUnknown(e, 'Something went wrong.'));
     } finally {
       setLoading(false);
     }
@@ -754,7 +786,7 @@ export default function CreateStory() {
                     }
                     className="px-2 py-0.5 rounded-full bg-moxe-surface border border-moxe-border text-moxe-caption"
                   >
-                    {s.type}
+                    {s.type === 'music' ? `🎵 ${s.trackName}` : s.type}
                     <span className="ml-1 text-moxe-textSecondary">✕</span>
                   </button>
                 ))}

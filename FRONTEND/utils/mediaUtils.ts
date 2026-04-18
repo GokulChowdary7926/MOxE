@@ -31,6 +31,10 @@ export function ensureAbsoluteMediaUrl(url: string | null | undefined): string {
   const t = url.trim();
   if (t.startsWith('data:')) return t;
   const origin = getMediaOrigin();
+  const localHostUpload = t.match(/^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d+)?(\/uploads\/[^?#]+)/i);
+  if (localHostUpload && origin) {
+    return `${origin}${localHostUpload[1]}`;
+  }
   if (!t.includes('/') && !t.includes('\\') && origin) {
     return `${origin}/uploads/${t}`;
   }

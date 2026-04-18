@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ThemedView } from '../../components/ui/Themed';
 import { MobileShell } from '../../components/layout/MobileShell';
 import { getApiBase, getToken } from '../../services/api';
+import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
 import { readApiError } from '../../utils/readApiError';
 import toast from 'react-hot-toast';
 
@@ -132,7 +133,7 @@ export default function EditHighlightPage() {
               <div className="flex flex-col items-center mb-6">
                 <div className="w-24 h-24 rounded-full bg-[#262626] overflow-hidden mb-2 bg-gradient-to-br from-green-600 to-blue-500">
                   {coverSrc ? (
-                    <img src={coverSrc} alt="" className="w-full h-full object-cover" />
+                    <img src={ensureAbsoluteMediaUrl(coverSrc)} alt="" className="w-full h-full object-cover" />
                   ) : null}
                 </div>
                 <button type="button" className="text-[#0095f6] text-sm font-medium">
@@ -185,7 +186,7 @@ export default function EditHighlightPage() {
                       return (
                         <div key={it.id} className="aspect-square rounded-lg bg-[#262626] overflow-hidden relative">
                           {thumb ? (
-                            <img src={thumb} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                            <img src={ensureAbsoluteMediaUrl(thumb)} alt="" className="absolute inset-0 w-full h-full object-cover" />
                           ) : null}
                           <span className="absolute bottom-1 left-1 text-white text-[10px] font-medium">{dur}</span>
                           <span className="absolute bottom-1 right-1 w-5 h-5 rounded-full bg-[#0095f6] flex items-center justify-center text-white text-xs">

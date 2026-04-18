@@ -2,8 +2,13 @@ export type UsernameValidationResult =
   | { valid: true; normalized: string }
   | { valid: false; message: string };
 
-/** Usernames: lowercase English letters only (a–z), 3–30 characters. */
-const USERNAME_REGEX = /^[a-z]{3,30}$/;
+export type DisplayNameValidationResult =
+  | { valid: true; normalized: string }
+  | { valid: false; message: string };
+
+/** Usernames: Instagram-style chars (a-z, 0-9, ., _), normalized to lowercase, 1–30 chars. */
+const USERNAME_REGEX = /^[a-z0-9._]{1,30}$/;
+const DISPLAY_NAME_MAX_LENGTH = 64;
 
 // Keep this list aligned with MOxE “reserved” concept.
 // NOTE: comparisons should be case-insensitive.
@@ -43,13 +48,13 @@ export function validateUsernameFormat(input: string): UsernameValidationResult 
   const username = normalizeUsername(input);
 
   if (!username) return { valid: false, message: 'Username is required' };
-  if (username.length < 3 || username.length > 30) {
-    return { valid: false, message: 'Username must be 3-30 characters' };
+  if (username.length < 1 || username.length > 30) {
+    return { valid: false, message: 'Username must be 1-30 characters' };
   }
   if (!USERNAME_REGEX.test(username)) {
     return {
       valid: false,
-      message: 'Username can only use lowercase letters (a–z), no numbers or symbols',
+      message: 'Username can only use lowercase letters, numbers, periods, and underscores',
     };
   }
   if (RESERVED_USERNAMES.has(username)) {
@@ -57,5 +62,14 @@ export function validateUsernameFormat(input: string): UsernameValidationResult 
   }
 
   return { valid: true, normalized: username };
+}
+
+export function validateDisplayNameFormat(input: string): DisplayNameValidationResult {
+  const displayName = input.trim();
+  if (!displayName) return { valid: false, message: 'Display name is required' };
+  if (displayName.length > DISPLAY_NAME_MAX_LENGTH) {
+    return { valid: false, message: 'Display name must be 1-64 characters' };
+  }
+  return { valid: true, normalized: displayName };
 }
 

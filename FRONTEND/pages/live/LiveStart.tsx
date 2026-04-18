@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ThemedView, ThemedText } from '../../components/ui/Themed';
 import { getApiBase, getToken } from '../../services/api';
 import { useCurrentAccount } from '../../hooks/useAccountCapabilities';
+import { canUseMediaDevices, normalizeCameraError } from '../../utils/browserFeatures';
 
 const API_BASE = getApiBase();
 
@@ -21,6 +22,10 @@ export default function LiveStart() {
 
   useEffect(() => {
     let s: MediaStream | null = null;
+    if (!canUseMediaDevices()) {
+      setError(normalizeCameraError(new Error('no media')));
+      return () => {};
+    }
     if (!navigator.mediaDevices?.getUserMedia) {
       setError('Camera not supported in this browser.');
       return () => {};
@@ -32,7 +37,7 @@ export default function LiveStart() {
         setStream(mediaStream);
         if (videoRef.current) videoRef.current.srcObject = mediaStream;
       })
-      .catch((err) => setError(err?.message ?? 'Could not access camera or microphone.'));
+      .catch((err) => setError(normalizeCameraError(err)));
     return () => {
       s?.getTracks().forEach((t) => t.stop());
     };

@@ -59,6 +59,13 @@ export default function Home() {
   const [hideEngagementCounts, setHideEngagementCounts] = useState(false);
   const { itemsWithAds } = useAdFeed(items, feedType === 'forYou');
 
+  const normalizeMediaList = (media: unknown): string[] => {
+    if (!Array.isArray(media)) return [];
+    return media
+      .map((m: any) => (m?.url || m?.uri || m?.mediaUrl || '').toString().trim())
+      .filter((u: string) => !!u && !/^javascript:/i.test(u));
+  };
+
   useEffect(() => {
     let cancelled = false;
     void fetchClientSettings()
@@ -92,10 +99,11 @@ export default function Home() {
       const raw = data.items ?? data.feed ?? data;
       const mapped: FeedItem[] = Array.isArray(raw)
         ? raw.map((p: any) => {
-            const mediaArray: string[] =
-              Array.isArray(p.media) && p.media.length
-                ? p.media.map((m: any) => m.url || m.uri || m.mediaUrl).filter(Boolean)
-                : [p.mediaUrl ?? p.media_uri ?? ''].filter(Boolean);
+            const mediaArrayFromJson = normalizeMediaList(p.media);
+            const mediaArrayFallback = [p.mediaUrl ?? p.media_uri ?? '']
+              .map((u: any) => String(u || '').trim())
+              .filter(Boolean);
+            const mediaArray = mediaArrayFromJson.length ? mediaArrayFromJson : mediaArrayFallback;
             const authorFields = feedAuthorFromApiItem(p as Record<string, unknown>);
             return {
               id: p.id,
@@ -125,7 +133,10 @@ export default function Home() {
         : [];
       setItems(mapped);
     } catch (e: any) {
-      setError(e.message || 'Failed to load feed.');
+      const msg = !navigator.onLine
+        ? 'You are offline. Connect to the internet and retry.'
+        : (e.message || 'Failed to load feed.');
+      setError(msg);
       setItems([]);
     } finally {
       setLoading(false);

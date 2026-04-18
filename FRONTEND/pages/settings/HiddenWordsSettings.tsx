@@ -292,7 +292,7 @@ export default function HiddenWordsSettings() {
               disabled={loading || saving || exporting || importing}
               onClick={() => importFileRef.current?.click()}
             />
-            <input
+        <input
               ref={importFileRef}
               type="file"
               accept="application/json,.json"

@@ -14,6 +14,14 @@ import { fetchClientSettings, patchClientSettings } from '../../services/clientS
 import { normalizeToArray } from '../../utils/safeAccess';
 import { DM_THEME_IDS, DM_THEME_LABELS, type DmThemeId, getDmThemeSkin, isDmThemeId } from '../../utils/dmTheme';
 import { getMyNote, getNotes, type NoteItem } from '../../services/noteService';
+import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
+import {
+  canUseMediaDevices,
+  isSecureContextHintMessage,
+  MEDIA_DEVICES_HTTPS_HINT,
+  normalizeCameraError,
+} from '../../utils/browserFeatures';
+import { messageFromUnknown, userFacingApiError, userFacingUploadError } from '../../utils/userFacingErrors';
 
 const FALLBACK_USER = {
   id: 'account-unavailable',
@@ -189,6 +197,7 @@ export default function Messages() {
         if (cancelled) return;
         setMyNote(mine?.note ?? null);
         let allowedIds = new Set<string>();
+        let followingLoaded = false;
         if (followingRes?.ok) {
           const followingData = await followingRes.json().catch(() => ({}));
           const followingArr = Array.isArray((followingData as any)?.following) ? (followingData as any).following : [];
@@ -197,12 +206,13 @@ export default function Messages() {
               .map((f: any) => String(f?.id || '').trim())
               .filter((id: string) => id.length > 0),
           );
+          followingLoaded = true;
         }
         const arr = Array.isArray(all) ? all : [];
         setOtherNotes(
           arr
             .filter((n) => n && n.accountId && n.accountId !== (currentAccount as any)?.id)
-            .filter((n) => allowedIds.has(String(n.accountId)))
+            .filter((n) => !followingLoaded || allowedIds.has(String(n.accountId)))
             .slice(0, 8),
         );
       } catch {
@@ -512,9 +522,12 @@ export default function Messages() {
           headers: { Authorization: `Bearer ${token}` },
           body: form,
         });
-        const uploadData = await uploadRes.json().catch(() => ({}));
-        if (!uploadRes.ok || !uploadData.url) {
-          throw new Error(uploadData.error || 'Failed to upload media.');
+        if (!uploadRes.ok) {
+          throw new Error(await userFacingUploadError(uploadRes, 'Could not send attachment.'));
+        }
+        const uploadData = (await uploadRes.json().catch(() => ({}))) as { url?: string };
+        if (!uploadData.url) {
+          throw new Error('Could not send attachment.');
         }
         mediaPayload = { url: uploadData.url };
       }
@@ -541,16 +554,16 @@ export default function Messages() {
           groupId: groupId || undefined,
         }),
       });
-      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to send message.');
+        throw new Error(await userFacingApiError(res, 'Could not send message.'));
       }
+      const data = await res.json().catch(() => ({}));
       setMessages((prev) => normalizeMessages([...prev, data]));
       setNewMessage('');
       setMediaFile(null);
       setViewOnce(false);
-    } catch (e: any) {
-      const msg = e.message || 'Failed to send message.';
+    } catch (e: unknown) {
+      const msg = messageFromUnknown(e, 'Could not send message.');
       setMessagesError(msg);
       const lower = msg.toLowerCase();
       if (lower.includes('recipient has blocked you')) {
@@ -687,8 +700,8 @@ export default function Messages() {
       setShowPollModal(false);
       setPollQuestion('');
       setPollOptions(['', '']);
-    } catch (e: any) {
-      setMessagesError(e.message || 'Failed to send poll.');
+    } catch (e: unknown) {
+      setMessagesError(messageFromUnknown(e, 'Could not send poll.'));
     } finally {
       setPollSubmitting(false);
     }
@@ -696,6 +709,10 @@ export default function Messages() {
 
   const startVoiceRecording = async () => {
     try {
+      if (!canUseMediaDevices()) {
+        setMessagesError(MEDIA_DEVICES_HTTPS_HINT);
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mimeCandidates = ['audio/webm', 'audio/webm;codecs=opus', 'audio/mp4', 'audio/aac', 'audio/ogg'];
       const mime = mimeCandidates.find((m) => MediaRecorder.isTypeSupported(m)) || '';
@@ -717,7 +734,7 @@ export default function Messages() {
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
     } catch (err) {
-      setMessagesError('Microphone access needed for voice messages.');
+      setMessagesError(normalizeCameraError(err));
     }
   };
 
@@ -1393,7 +1410,14 @@ export default function Messages() {
       </header>
       <div className={`flex-1 overflow-y-auto px-3 py-2 min-h-0 ${dmSkin.scroll}`}>
         {loadingMessages && <p className="text-white/70 text-sm py-4">Loading conversation…</p>}
-        {messagesError && !loadingMessages && <p className="text-red-200 text-sm py-4">{messagesError}</p>}
+        {messagesError && !loadingMessages && (
+          <p
+            className={`text-sm py-4 ${isSecureContextHintMessage(messagesError) ? 'text-[#a8a8a8]' : 'text-red-200'}`}
+            role="status"
+          >
+            {messagesError}
+          </p>
+        )}
         {!loadingMessages && !messagesError && conversationRows.length === 0 && (
           <div className="h-full flex items-center justify-center text-center px-8">
             <p className="text-white/50 text-sm">No messages yet. Start the conversation.</p>
@@ -1422,17 +1446,17 @@ export default function Messages() {
                 }`}
               >
                 {m.content && <div className="whitespace-pre-wrap break-words">{m.content}</div>}
-                {m.media?.url && m.messageType === 'VOICE' && <audio src={m.media.url} controls className="mt-2 w-full" />}
+                {m.media?.url && m.messageType === 'VOICE' && <audio src={ensureAbsoluteMediaUrl(m.media.url)} controls className="mt-2 w-full" />}
                 {m.media?.url && m.messageType === 'MEDIA' && (
                   <div className="mt-2 relative rounded-2xl overflow-hidden bg-black/30">
-                    <img src={m.media.url} alt="" className="w-full max-h-64 object-cover" />
+                    <img src={ensureAbsoluteMediaUrl(m.media.url)} alt="" className="w-full max-h-64 object-cover" />
                     <div className="absolute bottom-2 left-2 flex items-center gap-1 rounded-md bg-black/55 px-2 py-1 text-[10px] text-white">
                       <span className="font-semibold">Reels</span>
                     </div>
                   </div>
                 )}
                 {m.media?.url && m.messageType === 'GIF' && (
-                  <img src={m.media.url} alt="" className="mt-2 max-h-48 rounded-xl w-full object-cover" />
+                  <img src={ensureAbsoluteMediaUrl(m.media.url)} alt="" className="mt-2 max-h-48 rounded-xl w-full object-cover" />
                 )}
                 {isPoll && Array.isArray((m.media as any).options) && (
                   <div className="mt-2 space-y-1 text-[11px]">

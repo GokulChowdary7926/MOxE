@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { PageLayout } from '../../components/layout/PageLayout';
 import { ThemedText } from '../../components/ui/Themed';
 import { EmptyState } from '../../components/ui/EmptyState';
-import { getFirstMediaUrl } from '../../utils/mediaUtils';
+import { getFirstMediaUrl, ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
 import { fetchApiJson } from '../../services/api';
 
 type HashtagPostsResponse = {
@@ -89,7 +89,7 @@ export default function HashtagPage() {
                   onClick={() => navigate(`/post/${p.id}`)}
                 >
                   {thumb ? (
-                    <img src={thumb} alt="" className="w-full h-full object-cover" />
+                    <img src={ensureAbsoluteMediaUrl(thumb)} alt="" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full bg-moxe-background" />
                   )}

@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronDown, Play } from 'lucide-react';
 import { ThemedView } from '../../components/ui/Themed';
 import { MobileShell } from '../../components/layout/MobileShell';
 import { UI } from '../../constants/uiTheme';
+import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
 
 export default function NotInterestedPage() {
   const [items] = useState<{ id: string; thumbUrl: string; isVideo?: boolean }[]>([]);
@@ -36,7 +37,7 @@ export default function NotInterestedPage() {
               {items.map((item) => (
                 <Link key={item.id} to={`/post/${item.id}`} className="relative block">
                   <div className={`${UI.gridItem} relative`}>
-                    <img src={item.thumbUrl} alt="" className="w-full h-full object-cover" />
+                    <img src={ensureAbsoluteMediaUrl(item.thumbUrl)} alt="" className="w-full h-full object-cover" />
                     {item.isVideo && (
                       <span className={UI.gridItemPlayIcon}>
                         <Play className="w-3.5 h-3.5 text-white" fill="currentColor" />

@@ -30,6 +30,7 @@ BACKEND/src/routes/group.routes.ts,group.routes.ts
 BACKEND/src/routes/health.routes.ts,health.routes.ts
 BACKEND/src/routes/highlight.routes.ts,highlight.routes.ts
 BACKEND/src/routes/job.routes.ts,job.routes.ts
+BACKEND/src/routes/legal.routes.ts,legal.routes.ts
 BACKEND/src/routes/live.routes.ts,live.routes.ts
 BACKEND/src/routes/location.routes.ts,location.routes.ts
 BACKEND/src/routes/map.routes.ts,map.routes.ts
@@ -43,6 +44,7 @@ BACKEND/src/routes/privacy.routes.ts,privacy.routes.ts
 BACKEND/src/routes/proximity.routes.ts,proximity.routes.ts
 BACKEND/src/routes/push.routes.ts,push.routes.ts
 BACKEND/src/routes/ranking.routes.ts,ranking.routes.ts
+BACKEND/src/routes/recentlyDeleted.routes.ts,recentlyDeleted.routes.ts
 BACKEND/src/routes/reel.routes.ts,reel.routes.ts
 BACKEND/src/routes/report.routes.ts,report.routes.ts
 BACKEND/src/routes/safety.routes.ts,safety.routes.ts

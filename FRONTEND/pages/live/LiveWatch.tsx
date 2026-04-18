@@ -5,6 +5,7 @@ import { connectTranslateSocket, getTranslateSocket } from '../../services/trans
 import { getApiBase, getToken } from '../../services/api';
 import { connectLiveSocket, getLiveSocket, disconnectLiveSocket } from '../../services/socket';
 import { useCurrentAccount } from '../../hooks/useAccountCapabilities';
+import { canUseMediaDevices, MEDIA_DEVICES_HTTPS_HINT, normalizeCameraError } from '../../utils/browserFeatures';
 
 const API_BASE = getApiBase();
 
@@ -210,16 +211,22 @@ export default function LiveWatch() {
   useEffect(() => {
     if (!isBroadcaster || !liveId) return;
     let s: MediaStream | null = null;
-    if (navigator.mediaDevices?.getUserMedia) {
-      navigator.mediaDevices
-        .getUserMedia({ video: true, audio: true })
-        .then((stream) => {
-          s = stream;
-          setBroadcasterStream(stream);
-          if (broadcasterVideoRef.current) broadcasterVideoRef.current.srcObject = stream;
-        })
-        .catch(() => setError('Could not access camera'));
+    if (!canUseMediaDevices()) {
+      setError(MEDIA_DEVICES_HTTPS_HINT);
+      return () => {};
     }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError('Camera is not supported in this browser.');
+      return () => {};
+    }
+    navigator.mediaDevices
+      .getUserMedia({ video: true, audio: true })
+      .then((stream) => {
+        s = stream;
+        setBroadcasterStream(stream);
+        if (broadcasterVideoRef.current) broadcasterVideoRef.current.srcObject = stream;
+      })
+      .catch((err) => setError(normalizeCameraError(err)));
     return () => {
       s?.getTracks().forEach((t) => t.stop());
       setBroadcasterStream(null);
@@ -502,6 +509,9 @@ export default function LiveWatch() {
         });
       });
 
+      if (!canUseMediaDevices()) {
+        throw new Error(MEDIA_DEVICES_HTTPS_HINT);
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       mediaStreamRef.current = stream;
       const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
@@ -515,8 +525,8 @@ export default function LiveWatch() {
         });
       };
       recorder.start(1000);
-    } catch (e: any) {
-      setError(e?.message || 'Failed to start translation');
+    } catch (e: unknown) {
+      setError(normalizeCameraError(e));
     } finally {
       setJoining(false);
     }

@@ -6,6 +6,8 @@ import { Avatar } from '../../components/ui/Avatar';
 import { MobileShell } from '../../components/layout/MobileShell';
 import { getApiBase, getToken, fetchApi, getUploadUrl } from '../../services/api';
 import { useCamera } from '../../hooks/useCamera';
+import { isSecureContextHintMessage } from '../../utils/browserFeatures';
+import { messageFromUnknown, userFacingUploadError } from '../../utils/userFacingErrors';
 
 export default function EditProfile() {
   const navigate = useNavigate();
@@ -22,6 +24,7 @@ export default function EditProfile() {
   const [showPhotoOptions, setShowPhotoOptions] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   const { stream, error: cameraError, isActive, start, stop, capturePhoto } = useCamera({ video: true });
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -65,6 +68,7 @@ export default function EditProfile() {
     const token = getToken();
     if (!token) return;
     setUploadingPhoto(true);
+    setPhotoError(null);
     try {
       const form = new FormData();
       form.append('file', file);
@@ -73,9 +77,12 @@ export default function EditProfile() {
         headers: { Authorization: `Bearer ${token}` },
         body: form,
       });
-      const uploadData = await uploadRes.json().catch(() => ({}));
-      if (!uploadRes.ok || !uploadData.url) {
-        throw new Error(uploadData.error || 'Upload failed');
+      if (!uploadRes.ok) {
+        throw new Error(await userFacingUploadError(uploadRes, 'Could not upload photo.'));
+      }
+      const uploadData = (await uploadRes.json().catch(() => ({}))) as { url?: string };
+      if (!uploadData.url) {
+        throw new Error('Could not upload photo.');
       }
       const res = await fetchApi('accounts/me', {
         method: 'PATCH',
@@ -88,8 +95,8 @@ export default function EditProfile() {
         setShowCamera(false);
         setShowPhotoOptions(false);
       }
-    } catch (e: any) {
-      console.error(e);
+    } catch (e: unknown) {
+      setPhotoError(messageFromUnknown(e, 'Could not update photo.'));
     } finally {
       setUploadingPhoto(false);
     }
@@ -183,6 +190,11 @@ export default function EditProfile() {
           >
             Edit picture or avatar
           </button>
+          {photoError ? (
+            <p className="px-4 pb-2 text-sm text-[#a8a8a8]" role="status">
+              {photoError}
+            </p>
+          ) : null}
 
           {/* Fields */}
           <div className="border-t border-[#262626]">
@@ -332,7 +344,11 @@ export default function EditProfile() {
             <div className="flex-1 relative min-h-0">
               {cameraError ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
-                  <ThemedText className="text-red-400 text-center mb-2">{cameraError}</ThemedText>
+                  <ThemedText
+                    className={`text-center mb-2 ${isSecureContextHintMessage(cameraError) ? 'text-[#a3a3a3]' : 'text-red-400'}`}
+                  >
+                    {cameraError}
+                  </ThemedText>
                   <button type="button" onClick={() => start()} className="text-[#0095f6] text-sm font-semibold">Try again</button>
                 </div>
               ) : (

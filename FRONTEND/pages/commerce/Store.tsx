@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Search, ShoppingCart, Store as StoreIcon, Sparkles, BadgePercent, Heart } from 'lucide-react';
 import { getApiBase } from '../../services/api';
 import { useCurrentAccount } from '../../hooks/useAccountCapabilities';
+import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
 
 type CatalogItem = {
   id: string;
@@ -391,7 +392,7 @@ export default function StorePage() {
                 <article key={`deal-${p.id}`} className="rounded-lg border border-[#DFE1E6] dark:border-slate-800 p-2">
                   <div className="aspect-square rounded-md bg-[#f6f7fb] dark:bg-slate-800 overflow-hidden">
                     {p.images?.[0] ? (
-                      <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover" />
+                      <img src={ensureAbsoluteMediaUrl(p.images[0])} alt={p.name} className="w-full h-full object-cover" />
                     ) : null}
                   </div>
                   <p className="mt-1 text-[11px] text-slate-800 dark:text-slate-100 line-clamp-1">{p.name}</p>
@@ -478,7 +479,7 @@ export default function StorePage() {
                   <Link to={`/store/p/${encodeURIComponent(p.id)}`} className="block">
                     <div className="aspect-square rounded-md bg-[#f6f7fb] dark:bg-slate-800 overflow-hidden">
                       {p.images?.[0] ? (
-                        <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover" />
+                        <img src={ensureAbsoluteMediaUrl(p.images[0])} alt={p.name} className="w-full h-full object-cover" />
                       ) : null}
                     </div>
                   </Link>

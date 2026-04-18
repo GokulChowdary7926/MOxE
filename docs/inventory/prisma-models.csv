@@ -4,6 +4,7 @@ PhoneVerification
 EmailVerification
 Video
 Account
+UploadedAsset
 Link
 Follow
 FollowRequest
@@ -14,6 +15,7 @@ PremiumBlockedMessage
 PremiumMessageRecipientAction
 LifestyleStrike
 Mute
+FeedSnooze
 Restrict
 LimitInteractionSetting
 Post
@@ -38,6 +40,8 @@ Live
 LiveProduct
 LiveViewer
 LiveComment
+LiveQuestion
+LiveModerator
 LiveBadge
 LiveGift
 Like
@@ -49,6 +53,10 @@ Mention
 Reaction
 SavedPost
 Collection
+ScreenTimeDaily
+RecentSearchEntry
+LinkOpen
+AccountActivityLog
 Message
 MessageRecipient
 PollVote
@@ -130,6 +138,9 @@ ReelRetention
 Campaign
 Application
 ScreenshotLog
+MemorializationRequest
+ProfileClaimRequest
+LegalRequestLog
 SupportTicket
 SupportTicketReply
 JobPosting
@@ -191,6 +202,7 @@ FlowComment
 FlowAttachment
 FlowCardReminder
 Org
+OrgAuditLog
 OrgDepartment
 OrgRole
 OrgGroup

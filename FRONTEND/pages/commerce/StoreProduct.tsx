@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Heart, ShoppingCart } from 'lucide-react';
 import { getApiBase } from '../../services/api';
+import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
 
 type Product = {
   id: string;
@@ -180,7 +181,7 @@ export default function StoreProductPage() {
 
         <div className="rounded-xl border border-[#DFE1E6] dark:border-slate-800 bg-white dark:bg-slate-900 p-3 grid md:grid-cols-2 gap-4">
           <div className="rounded-lg bg-[#f6f7fb] dark:bg-slate-800 overflow-hidden aspect-square">
-            {item.images?.[0] ? <img src={item.images[0]} alt={item.name} className="w-full h-full object-cover" /> : null}
+            {item.images?.[0] ? <img src={ensureAbsoluteMediaUrl(item.images[0])} alt={item.name} className="w-full h-full object-cover" /> : null}
           </div>
           <div>
             <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">{item.name}</h1>

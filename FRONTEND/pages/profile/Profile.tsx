@@ -651,7 +651,7 @@ export default function Profile() {
             >
               <div className="w-14 h-14 rounded-full border-2 border-moxe-border overflow-hidden mb-1 bg-moxe-surface">
                 {h.coverImage ? (
-                  <img src={h.coverImage} alt="" className="w-full h-full object-cover" />
+                  <img src={ensureAbsoluteMediaUrl(h.coverImage)} alt="" className="w-full h-full object-cover" />
                 ) : (
                           <div className="w-full h-full flex items-center justify-center text-moxe-text text-sm font-semibold">
                     {(h.name || 'Highlight').charAt(0)}

@@ -430,10 +430,15 @@ export class StoryService {
       byAccount.get(s.accountId)!.stories.push(s);
     }
     return Array.from(byAccount.values()).map((group) => {
-      const hasUnseen = group.stories.some((s) => !viewedIds.has(s.id));
-      const closeFriends = group.stories.some((s) => s.privacy === 'CLOSE_FRIENDS_ONLY' || s.isCloseFriendsOnly);
+      const normalizedStories = group.stories.map((s) => ({
+        ...s,
+        media: normalizeStoredMediaUrl(typeof s.media === 'string' ? s.media : String(s.media ?? '')),
+      }));
+      const hasUnseen = normalizedStories.some((s) => !viewedIds.has(s.id));
+      const closeFriends = normalizedStories.some((s) => s.privacy === 'CLOSE_FRIENDS_ONLY' || s.isCloseFriendsOnly);
       return {
         ...group,
+        stories: normalizedStories,
         id: group.accountId,
         username: group.account.username,
         profilePhoto: group.account.profilePhoto,
