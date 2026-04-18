@@ -242,7 +242,8 @@ else
 fi
 
 # t3.micro: avoid OOM during tsc/vite on tiny RAM (override with NODE_OPTIONS if needed)
-export NODE_OPTIONS="${NODE_OPTIONS:--max-old-space-size=1024}"
+MOXE_NODE_HEAP_DEFAULT='--max-old-space-size=1024'
+export NODE_OPTIONS="${NODE_OPTIONS:-$MOXE_NODE_HEAP_DEFAULT}"
 
 npx prisma generate
 npx prisma migrate deploy
