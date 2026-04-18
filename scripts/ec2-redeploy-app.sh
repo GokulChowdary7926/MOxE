@@ -7,6 +7,9 @@
 #   export MOXE_PUBLIC_IP="13.126.171.152"
 #   export MOXE_BRANCH="main"
 #   bash scripts/ec2-redeploy-app.sh
+#
+# If you run BACKEND/npm run build by hand, set heap first (same as this script), e.g.:
+#   export NODE_OPTIONS="--max-old-space-size=3072"
 # =============================================================================
 set -euo pipefail
 
@@ -24,7 +27,7 @@ git fetch origin
 git checkout "$MOXE_BRANCH"
 git pull origin "$MOXE_BRANCH"
 
-MOXE_NODE_HEAP_DEFAULT='--max-old-space-size=2048'
+MOXE_NODE_HEAP_DEFAULT='--max-old-space-size=3072'
 export NODE_OPTIONS="${NODE_OPTIONS:-$MOXE_NODE_HEAP_DEFAULT}"
 
 echo "==> Backend build + PM2"
