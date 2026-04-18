@@ -12,7 +12,7 @@ set -euo pipefail
 
 MOXE_ROOT="${MOXE_ROOT:-/var/www/moxe}"
 MOXE_BRANCH="${MOXE_BRANCH:-main}"
-MOXE_PUBLIC_IP="${MOXE_PUBLIC_IP:?Set MOXE_PUBLIC_IP to this host's public IP (used for VITE_API_URL).}"
+MOXE_PUBLIC_IP="${MOXE_PUBLIC_IP:?Set MOXE_PUBLIC_IP to the server public IP (for VITE_API_URL).}"
 
 BACKEND_DIR="${MOXE_ROOT}/BACKEND"
 FRONTEND_DIR="${MOXE_ROOT}/FRONTEND"
