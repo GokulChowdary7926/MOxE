@@ -79,7 +79,9 @@ test.describe('Reels editor smoke', () => {
 
   test('new reel flow: image upload → edit → share → save draft', async ({ page }) => {
     await page.goto('/create/reel');
-    await page.locator('input[type=file][accept*="video"]').setInputFiles(fixtureImage);
+    // File input exists only on CAMERA tab (default is TEMPLATES).
+    await page.getByRole('button', { name: 'CAMERA' }).click();
+    await page.locator('input[type=file][accept*="image"]').setInputFiles(fixtureImage);
     await expect(page).toHaveURL(/\/create\/reel\/edit/, { timeout: 15_000 });
     await page.locator('header > button').last().click();
     await expect(page).toHaveURL(/\/create\/reel\/share/, { timeout: 15_000 });
