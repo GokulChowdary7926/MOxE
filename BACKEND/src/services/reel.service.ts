@@ -215,6 +215,7 @@ export class ReelService {
           {
             OR: [
               { isSubscriberOnly: false },
+              ...(viewerAccountId ? [{ isSubscriberOnly: true, accountId: viewerAccountId }] : []),
               { isSubscriberOnly: true, accountId: { in: subscribedCreatorIds } },
             ],
           },

@@ -5,7 +5,7 @@ import { FeedPost } from '../../components/ui/FeedPost';
 import { useCurrentAccount } from '../../hooks/useAccountCapabilities';
 import { fetchApi, getToken } from '../../services/api';
 import { getSocket } from '../../services/socket';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAdFeed } from '../../hooks/useAdFeed';
 import { SocialTopBar } from '../../components/layout/SocialTopBar';
 import { feedAuthorFromApiItem } from '../../utils/feedAuthorFromApiItem';
@@ -48,9 +48,8 @@ type FeedItem = {
 };
 
 export default function Home() {
+  const location = useLocation();
   const currentAccount = useCurrentAccount() as any;
-  const accountType = String(currentAccount?.accountType || 'PERSONAL').toUpperCase();
-  const isJob = accountType === 'JOB';
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -145,7 +144,7 @@ export default function Home() {
 
   useEffect(() => {
     loadFeed();
-  }, [loadFeed]);
+  }, [loadFeed, location.key]);
 
   useEffect(() => {
     const socket = getSocket();
@@ -189,7 +188,7 @@ export default function Home() {
 
   useEffect(() => {
     loadStories();
-  }, [loadStories]);
+  }, [loadStories, location.key]);
 
   useEffect(() => {
     const socket = getSocket();

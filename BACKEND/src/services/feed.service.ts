@@ -100,6 +100,8 @@ export class FeedService {
           {
             OR: [
               { isSubscriberOnly: false },
+              // Authors always see their own subscriber-only posts (sub list is for other creators).
+              { isSubscriberOnly: true, accountId },
               { isSubscriberOnly: true, accountId: { in: subscribedCreatorIds } },
             ],
           },
@@ -213,6 +215,7 @@ export class FeedService {
           {
             OR: [
               { isSubscriberOnly: false },
+              { isSubscriberOnly: true, accountId },
               { isSubscriberOnly: true, accountId: { in: subscribedCreatorIds } },
             ],
           },

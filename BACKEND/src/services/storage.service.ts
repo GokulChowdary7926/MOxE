@@ -10,22 +10,46 @@ function ensureUploadsDir(): void {
   }
 }
 
+/** S3 on when bucket + region exist and either static keys OR EC2 instance role (no keys in .env). */
 export function isS3Configured(): boolean {
-  return !!(
-    process.env.AWS_ACCESS_KEY_ID &&
-    process.env.AWS_SECRET_ACCESS_KEY &&
-    process.env.AWS_S3_BUCKET &&
-    process.env.AWS_REGION
-  );
+  const bucket = !!process.env.AWS_S3_BUCKET?.trim();
+  const region = !!process.env.AWS_REGION?.trim();
+  if (!bucket || !region) return false;
+  const keys =
+    !!process.env.AWS_ACCESS_KEY_ID?.trim() && !!process.env.AWS_SECRET_ACCESS_KEY?.trim();
+  const ec2Role =
+    process.env.AWS_S3_USE_EC2_ROLE === '1' || process.env.AWS_S3_USE_EC2_ROLE === 'true';
+  return keys || ec2Role;
 }
 
-const s3 = new AWS.S3(
-  isS3Configured()
-    ? {
-        region: process.env.AWS_REGION,
-      }
-    : undefined,
-);
+let s3Client: AWS.S3 | null = null;
+let s3ClientMode: 'keys' | 'role' | null = null;
+
+function getS3CredentialMode(): 'keys' | 'role' {
+  const useKeys =
+    !!process.env.AWS_ACCESS_KEY_ID?.trim() && !!process.env.AWS_SECRET_ACCESS_KEY?.trim();
+  return useKeys ? 'keys' : 'role';
+}
+
+function getS3(): AWS.S3 {
+  if (!isS3Configured()) {
+    throw new Error('[storage] getS3 called while S3 not configured');
+  }
+  const mode = getS3CredentialMode();
+  if (!s3Client || s3ClientMode !== mode) {
+    const region = process.env.AWS_REGION as string;
+    s3ClientMode = mode;
+    s3Client =
+      mode === 'keys'
+        ? new AWS.S3({
+            region,
+            accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+            secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+          })
+        : new AWS.S3({ region });
+  }
+  return s3Client;
+}
 
 export type StorageBackend = 'local' | 's3';
 
@@ -35,15 +59,6 @@ export type StoredObject = {
   size: number;
   storageBackend: StorageBackend;
 };
-
-function getLocalBaseUrl(): string {
-  const base =
-    process.env.UPLOAD_BASE_URL ||
-    process.env.API_URL ||
-    process.env.CLIENT_URL ||
-    'http://localhost:5007';
-  return base.replace(/\/$/, '');
-}
 
 function getCdnBaseUrl(): string | null {
   const cdn = process.env.CDN_BASE_URL || process.env.CLOUDFRONT_URL;
@@ -64,15 +79,18 @@ export async function storeBuffer(
       .toString(36)
       .slice(2, 10)}-${filename}`;
 
-    await s3
-      .putObject({
-        Bucket: bucket,
-        Key: key,
-        Body: buffer,
-        ContentType: mimetype,
-        ACL: 'public-read',
-      })
-      .promise();
+    // Omit ACL: buckets with "Object Ownership" = ACLs disabled reject ACLs (AccessControlListNotSupported).
+    // For browser-readable URLs, use a bucket policy on `uploads/*` and/or CloudFront — not object ACLs.
+    const params: AWS.S3.PutObjectRequest = {
+      Bucket: bucket,
+      Key: key,
+      Body: buffer,
+      ContentType: mimetype,
+    };
+    if (process.env.AWS_S3_OBJECT_ACL === 'public-read') {
+      params.ACL = 'public-read';
+    }
+    await getS3().putObject(params).promise();
 
     const cdnBase = getCdnBaseUrl();
     const bucketBase = `https://${bucket}.s3.${process.env.AWS_REGION}.amazonaws.com`;
@@ -92,9 +110,21 @@ export async function storeBuffer(
   const filePath = path.join(uploadsDir, name);
   await fs.promises.writeFile(filePath, buffer);
 
-  const baseUrl = getLocalBaseUrl();
+  // Portable path so Post/Reel/Story JSON in Postgres is not tied to localhost or one hostname
+  // (fixes broken media on EC2 when API_URL was unset and clients used a different origin).
+  const publicPath = `/uploads/${name}`;
+  const override = process.env.UPLOAD_BASE_URL?.trim();
+  if (override) {
+    const base = override.replace(/\/$/, '');
+    return {
+      url: `${base}${publicPath}`,
+      key: name,
+      size,
+      storageBackend: 'local',
+    };
+  }
   return {
-    url: `${baseUrl}/uploads/${name}`,
+    url: publicPath,
     key: name,
     size,
     storageBackend: 'local',
@@ -109,7 +139,7 @@ export async function deleteStoredObject(key: string, backend: StorageBackend): 
       return;
     }
     const bucket = process.env.AWS_S3_BUCKET as string;
-    await s3.deleteObject({ Bucket: bucket, Key: key }).promise();
+    await getS3().deleteObject({ Bucket: bucket, Key: key }).promise();
     return;
   }
   const filePath = path.join(uploadsDir, key);

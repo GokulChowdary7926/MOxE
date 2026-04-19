@@ -31,6 +31,34 @@ function contentMatchesRegex(content: string, patterns: string[]): boolean {
   });
 }
 
+/** Accept array, single object, or JSON string (some clients stringify `media`). */
+function coercePostMediaInput(raw: unknown): unknown[] {
+  if (raw == null) return [];
+  let v: unknown = raw;
+  if (typeof v === 'string') {
+    const t = v.trim();
+    if (!t) return [];
+    if (t.startsWith('[') || t.startsWith('{')) {
+      try {
+        v = JSON.parse(t) as unknown;
+      } catch {
+        return [{ url: t }];
+      }
+    } else {
+      return [{ url: t }];
+    }
+  }
+  if (v && typeof v === 'object' && !Array.isArray(v)) {
+    v = [v];
+  }
+  return Array.isArray(v) ? v : [];
+}
+
+/** Drop non-JSON values so Prisma `Json` columns always persist (no `undefined`, functions). */
+function cloneForPrismaJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 function parseHiddenWordsConfig(raw: unknown): { regexPatterns: string[]; allowListAccountIds: string[] } {
   const obj = raw && typeof raw === 'object' && !Array.isArray(raw)
     ? (raw as Record<string, unknown>)
@@ -164,7 +192,7 @@ export class PostService {
     taggedUserIds?: string[];
   }) {
     // Basic media validation: require at least one media item with a URL.
-    const rawMediaArray = Array.isArray(data.media) ? data.media : [];
+    const rawMediaArray = coercePostMediaInput(data.media);
     if (!Array.isArray(rawMediaArray) || rawMediaArray.length === 0) {
       throw new AppError('At least one media item is required', 400);
     }
@@ -186,6 +214,8 @@ export class PostService {
     if (mediaArray.length === 0) {
       throw new AppError('At least one valid media URL is required', 400);
     }
+
+    const mediaForDb = cloneForPrismaJson(mediaArray);
 
     const privacy = (data.privacy as 'PUBLIC' | 'FOLLOWERS_ONLY' | 'CLOSE_FRIENDS_ONLY' | 'ONLY_ME') || 'PUBLIC';
 
@@ -215,7 +245,7 @@ export class PostService {
     const post = await prisma.post.create({
       data: {
         accountId,
-        media: mediaArray as any,
+        media: mediaForDb as unknown as Prisma.InputJsonValue,
         caption: data.caption ?? null,
         altText: data.altText ? String(data.altText).slice(0, 500) : null,
         location: data.location ?? null,

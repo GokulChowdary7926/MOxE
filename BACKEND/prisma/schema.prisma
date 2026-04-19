@@ -437,6 +437,7 @@ model Account {
   translationSessionsAsCallee TranslationSession[]     @relation("translation_callee")
   translationUsage             TranslationUsage[]
   nearbyPostCharges            NearbyPostCharge[]
+  nearbyFeedMessages           NearbyFeedMessage[]
   alertSchedules               AlertSchedule[]
   alertScheduleParticipants    AlertScheduleParticipant[]
   alertDeliveries              AlertDelivery[]
@@ -2062,6 +2063,19 @@ model NearbyPostCharge {
   account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@index([accountId])
+  @@index([createdAt])
+}
+
+/// Public Nearby feed chat: persisted so history survives API restarts (Socket.IO memory was ephemeral).
+model NearbyFeedMessage {
+  id        String   @id @default(cuid())
+  messageId String   @unique
+  accountId String
+  payload   Json
+  createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
   @@index([createdAt])
 }
 

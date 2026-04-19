@@ -2,7 +2,7 @@ import { Server } from 'socket.io';
 import { setupTranslateNamespace } from './translate';
 import { LocationService } from '../services/location.service';
 import { AppError } from '../utils/AppError';
-import { NEARBY_HISTORY_MAX, NEARBY_HISTORY_TTL_MS, pruneNearbyHistoryEntries } from './nearbyHistory';
+import { NEARBY_HISTORY_MAX, NEARBY_HISTORY_TTL_MS } from './nearbyHistory';
 
 let ioRef: Server | null = null;
 
@@ -29,7 +29,6 @@ const NEARBY_LOCATION_THROTTLE_MS = 800;
 const DM_TYPING_THROTTLE_MS = 400;
 const NEARBY_MAX_TEXT_LENGTH = 1200;
 const NEARBY_MAX_IMAGE_URL_LENGTH = 2048;
-const nearbyRecentMessages: Array<{ payload: any; at: number }> = [];
 
 function pruneNearbyDedupMap(now = Date.now()): void {
   for (const [accountId, entry] of nearbyRecentMessageByAccount.entries()) {
@@ -47,11 +46,6 @@ function pruneNearbyDedupMap(now = Date.now()): void {
   }
 }
 
-function pruneNearbyHistory(now = Date.now()): void {
-  const pruned = pruneNearbyHistoryEntries(nearbyRecentMessages, now);
-  nearbyRecentMessages.splice(0, nearbyRecentMessages.length, ...pruned);
-}
-
 function haversineKm(a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }): number {
   const toRad = (x: number) => (x * Math.PI) / 180;
   const R = 6371; // Earth radius km
@@ -66,7 +60,53 @@ function haversineKm(a: { latitude: number; longitude: number }, b: { latitude: 
   return R * c;
 }
 
-type PrismaLike = { account: { findUnique: (args: any) => Promise<any> } };
+type PrismaLike = {
+  account: {
+    findUnique: (args: any) => Promise<any>;
+    update: (args: any) => Promise<any>;
+  };
+  nearbyFeedMessage?: {
+    findMany: (args: any) => Promise<Array<{ payload: unknown }>>;
+    create: (args: any) => Promise<unknown>;
+  };
+};
+
+/** Best-effort rollback of daily nearby usage if message row failed to persist (keeps limits consistent). */
+async function revertNearbyMessagingUsage(
+  prisma: PrismaLike | undefined,
+  accountId: string,
+  kind: 'text' | 'media',
+): Promise<void> {
+  if (!prisma?.account?.findUnique || !prisma.account.update) return;
+  const acc = await prisma.account.findUnique({
+    where: { id: accountId },
+    select: {
+      nearbyPostCountToday: true,
+      nearbyTextMessageCountToday: true,
+      nearbyPostResetAt: true,
+    },
+  });
+  if (!acc) return;
+  const now = new Date();
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const needReset = !acc.nearbyPostResetAt || acc.nearbyPostResetAt < midnight;
+  if (needReset) return;
+  if (kind === 'text') {
+    const cur = acc.nearbyTextMessageCountToday ?? 0;
+    if (cur <= 0) return;
+    await prisma.account.update({
+      where: { id: accountId },
+      data: { nearbyTextMessageCountToday: cur - 1 },
+    });
+  } else {
+    const cur = acc.nearbyPostCountToday ?? 0;
+    if (cur <= 0) return;
+    await prisma.account.update({
+      where: { id: accountId },
+      data: { nearbyPostCountToday: cur - 1 },
+    });
+  }
+}
 
 const locationService = new LocationService();
 
@@ -107,10 +147,24 @@ export function setupSocketHandlers(io: Server, prismaInstance?: PrismaLike) {
 
     socket.on('nearby:join', async () => {
       await socket.join(NEARBY_FEED_ROOM);
-      const now = Date.now();
-      pruneNearbyHistory(now);
-      if (nearbyRecentMessages.length > 0) {
-        socket.emit('nearby:history', { messages: nearbyRecentMessages.map((m) => m.payload) });
+      const prisma = getPrisma();
+      const nf = prisma?.nearbyFeedMessage;
+      if (nf?.findMany) {
+        try {
+          const since = new Date(Date.now() - NEARBY_HISTORY_TTL_MS);
+          const rows = await nf.findMany({
+            where: { createdAt: { gte: since } },
+            orderBy: { createdAt: 'asc' },
+            take: NEARBY_HISTORY_MAX,
+            select: { payload: true },
+          });
+          const messages = rows.map((r: { payload: unknown }) => r.payload);
+          if (messages.length > 0) {
+            socket.emit('nearby:history', { messages });
+          }
+        } catch (e) {
+          console.error('nearby:history load failed', e);
+        }
       }
     });
     socket.on('nearby:leave', async () => {
@@ -249,9 +303,28 @@ export function setupSocketHandlers(io: Server, prismaInstance?: PrismaLike) {
         return;
       }
 
-      const historyNow = Date.now();
-      nearbyRecentMessages.push({ payload: messagePayload, at: historyNow });
-      pruneNearbyHistory(historyNow);
+      const prisma = getPrisma();
+      const nf = prisma?.nearbyFeedMessage;
+      if (nf?.create) {
+        try {
+          await nf.create({
+            data: {
+              messageId: messagePayload.messageId,
+              accountId: accountIdToBill,
+              payload: messagePayload,
+            },
+          });
+        } catch (persistErr) {
+          console.error('nearbyFeedMessage persist failed', persistErr);
+          await revertNearbyMessagingUsage(prisma as PrismaLike, accountIdToBill, kind);
+          socket.emit('nearby:message:error', {
+            code: 'PERSIST',
+            message: 'Could not save your message. Please try again.',
+            status: 503,
+          });
+          return;
+        }
+      }
 
       // Deliver to everyone in the Nearby feed room (must have emitted nearby:join on the client).
       // If sender has GPS: only deliver to peers within radiusKm, OR peers who haven't sent coords yet

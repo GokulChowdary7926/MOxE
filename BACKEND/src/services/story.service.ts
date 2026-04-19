@@ -389,7 +389,13 @@ export class StoryService {
         ...(viewerIsMinor ? { isMature: false } : {}),
         AND: [
           { OR: [ { isScheduled: false }, { isScheduled: true, scheduledFor: { lte: now } } ] },
-          { OR: [ { isSubscriberOnly: false }, { isSubscriberOnly: true, accountId: { in: subscribedCreatorIds } } ] },
+          {
+            OR: [
+              { isSubscriberOnly: false },
+              { isSubscriberOnly: true, accountId },
+              { isSubscriberOnly: true, accountId: { in: subscribedCreatorIds } },
+            ],
+          },
           {
             OR: [
               // Always allow own stories regardless of privacy.

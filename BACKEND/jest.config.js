@@ -2,6 +2,7 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.cjs'],
   roots: ['<rootDir>/src'],
   testMatch: ['**/__tests__/**/*.test.ts'],
   // E2E lives in __tests__/e2e and runs in a separate Jest process (jest.e2e.config.js) so mocks of ../server in service tests never break Supertest.

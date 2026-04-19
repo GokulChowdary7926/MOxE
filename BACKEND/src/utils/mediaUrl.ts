@@ -3,7 +3,9 @@
  * Relative filenames (e.g. from legacy clients) become `/uploads/...` so the dev proxy can reach the API.
  */
 export function normalizeStoredMediaUrl(raw: unknown): string {
-  const value = typeof raw === 'string' ? raw.trim() : '';
+  let value = '';
+  if (typeof raw === 'string') value = raw.trim();
+  else if (typeof raw === 'number' || typeof raw === 'bigint') value = String(raw).trim();
   if (!value) return '';
   if (value.startsWith('data:')) return value;
   if (value.startsWith('http://') || value.startsWith('https://')) {
