@@ -1,3 +1,48 @@
+import AWS from 'aws-sdk';
+
+let s3ForReads: AWS.S3 | null = null;
+
+function getS3ForReads(): AWS.S3 | null {
+  if (s3ForReads) return s3ForReads;
+  const region = process.env.AWS_REGION?.trim();
+  if (!region) return null;
+  const useKeys =
+    !!process.env.AWS_ACCESS_KEY_ID?.trim() && !!process.env.AWS_SECRET_ACCESS_KEY?.trim();
+  s3ForReads = useKeys
+    ? new AWS.S3({
+        region,
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      })
+    : new AWS.S3({ region });
+  return s3ForReads;
+}
+
+function maybeSignS3ReadUrl(value: string): string {
+  const bucket = process.env.AWS_S3_BUCKET?.trim();
+  if (!bucket) return value;
+  try {
+    const u = new URL(value);
+    const host = u.hostname.toLowerCase();
+    const bucketHost = `${bucket}.s3.${(process.env.AWS_REGION || '').trim()}.amazonaws.com`.toLowerCase();
+    const legacyHost = `${bucket}.s3.amazonaws.com`.toLowerCase();
+    if (host !== bucketHost && host !== legacyHost) return value;
+    const key = u.pathname.replace(/^\/+/, '');
+    if (!key) return value;
+    const ttlRaw = Number(process.env.AWS_S3_READ_URL_TTL_SECONDS || '86400');
+    const expires = Number.isFinite(ttlRaw) ? Math.max(60, Math.min(604800, Math.floor(ttlRaw))) : 86400;
+    const s3 = getS3ForReads();
+    if (!s3) return value;
+    return s3.getSignedUrl('getObject', {
+      Bucket: bucket,
+      Key: key,
+      Expires: expires,
+    });
+  } catch {
+    return value;
+  }
+}
+
 /**
  * Normalize stored media URLs for API clients.
  * Relative filenames (e.g. from legacy clients) become `/uploads/...` so the dev proxy can reach the API.
@@ -9,11 +54,11 @@ export function normalizeStoredMediaUrl(raw: unknown): string {
   if (!value) return '';
   if (value.startsWith('data:')) return value;
   if (value.startsWith('http://') || value.startsWith('https://')) {
-    // Migrate legacy/local absolute URLs (e.g. http://localhost:5007/uploads/x.jpg)
-    // into stable relative upload paths that frontend can resolve with current origin.
-    const match = value.match(/^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d+)?(\/uploads\/[^?#]+)/i);
+    // Migrate absolute /uploads URLs from old hosts into stable relative upload paths.
+    const match = value.match(/^https?:\/\/[^/]+(\/uploads\/[^?#]+)/i);
     if (match) return match[1];
-    return value;
+    // S3 objects may be private; return a signed URL when value points to configured bucket.
+    return maybeSignS3ReadUrl(value);
   }
   if (value.startsWith('/uploads/')) return value;
   if (value.startsWith('/')) return value;
