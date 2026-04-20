@@ -40,22 +40,51 @@ jobs:
 
   deploy-backend:
     needs: test-and-build
-    if: github.ref == 'refs/heads/main' && secrets.RENDER_DEPLOY_HOOK_URL != '' && secrets.VAPID_PUBLIC_KEY != '' && secrets.VAPID_PRIVATE_KEY != ''
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
+      - name: Check backend deploy secrets
+        id: backend_secrets
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+        run: |
+          if [ -n "$RENDER_DEPLOY_HOOK_URL" ] && [ -n "$VAPID_PUBLIC_KEY" ] && [ -n "$VAPID_PRIVATE_KEY" ]; then
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping backend deploy (missing one or more secrets: RENDER_DEPLOY_HOOK_URL, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)."
+          fi
       - name: Trigger Render deploy
+        if: steps.backend_secrets.outputs.should_deploy == 'true'
         run: |
           curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
 
   deploy-frontend:
     needs: test-and-build
-    if: github.ref == 'refs/heads/main' && secrets.VERCEL_TOKEN != '' && secrets.VERCEL_ORG_ID != '' && secrets.VERCEL_PROJECT_ID != ''
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
+      - name: Check frontend deploy secrets
+        id: frontend_secrets
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          if [ -n "$VERCEL_TOKEN" ] && [ -n "$VERCEL_ORG_ID" ] && [ -n "$VERCEL_PROJECT_ID" ]; then
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping frontend deploy (missing one or more secrets: VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID)."
+          fi
       - name: Checkout
+        if: steps.frontend_secrets.outputs.should_deploy == 'true'
         uses: actions/checkout@v4
 
       - name: Deploy to Vercel
+        if: steps.frontend_secrets.outputs.should_deploy == 'true'
         uses: amondnet/vercel-action@v25
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
