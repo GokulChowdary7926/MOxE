@@ -4,6 +4,7 @@ import { ThemedView } from '../../components/ui/Themed';
 import { MobileShell } from '../../components/layout/MobileShell';
 import { getApiBase, getToken } from '../../services/api';
 import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
+import { mediaEntryToUrl } from '../../utils/mediaEntries';
 import { readApiError } from '../../utils/readApiError';
 import toast from 'react-hot-toast';
 
@@ -22,8 +23,12 @@ type HighlightPayload = {
 
 function mediaThumb(media: unknown): string | null {
   if (!Array.isArray(media) || media.length === 0) return null;
-  const m = media[0] as { url?: string; uri?: string; thumbnailUrl?: string };
-  return m.thumbnailUrl || m.url || m.uri || null;
+  const first = media[0] as { thumbnailUrl?: string } | unknown;
+  if (first && typeof first === 'object' && typeof (first as { thumbnailUrl?: string }).thumbnailUrl === 'string') {
+    const thumb = (first as { thumbnailUrl?: string }).thumbnailUrl?.trim();
+    if (thumb) return thumb;
+  }
+  return mediaEntryToUrl(first) || null;
 }
 
 function durationLabel(media: unknown): string {

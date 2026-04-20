@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ThemedView, ThemedText } from '../../components/ui/Themed';
 import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
+import { mediaEntryToUrl } from '../../utils/mediaEntries';
 
 import { getApiBase } from '../../services/api';
 const API_BASE = getApiBase();
@@ -14,17 +15,8 @@ type HighlightStory = {
 
 function extractHighlightMediaUrl(story: any): string {
   const media = story?.media;
-  if (typeof media === 'string' && media.trim()) return media.trim();
-  if (Array.isArray(media) && media.length > 0) {
-    const first = media[0];
-    if (typeof first === 'string' && first.trim()) return first.trim();
-    if (first && typeof first === 'object') {
-      const fromObj = (first as { url?: string; uri?: string; mediaUrl?: string }).url
-        ?? (first as { url?: string; uri?: string; mediaUrl?: string }).uri
-        ?? (first as { url?: string; uri?: string; mediaUrl?: string }).mediaUrl;
-      if (typeof fromObj === 'string' && fromObj.trim()) return fromObj.trim();
-    }
-  }
+  const fromMediaArrayOrObject = mediaEntryToUrl(Array.isArray(media) ? media[0] : media);
+  if (fromMediaArrayOrObject) return fromMediaArrayOrObject;
   for (const key of ['mediaUrl', 'url', 'imageUrl', 'thumbnail'] as const) {
     const candidate = story?.[key];
     if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();

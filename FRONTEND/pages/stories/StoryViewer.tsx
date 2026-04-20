@@ -5,6 +5,7 @@ import { Avatar } from '../../components/ui/Avatar';
 import { getSocket } from '../../services/socket';
 import { getApiBase, getAuthHeaders } from '../../services/api';
 import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
+import { mediaEntryToUrl } from '../../utils/mediaEntries';
 import { SocialCommentsSheet, SocialCommentsEmpty } from '../../components/comments/SocialCommentsSheet';
 import { SocialCommentRow } from '../../components/comments/SocialCommentRow';
 import { Heart, X, Star, Users, Bookmark, AtSign, MoreVertical, MessageCircle } from 'lucide-react';
@@ -35,23 +36,8 @@ type StoryReplyRow = {
 
 function extractStoryMediaUrl(story: any): string {
   const media = story?.media;
-  if (typeof media === 'string' && media.trim()) return media.trim();
-  if (Array.isArray(media) && media.length > 0) {
-    const first = media[0];
-    if (typeof first === 'string' && first.trim()) return first.trim();
-    if (first && typeof first === 'object') {
-      const fromObj = (first as { url?: string; uri?: string; mediaUrl?: string }).url
-        ?? (first as { url?: string; uri?: string; mediaUrl?: string }).uri
-        ?? (first as { url?: string; uri?: string; mediaUrl?: string }).mediaUrl;
-      if (typeof fromObj === 'string' && fromObj.trim()) return fromObj.trim();
-    }
-  }
-  if (media && typeof media === 'object') {
-    const fromObj = (media as { url?: string; uri?: string; mediaUrl?: string }).url
-      ?? (media as { url?: string; uri?: string; mediaUrl?: string }).uri
-      ?? (media as { url?: string; uri?: string; mediaUrl?: string }).mediaUrl;
-    if (typeof fromObj === 'string' && fromObj.trim()) return fromObj.trim();
-  }
+  const fromMediaArrayOrObject = mediaEntryToUrl(Array.isArray(media) ? media[0] : media);
+  if (fromMediaArrayOrObject) return fromMediaArrayOrObject;
   for (const key of ['mediaUrl', 'url', 'imageUrl', 'thumbnail'] as const) {
     const candidate = story?.[key];
     if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();

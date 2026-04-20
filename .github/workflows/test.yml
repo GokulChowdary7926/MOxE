@@ -74,6 +74,23 @@ jobs:
 
   frontend-playwright:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: moxe
+          POSTGRES_PASSWORD: moxe
+          POSTGRES_DB: moxe_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U moxe -d moxe_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://moxe:moxe@localhost:5432/moxe_test
+      NODE_ENV: test
     defaults:
       run:
         working-directory: FRONTEND
@@ -90,6 +107,9 @@ jobs:
       - name: Generate Prisma client for backend webServer
         working-directory: BACKEND
         run: npx prisma generate
+      - name: Apply Prisma migrations for backend webServer
+        working-directory: BACKEND
+        run: npx prisma migrate deploy
       - run: npm ci
       - run: npm run check:mock-imports
       - run: npm run build

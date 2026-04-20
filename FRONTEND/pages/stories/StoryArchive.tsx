@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ThemedView, ThemedHeader, ThemedText } from '../../components/ui/Themed';
 import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
+import { mediaEntryToUrl } from '../../utils/mediaEntries';
 
 import { getApiBase } from '../../services/api';
 const API_BASE = getApiBase();
@@ -14,24 +15,14 @@ type ArchivedStory = {
 
 function extractArchivedMedia(raw: unknown): { url: string; type?: string } | null {
   if (!raw) return null;
-  if (typeof raw === 'string') {
-    return raw.trim() ? { url: raw.trim() } : null;
-  }
-  if (Array.isArray(raw) && raw.length > 0) {
-    const first = raw[0] as unknown;
-    if (typeof first === 'string') {
-      return first.trim() ? { url: first.trim() } : null;
-    }
-    if (first && typeof first === 'object') {
-      const o = first as { url?: string; uri?: string; mediaUrl?: string; type?: string };
-      const url = o.url ?? o.uri ?? o.mediaUrl;
-      if (typeof url === 'string' && url.trim()) return { url: url.trim(), type: o.type };
-    }
-  }
-  if (typeof raw === 'object') {
-    const o = raw as { url?: string; uri?: string; mediaUrl?: string; type?: string };
-    const url = o.url ?? o.uri ?? o.mediaUrl;
-    if (typeof url === 'string' && url.trim()) return { url: url.trim(), type: o.type };
+  const entry = Array.isArray(raw) ? raw[0] : raw;
+  const url = mediaEntryToUrl(entry);
+  if (url) {
+    const type =
+      entry && typeof entry === 'object' && !Array.isArray(entry)
+        ? (entry as { type?: string }).type
+        : undefined;
+    return { url, type };
   }
   return null;
 }
