@@ -110,6 +110,9 @@ jobs:
       - name: Apply Prisma migrations for backend webServer
         working-directory: BACKEND
         run: npx prisma migrate deploy
+      - name: Seed E2E accounts for Playwright login flows
+        working-directory: BACKEND
+        run: MOXE_ALLOW_E2E_SEED=1 npx prisma db seed
       - run: npm ci
       - run: npm run check:mock-imports
       - run: npm run build
