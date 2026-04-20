@@ -1,4 +1,5 @@
 import { getApiBase } from '../services/api';
+import { mediaEntryToUrl } from './mediaEntries';
 
 /**
  * Safe media access for posts/items. Use instead of p.media[0]?.url to avoid runtime errors
@@ -9,9 +10,7 @@ export function getFirstMediaUrl(post: { media?: unknown[] | null; mediaUrl?: st
   if (typeof (post as any).mediaUrl === 'string') return (post as any).mediaUrl;
   if (typeof (post as any).media_uri === 'string') return (post as any).media_uri;
   if (!Array.isArray(post.media) || post.media.length === 0) return '';
-  const first = post.media[0] as { url?: string; uri?: string; mediaUrl?: string } | null | undefined;
-  if (!first) return '';
-  return first.url ?? first.uri ?? first.mediaUrl ?? '';
+  return mediaEntryToUrl(post.media[0]);
 }
 
 /** Origin for API (no /api path). Used to resolve relative upload URLs. */

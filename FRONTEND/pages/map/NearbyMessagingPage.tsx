@@ -309,7 +309,20 @@ export default function NearbyMessagingPage() {
               next[idx] = { ...next[idx], fromUsername: fromUsername ?? undefined, fromDisplayName: fromDisplayName ?? undefined, fromUserId, fromAccountId, messageId: messageId ?? next[idx].messageId };
               return next.slice(0, MESSAGE_MAX_HISTORY);
             }
-            return kept.slice(0, MESSAGE_MAX_HISTORY);
+            // Optimistic row may already be removed above; keep own echo visible by inserting it.
+            const newMsg: NearbyMessage = {
+              text: text || '[Photo]',
+              messageId: messageId ?? undefined,
+              fromUserId,
+              fromAccountId,
+              fromUsername: fromUsername ?? undefined,
+              fromDisplayName: fromDisplayName ?? undefined,
+              sentAt,
+              imageUrl: imageUrl || null,
+              replyCount: 0,
+              likeCount: 0,
+            };
+            return [newMsg, ...kept].slice(0, MESSAGE_MAX_HISTORY);
           }
           const newMsg: NearbyMessage = {
             text: text || '[Photo]',

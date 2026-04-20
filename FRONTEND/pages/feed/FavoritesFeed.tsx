@@ -11,6 +11,7 @@ import { feedAuthorFromApiItem } from '../../utils/feedAuthorFromApiItem';
 import { MobileShell } from '../../components/layout/MobileShell';
 import { ChevronLeft, Star } from 'lucide-react';
 import { fetchClientSettings } from '../../services/clientSettings';
+import { getMediaUrls } from '../../utils/mediaEntries';
 
 type FeedItem = {
   id: string;
@@ -77,7 +78,7 @@ export default function FavoritesFeed() {
           ? raw.map((p: any) => {
               const mediaArray: string[] =
                 Array.isArray(p.media) && p.media.length
-                  ? p.media.map((m: any) => m.url || m.uri || m.mediaUrl).filter(Boolean)
+                  ? getMediaUrls(p.media)
                   : [p.mediaUrl ?? p.media_uri ?? ''].filter(Boolean);
               const authorFields = feedAuthorFromApiItem(p as Record<string, unknown>);
               return {

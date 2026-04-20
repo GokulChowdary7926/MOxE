@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useDispatch } from 'react-redux';
 import type { AppDispatch } from '../store';
 import { fetchServedAd, trackAdImpression } from '../store/adSlice';
+import { getMediaUrls } from '../utils/mediaEntries';
 
 type BaseFeedItem = {
   id: string;
@@ -58,7 +59,7 @@ export function useAdFeed(items: BaseFeedItem[], enabled: boolean) {
           },
           mediaUrls:
             Array.isArray(ad.post.media) && ad.post.media.length
-              ? ad.post.media.map((m: any) => m.url || m.uri || m.mediaUrl).filter(Boolean)
+              ? getMediaUrls(ad.post.media)
               : [''],
           caption: ad.post.caption ?? null,
           locationName: ad.post.location ?? null,

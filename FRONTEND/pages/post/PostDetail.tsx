@@ -8,6 +8,7 @@ import { ErrorState } from '../../components/ui/ErrorState';
 import { getApiBase, getToken } from '../../services/api';
 import { fetchClientSettings } from '../../services/clientSettings';
 import { getSocket } from '../../services/socket';
+import { getMediaUrls } from '../../utils/mediaEntries';
 import toast from 'react-hot-toast';
 
 export default function PostDetail() {
@@ -241,7 +242,7 @@ export default function PostDetail() {
     profilePhoto: acc.profilePhoto,
   };
   const mediaUris = Array.isArray(post.media)
-    ? post.media.map((m: any) => m.url || m.mediaUrl).filter(Boolean)
+    ? getMediaUrls(post.media)
     : [post.mediaUrl ?? post.media_uri].filter(Boolean);
 
   return (

@@ -10,6 +10,7 @@ import { useAdFeed } from '../../hooks/useAdFeed';
 import { SocialTopBar } from '../../components/layout/SocialTopBar';
 import { feedAuthorFromApiItem } from '../../utils/feedAuthorFromApiItem';
 import { fetchClientSettings } from '../../services/clientSettings';
+import { getMediaUrls } from '../../utils/mediaEntries';
 
 type StoryAvatar = {
   id: string;
@@ -59,10 +60,7 @@ export default function Home() {
   const { itemsWithAds } = useAdFeed(items, feedType === 'forYou');
 
   const normalizeMediaList = (media: unknown): string[] => {
-    if (!Array.isArray(media)) return [];
-    return media
-      .map((m: any) => (m?.url || m?.uri || m?.mediaUrl || '').toString().trim())
-      .filter((u: string) => !!u && !/^javascript:/i.test(u));
+    return getMediaUrls(media).filter((u: string) => !/^javascript:/i.test(u));
   };
 
   useEffect(() => {
