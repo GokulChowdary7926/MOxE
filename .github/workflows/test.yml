@@ -84,6 +84,12 @@ jobs:
           node-version: '20'
           cache: npm
           cache-dependency-path: FRONTEND/package-lock.json
+      - name: Install backend dependencies for Playwright webServer
+        working-directory: BACKEND
+        run: npm ci
+      - name: Generate Prisma client for backend webServer
+        working-directory: BACKEND
+        run: npx prisma generate
       - run: npm ci
       - run: npm run check:mock-imports
       - run: npm run build
