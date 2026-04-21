@@ -272,7 +272,7 @@ export default function CreateReel() {
       if (!res.ok) {
         throw new Error(await userFacingApiError(res, 'Could not publish your reel.'));
       }
-      navigate('/');
+      navigate('/reels');
     } catch (e: unknown) {
       setError(messageFromUnknown(e, 'Could not publish your reel.'));
     } finally {

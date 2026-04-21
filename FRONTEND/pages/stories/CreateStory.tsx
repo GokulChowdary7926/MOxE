@@ -6,6 +6,7 @@ import { getApiBase, getUploadUrl } from '../../services/api';
 import { messageFromUnknown, userFacingApiError, userFacingUploadError } from '../../utils/userFacingErrors';
 import type { SpotifyTrack } from '../../services/spotifyApi';
 import { Star } from 'lucide-react';
+import { useCurrentAccount } from '../../hooks/useAccountCapabilities';
 
 const API_BASE = getApiBase();
 
@@ -28,6 +29,7 @@ type StorySticker =
 export default function CreateStory() {
   const navigate = useNavigate();
   const location = useLocation() as any;
+  const currentAccount = useCurrentAccount() as { username?: string } | null;
   const [file, setFile] = useState<File | null>(null);
   const [text, setText] = useState('');
   const [textLayers, setTextLayers] = useState<
@@ -215,7 +217,8 @@ export default function CreateStory() {
         await linkRes.json().catch(() => ({}));
       }
 
-      navigate('/');
+      if (currentAccount?.username) navigate(`/stories/${currentAccount.username}`);
+      else navigate('/profile');
     } catch (e: unknown) {
       setError(messageFromUnknown(e, 'Something went wrong.'));
     } finally {

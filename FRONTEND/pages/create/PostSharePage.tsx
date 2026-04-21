@@ -158,7 +158,7 @@ export default function PostSharePage() {
       if (!res.ok) {
         throw new Error(await userFacingApiError(res, 'Could not publish your post.'));
       }
-      navigate('/');
+      navigate('/profile');
     } catch (e: unknown) {
       setError(messageFromUnknown(e, 'Something went wrong.'));
     } finally {

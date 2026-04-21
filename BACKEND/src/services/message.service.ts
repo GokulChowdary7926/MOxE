@@ -194,7 +194,9 @@ export class MessageService {
         mutedUntil: mutedUntil ? mutedUntil.toISOString() : null,
         labels: threadLabels.length ? threadLabels : undefined,
       };
-      if (followingSet.has(otherId) && !restrictedByMe.has(otherId)) {
+      const isRequesterThread = !followingSet.has(otherId) || restrictedByMe.has(otherId);
+      // If I just sent the latest message, keep the conversation in main threads so it stays visible.
+      if (!isRequesterThread || last.senderId === accountId) {
         threads.push(item);
       } else {
         // Hidden words (1.6.5): filter DM requests whose last message contains hidden words

@@ -167,16 +167,16 @@ export default function Reels() {
         setCurrentIndex(0);
         return;
       }
-      const url = new URL(getApiFullUrl('ranking/reels'));
+      const url = new URL(getApiFullUrl('reels'));
       url.searchParams.set('limit', '30');
       const res = await fetch(url.toString(), {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const data = (await res.json().catch(() => ({}))) as { reels?: ApiReelRow[]; error?: string };
+      const data = (await res.json().catch(() => ({}))) as { reels?: ApiReelRow[]; items?: ApiReelRow[]; error?: string };
       if (!res.ok) {
         throw new Error(data.error || 'Failed to load reels.');
       }
-      const raw = Array.isArray(data.reels) ? data.reels : [];
+      const raw = Array.isArray(data.reels) ? data.reels : (Array.isArray(data.items) ? data.items : []);
       const items = raw.map(mapApiReelToItem);
       setReels(items);
       setNextCursor(null);
