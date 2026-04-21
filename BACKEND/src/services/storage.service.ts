@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import AWS from 'aws-sdk';
+import { DeleteObjectCommand, PutObjectCommand, type PutObjectCommandInput } from '@aws-sdk/client-s3';
+import { getSharedS3Client } from '../utils/s3Client';
 
 const uploadsDir = path.join(process.cwd(), 'uploads');
 
@@ -20,35 +21,6 @@ export function isS3Configured(): boolean {
   const ec2Role =
     process.env.AWS_S3_USE_EC2_ROLE === '1' || process.env.AWS_S3_USE_EC2_ROLE === 'true';
   return keys || ec2Role;
-}
-
-let s3Client: AWS.S3 | null = null;
-let s3ClientMode: 'keys' | 'role' | null = null;
-
-function getS3CredentialMode(): 'keys' | 'role' {
-  const useKeys =
-    !!process.env.AWS_ACCESS_KEY_ID?.trim() && !!process.env.AWS_SECRET_ACCESS_KEY?.trim();
-  return useKeys ? 'keys' : 'role';
-}
-
-function getS3(): AWS.S3 {
-  if (!isS3Configured()) {
-    throw new Error('[storage] getS3 called while S3 not configured');
-  }
-  const mode = getS3CredentialMode();
-  if (!s3Client || s3ClientMode !== mode) {
-    const region = process.env.AWS_REGION as string;
-    s3ClientMode = mode;
-    s3Client =
-      mode === 'keys'
-        ? new AWS.S3({
-            region,
-            accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-            secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-          })
-        : new AWS.S3({ region });
-  }
-  return s3Client;
 }
 
 export type StorageBackend = 'local' | 's3';
@@ -79,18 +51,22 @@ export async function storeBuffer(
       .toString(36)
       .slice(2, 10)}-${filename}`;
 
+    const client = getSharedS3Client();
+    if (!client) {
+      throw new Error('[storage] S3 client unavailable (check AWS_REGION)');
+    }
     // Omit ACL: buckets with "Object Ownership" = ACLs disabled reject ACLs (AccessControlListNotSupported).
     // For browser-readable URLs, use a bucket policy on `uploads/*` and/or CloudFront — not object ACLs.
-    const params: AWS.S3.PutObjectRequest = {
+    const input: PutObjectCommandInput = {
       Bucket: bucket,
       Key: key,
       Body: buffer,
       ContentType: mimetype,
     };
     if (process.env.AWS_S3_OBJECT_ACL === 'public-read') {
-      params.ACL = 'public-read';
+      input.ACL = 'public-read';
     }
-    await getS3().putObject(params).promise();
+    await client.send(new PutObjectCommand(input));
 
     const cdnBase = getCdnBaseUrl();
     const bucketBase = `https://${bucket}.s3.${process.env.AWS_REGION}.amazonaws.com`;
@@ -138,8 +114,13 @@ export async function deleteStoredObject(key: string, backend: StorageBackend): 
       console.warn('[storage] deleteStoredObject(s3) but S3 not configured; skipping blob delete');
       return;
     }
+    const client = getSharedS3Client();
+    if (!client) {
+      console.warn('[storage] deleteStoredObject(s3) but S3 client unavailable; skipping blob delete');
+      return;
+    }
     const bucket = process.env.AWS_S3_BUCKET as string;
-    await getS3().deleteObject({ Bucket: bucket, Key: key }).promise();
+    await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
     return;
   }
   const filePath = path.join(uploadsDir, key);

@@ -1,3 +1,5 @@
+// Sync presigned GET URLs for private S3 objects. aws-sdk v2 getSignedUrl is synchronous; v3 presigner is
+// async — migrating would require async normalizeStoredMediaUrl across all services (TODO).
 import AWS from 'aws-sdk';
 
 let s3ForReads: AWS.S3 | null = null;

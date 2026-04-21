@@ -11,7 +11,7 @@
  * With no provider configured, returns sent: false and a clear message (no fake “queued” success).
  */
 
-import AWS from 'aws-sdk';
+import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 import sgMail from '@sendgrid/mail';
 
 export interface SendCandidateEmailParams {
@@ -142,9 +142,9 @@ export async function sendCandidateEmail(params: SendCandidateEmailParams): Prom
 
   if (useSes && sesFrom && awsRegion) {
     try {
-      const ses = new AWS.SES({ region: awsRegion });
-      await ses
-        .sendEmail({
+      const ses = new SESClient({ region: awsRegion });
+      await ses.send(
+        new SendEmailCommand({
           Source: sesFrom,
           Destination: { ToAddresses: [to] },
           Message: {
@@ -153,8 +153,8 @@ export async function sendCandidateEmail(params: SendCandidateEmailParams): Prom
               Html: { Data: htmlBody(body), Charset: 'UTF-8' },
             },
           },
-        })
-        .promise();
+        }),
+      );
       return { sent: true, message: 'Email sent via Amazon SES', provider: 'SES' };
     } catch (e) {
       console.warn('[SES]', e);
