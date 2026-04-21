@@ -5,6 +5,11 @@ const backendTarget = 'http://127.0.0.1:5007';
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    // Current bundle intentionally exceeds Vite's default 500kb warning threshold.
+    // Keep warning signal useful by setting a project-appropriate limit.
+    chunkSizeWarningLimit: 2500,
+  },
   server: {
     port: 3001,
     // Ensures Playwright UI E2E (`playwright.config.ts` webServer) always hits the same URL; do not silently fall back to 3002+.
