@@ -231,6 +231,10 @@ JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
 CLIENT_URL=${PUBLIC_URL}
 API_URL=${PUBLIC_URL}
 UPLOAD_BASE_URL=${PUBLIC_URL}
+# Optional: comma-separated extra web origins for CORS + Socket.IO (custom HTTPS domain in front of this IP)
+# ALLOWED_ORIGINS=https://app.yourdomain.com
+# Optional: raise if many users share one IP (default 300 per 15m); health checks excluded
+# API_RATE_LIMIT_MAX=300
 EOF
 chmod 600 .env
 

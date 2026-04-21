@@ -74,6 +74,7 @@ import recentlyDeletedRoutes from './routes/recentlyDeleted.routes';
 
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/logging';
+import { getCorsOriginAllowlist, isCorsOriginAllowed } from './utils/corsOrigins';
 import { setupSocketHandlers } from './sockets';
 import { ArchiveService } from './services/archive.service';
 import { StoryService } from './services/story.service';
@@ -96,12 +97,16 @@ app.set('etag', false);
 app.set('trust proxy', 1);
 const httpServer = createServer(app);
 const isDev = process.env.NODE_ENV !== 'production';
+const corsAllowlist = getCorsOriginAllowlist();
 const io = new Server(httpServer, {
   cors: {
-    // Must include the Vite dev port (3001); default was 3000 only and blocked Socket.IO from this app.
-    origin: isDev
-      ? true
-      : ([process.env.CLIENT_URL, 'http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3001'].filter(Boolean) as string[]),
+    origin: (origin, callback) => {
+      if (isDev) {
+        callback(null, true);
+        return;
+      }
+      callback(null, isCorsOriginAllowed(origin, corsAllowlist));
+    },
     credentials: true,
   },
 });
@@ -110,6 +115,9 @@ const io = new Server(httpServer, {
 app.use((req, res, next) => {
   if (req.method === 'OPTIONS') {
     const origin = req.headers.origin;
+    if (origin && !isDev && !isCorsOriginAllowed(origin, corsAllowlist)) {
+      return res.status(403).end();
+    }
     if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -122,25 +130,12 @@ app.use((req, res, next) => {
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
-const allowedOrigins = [
-  process.env.CLIENT_URL,
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'http://localhost:5173',
-  'http://localhost:7926',
-  'http://127.0.0.1:3000',
-  'http://127.0.0.1:3001',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:7926',
-].filter(Boolean) as string[];
 app.use(
   cors({
     origin: (origin, cb) => {
       if (isDev) return cb(null, true);
       if (!origin) return cb(null, true);
-      if (allowedOrigins.includes(origin)) return cb(null, true);
-      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return cb(null, true);
-      return cb(null, false);
+      return cb(null, isCorsOriginAllowed(origin, corsAllowlist));
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -168,15 +163,24 @@ app.options('/api/*', (_req, res) => {
   res.sendStatus(204);
 });
 
+const apiRateLimitRaw = parseInt(process.env.API_RATE_LIMIT_MAX || '300', 10);
+const apiRateLimitMax =
+  Number.isFinite(apiRateLimitRaw) && apiRateLimitRaw > 0 ? Math.min(apiRateLimitRaw, 10000) : 300;
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   // In dev, React StrictMode can cause effects to run twice, which creates bursts.
   // Relax the global limiter in dev to avoid noisy 429s during development.
-  max: isDev ? 1000 : 100,
+  max: isDev ? 1000 : apiRateLimitMax,
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req: express.Request) => req.method === 'OPTIONS',
+  skip: (req: express.Request) => {
+    if (req.method === 'OPTIONS') return true;
+    const path = req.originalUrl?.split('?')[0] || req.path || '';
+    if (path.startsWith('/api/health')) return true;
+    return false;
+  },
 });
 app.use('/api', limiter);
 
