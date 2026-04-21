@@ -1,4 +1,4 @@
-import { getSpotifyAccessToken, searchTracks } from '../spotify.service';
+import { getSpotifyAccessToken, isSpotifyConfigured, searchTracks } from '../spotify.service';
 
 describe('spotify.service', () => {
   const envBackup = { ...process.env };
@@ -12,6 +12,18 @@ describe('spotify.service', () => {
   afterAll(() => {
     process.env = envBackup;
     global.fetch = fetchBackup;
+  });
+
+  it('isSpotifyConfigured is false when credentials missing', () => {
+    delete process.env.SPOTIFY_CLIENT_ID;
+    delete process.env.SPOTIFY_CLIENT_SECRET;
+    expect(isSpotifyConfigured()).toBe(false);
+  });
+
+  it('isSpotifyConfigured is true when both credentials set', () => {
+    process.env.SPOTIFY_CLIENT_ID = 'id';
+    process.env.SPOTIFY_CLIENT_SECRET = 'secret';
+    expect(isSpotifyConfigured()).toBe(true);
   });
 
   it('getSpotifyAccessToken throws when credentials missing', async () => {

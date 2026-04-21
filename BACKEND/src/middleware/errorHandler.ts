@@ -9,8 +9,10 @@ export function errorHandler(
   _next: NextFunction
 ) {
   if (err instanceof AppError) {
-    logger.warn(err.message, { statusCode: err.statusCode });
-    return res.status(err.statusCode).json({ error: err.message });
+    logger.warn(err.message, { statusCode: err.statusCode, code: err.code });
+    const body: { error: string; code?: string } = { error: err.message };
+    if (err.code) body.code = err.code;
+    return res.status(err.statusCode).json(body);
   }
   logger.error('Unhandled error', { error: err });
   if (process.env.SENTRY_DSN) {

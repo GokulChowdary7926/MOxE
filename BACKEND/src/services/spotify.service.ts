@@ -6,6 +6,13 @@
 const SPOTIFY_ACCOUNTS = 'https://accounts.spotify.com';
 const SPOTIFY_API = 'https://api.spotify.com/v1';
 
+/** True when Spotify Client Credentials env vars are present (trimmed non-empty). */
+export function isSpotifyConfigured(): boolean {
+  const id = process.env.SPOTIFY_CLIENT_ID?.trim();
+  const secret = process.env.SPOTIFY_CLIENT_SECRET?.trim();
+  return Boolean(id && secret);
+}
+
 export async function getSpotifyAccessToken(): Promise<string> {
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
