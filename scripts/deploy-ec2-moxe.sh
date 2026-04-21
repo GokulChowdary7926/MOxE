@@ -274,8 +274,14 @@ echo
 echo "==> [7/12] Frontend: build..."
 
 cd "$FRONTEND_DIR"
-npm install --no-audit --no-fund
+# Match backend: reproducible installs from lockfile (avoids surprise dependency drift vs git main)
+if [[ -f package-lock.json ]]; then
+  npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+else
+  npm install --no-audit --no-fund
+fi
 echo "VITE_API_URL=http://${MOXE_PUBLIC_IP}/api" > .env.production
+# NODE_OPTIONS from step 5 still applies if set (helps Vite on small instances)
 npm run build
 
 # =============================================================================
