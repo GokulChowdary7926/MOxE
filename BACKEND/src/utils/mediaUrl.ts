@@ -24,6 +24,40 @@ async function maybeSignS3ReadUrl(value: string): Promise<string> {
   }
 }
 
+function toLocalUploadsPathIfKnownHost(value: string): string | null {
+  try {
+    const u = new URL(value);
+    const uploadPath = u.pathname.startsWith('/uploads/') ? u.pathname : null;
+    if (!uploadPath) return null;
+    const knownHosts = new Set<string>();
+    const candidates = [
+      process.env.UPLOAD_BASE_URL,
+      process.env.CLIENT_URL,
+      process.env.API_URL,
+      process.env.PUBLIC_URL,
+    ].filter((x): x is string => typeof x === 'string' && x.trim().length > 0);
+    for (const c of candidates) {
+      try {
+        knownHosts.add(new URL(c).hostname.toLowerCase());
+      } catch {
+        // ignore malformed env entries
+      }
+    }
+    const host = u.hostname.toLowerCase();
+    if (
+      knownHosts.has(host)
+      || host === '127.0.0.1'
+      || host === 'localhost'
+      || host === '0.0.0.0'
+    ) {
+      return `${uploadPath}${u.search}${u.hash}`;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Normalize stored media URLs for API clients.
  * Relative filenames (e.g. from legacy clients) become `/uploads/...` so the dev proxy can reach the API.
@@ -35,6 +69,8 @@ export async function normalizeStoredMediaUrl(raw: unknown): Promise<string> {
   if (!value) return '';
   if (value.startsWith('data:')) return value;
   if (value.startsWith('http://') || value.startsWith('https://')) {
+    const knownUploadsPath = toLocalUploadsPathIfKnownHost(value);
+    if (knownUploadsPath) return knownUploadsPath;
     const match = value.match(/^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d+)?(\/uploads\/[^?#]+)/i);
     if (match) return match[1];
     return maybeSignS3ReadUrl(value);
