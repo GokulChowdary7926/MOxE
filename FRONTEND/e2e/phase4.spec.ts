@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 /**
  * Phase 4 flows — requires:
@@ -11,6 +12,7 @@ import path from 'path';
 const username = process.env.E2E_USERNAME || 'playwright_e2e';
 const password = process.env.E2E_PASSWORD || 'Test123!';
 const jobUsername = process.env.E2E_JOB_USERNAME || 'playwright_job_e2e';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const fixtureImage = path.join(__dirname, 'fixtures', 'test-image.png');
 
