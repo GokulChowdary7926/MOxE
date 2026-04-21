@@ -27,6 +27,7 @@ jest.mock('../../server', () => ({
     },
     follow: { findMany: jest.fn().mockResolvedValue([]) },
     block: { findUnique: jest.fn().mockResolvedValue(null) },
+    restrict: { findMany: jest.fn().mockResolvedValue([]) },
     pinnedChat: { findMany: jest.fn().mockResolvedValue([]) },
     conversationMute: { findMany: jest.fn().mockResolvedValue([]) },
     conversationLabel: { findMany: jest.fn().mockResolvedValue([]) },
@@ -195,5 +196,53 @@ describe('MessageService delete timeline behavior', () => {
   it('getThreadByGroup throws 403 when not group member', async () => {
     mockPrisma.groupMember.findUnique.mockResolvedValue(null);
     await expect(service.getThreadByGroup('acc1', 'g1')).rejects.toThrow('Not a member of this group');
+  });
+
+  it('getThreads does not collapse sent threads by senderId', async () => {
+    mockPrisma.message.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 'm1',
+          senderId: 'acc1',
+          createdAt: new Date('2026-01-01T10:00:00.000Z'),
+          content: 'to acc2',
+          recipients: [{ recipientId: 'acc2', recipient: { id: 'acc2', username: 'u2', displayName: 'U2', profilePhoto: null } }],
+        },
+        {
+          id: 'm2',
+          senderId: 'acc1',
+          createdAt: new Date('2026-01-01T11:00:00.000Z'),
+          content: 'to acc3',
+          recipients: [{ recipientId: 'acc3', recipient: { id: 'acc3', username: 'u3', displayName: 'U3', profilePhoto: null } }],
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    mockPrisma.message.findFirst
+      .mockResolvedValueOnce({
+        id: 'm2',
+        senderId: 'acc1',
+        content: 'latest to acc3',
+        createdAt: new Date('2026-01-01T11:00:00.000Z'),
+        sender: { id: 'acc1', username: 'me', displayName: 'Me', profilePhoto: null },
+      })
+      .mockResolvedValueOnce({
+        id: 'm1',
+        senderId: 'acc1',
+        content: 'latest to acc2',
+        createdAt: new Date('2026-01-01T10:00:00.000Z'),
+        sender: { id: 'acc1', username: 'me', displayName: 'Me', profilePhoto: null },
+      });
+    mockPrisma.account.findUnique
+      .mockResolvedValueOnce({ id: 'acc3', username: 'u3', displayName: 'U3', profilePhoto: null })
+      .mockResolvedValueOnce({ id: 'acc2', username: 'u2', displayName: 'U2', profilePhoto: null });
+    mockPrisma.messageRecipient.count.mockResolvedValue(0);
+    mockPrisma.follow.findMany.mockResolvedValue([{ followingId: 'acc2' }, { followingId: 'acc3' }]);
+
+    const out = await service.getThreads('acc1');
+    expect(out.threads.map((t) => t.otherId).sort()).toEqual(['acc2', 'acc3']);
+    expect(mockPrisma.message.findMany).toHaveBeenNthCalledWith(
+      1,
+      expect.not.objectContaining({ distinct: expect.anything() }),
+    );
   });
 });

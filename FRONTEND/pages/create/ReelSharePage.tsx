@@ -5,6 +5,8 @@ import { ThemedView, ThemedText } from '../../components/ui/Themed';
 import { MobileShell } from '../../components/layout/MobileShell';
 import { useCurrentAccount } from '../../hooks/useAccountCapabilities';
 import toast from 'react-hot-toast';
+import { getApiBase, getToken, getUploadUrl } from '../../services/api';
+import { messageFromUnknown, userFacingApiError, userFacingUploadError } from '../../utils/userFacingErrors';
 
 /**
  * New reel page (after edit) – share screen. Same for all accounts.
@@ -19,6 +21,8 @@ export default function ReelSharePage() {
   const file = location.state?.file as File | undefined;
   const [caption, setCaption] = useState('');
   const [aiLabel, setAiLabel] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   if (!file) {
     navigate('/create/reel');
@@ -33,9 +37,51 @@ export default function ReelSharePage() {
     navigate('/create');
   }
 
-  function shareReel() {
-    toast.success('Reel shared');
-    navigate('/reels');
+  async function shareReel() {
+    setError(null);
+    if (!file) {
+      setError('Please select a reel file first.');
+      return;
+    }
+    const token = getToken();
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const uploadRes = await fetch(getUploadUrl(), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      if (!uploadRes.ok) {
+        throw new Error(await userFacingUploadError(uploadRes, 'Could not upload your reel.'));
+      }
+      const uploadData = (await uploadRes.json().catch(() => ({}))) as { url?: string };
+      if (!uploadData.url) throw new Error('Could not upload your reel.');
+
+      const res = await fetch(`${getApiBase()}/reels`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          media: [{ url: uploadData.url }],
+          caption: caption.trim() || undefined,
+          privacy: 'PUBLIC',
+        }),
+      });
+      if (!res.ok) {
+        throw new Error(await userFacingApiError(res, 'Could not share your reel.'));
+      }
+      toast.success('Reel shared');
+      navigate('/reels');
+    } catch (e: unknown) {
+      setError(messageFromUnknown(e, 'Something went wrong while sharing your reel.'));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -46,12 +92,8 @@ export default function ReelSharePage() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <span className="flex-1 text-white font-semibold text-base text-center">New reel</span>
-          <button
-            type="button"
-            onClick={shareReel}
-            className="text-[#0095f6] font-semibold text-sm"
-          >
-            Post
+          <button type="button" onClick={shareReel} disabled={submitting} className="text-[#0095f6] font-semibold text-sm disabled:opacity-50">
+            {submitting ? 'Posting…' : 'Post'}
           </button>
         </header>
 
@@ -188,10 +230,17 @@ export default function ReelSharePage() {
         </div>
 
         {/* Bottom actions */}
+        {error && (
+          <div className="px-4 py-2 bg-red-900/30 text-red-300 text-sm border-t border-[#262626]">
+            {error}
+          </div>
+        )}
+
         <div className="fixed bottom-0 left-0 right-0 max-w-[428px] mx-auto flex gap-3 p-4 border-t border-[#262626] bg-black safe-area-pb">
           <button
             type="button"
             onClick={saveDraft}
+            disabled={submitting}
             className="flex-1 py-3 rounded-lg bg-[#262626] text-white font-semibold text-sm"
             data-testid="reel-save-draft"
           >
@@ -200,10 +249,11 @@ export default function ReelSharePage() {
           <button
             type="button"
             onClick={shareReel}
-            className="flex-1 py-3 rounded-lg bg-[#0095f6] text-white font-semibold text-sm"
+            disabled={submitting}
+            className="flex-1 py-3 rounded-lg bg-[#0095f6] text-white font-semibold text-sm disabled:opacity-50"
             data-testid="reel-share-post-footer"
           >
-            Post
+            {submitting ? 'Posting…' : 'Post'}
           </button>
         </div>
       </MobileShell>

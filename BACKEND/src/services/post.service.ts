@@ -441,7 +441,12 @@ export class PostService {
     if (!root.postId) throw new AppError('Comment not found', 404);
     await this.assertCanViewPost(viewerAccountId, root.postId);
     const replies = await prisma.comment.findMany({
-      where: { parentId: commentId, isHidden: false },
+      where: viewerAccountId
+        ? {
+            parentId: commentId,
+            OR: [{ isHidden: false }, { accountId: viewerAccountId }],
+          }
+        : { parentId: commentId, isHidden: false },
       orderBy: { createdAt: 'desc' },
       include: {
         account: { select: { id: true, username: true, displayName: true, profilePhoto: true } },
@@ -606,7 +611,13 @@ export class PostService {
       select: { accountId: true },
     });
     const comments = await prisma.comment.findMany({
-      where: { postId, parentId: null, isHidden: false },
+      where: viewerAccountId
+        ? {
+            postId,
+            parentId: null,
+            OR: [{ isHidden: false }, { accountId: viewerAccountId }],
+          }
+        : { postId, parentId: null, isHidden: false },
       orderBy: { createdAt: 'desc' },
       take: limit + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
@@ -814,9 +825,9 @@ export class PostService {
         .then((r) => r.map((x) => x.creatorId));
     }
     const where: Prisma.PostWhereInput = {
-      OR: [{ accountId }, { coAuthorId: accountId }],
       isDeleted: false,
       AND: [
+        { OR: [{ accountId }, { coAuthorId: accountId }] },
         {
           OR: [
             { isScheduled: false },
@@ -833,17 +844,19 @@ export class PostService {
               },
             ]
           : []),
+        ...(isOwn
+          ? []
+          : [
+              {
+                isArchived: false,
+                OR: [
+                  { privacy: 'PUBLIC' as const },
+                  ...(viewerFollows ? [{ privacy: 'FOLLOWERS_ONLY' as const }] : []),
+                  ...(viewerIsCloseFriend ? [{ privacy: 'CLOSE_FRIENDS_ONLY' as const }] : []),
+                ],
+              },
+            ]),
       ],
-      ...(isOwn
-        ? {}
-        : {
-            isArchived: false,
-            OR: [
-              { privacy: 'PUBLIC' as const },
-              ...(viewerFollows ? [{ privacy: 'FOLLOWERS_ONLY' as const }] : []),
-              ...(viewerIsCloseFriend ? [{ privacy: 'CLOSE_FRIENDS_ONLY' as const }] : []),
-            ],
-          }),
       ...(viewerIsMinor ? { isMature: false } : {}),
     };
     const posts = await prisma.post.findMany({

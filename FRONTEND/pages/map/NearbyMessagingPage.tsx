@@ -414,8 +414,15 @@ export default function NearbyMessagingPage() {
     if (Date.now() < sendLockUntilRef.current) return;
     const text = message.trim();
     if (!text) return;
+    if (!getToken()) {
+      setNearbyError('Please sign in again to send Nearby messages.');
+      return;
+    }
     const socket = getSocket();
-    if (!socket) return;
+    if (!socket || !socket.connected) {
+      setNearbyError('Nearby is reconnecting. Please try again in a moment.');
+      return;
+    }
     sendLockUntilRef.current = Date.now() + 700;
     setNearbyError(null);
     const sentAt = new Date().toISOString();
@@ -470,7 +477,14 @@ export default function NearbyMessagingPage() {
       if (Date.now() < sendLockUntilRef.current) return;
       const token = getToken();
       const socket = getSocket();
-      if (!token || !socket) return;
+      if (!token) {
+        setNearbyError('Please sign in again to send Nearby messages.');
+        return;
+      }
+      if (!socket || !socket.connected) {
+        setNearbyError('Nearby is reconnecting. Please try again in a moment.');
+        return;
+      }
       sendLockUntilRef.current = Date.now() + 900;
       setUploadingPhoto(true);
       try {

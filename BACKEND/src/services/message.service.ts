@@ -90,7 +90,6 @@ export class MessageService {
 
     const sent = await prisma.message.findMany({
       where: { senderId: accountId, groupId: null, deletedBySenderAt: null },
-      distinct: ['senderId'],
       orderBy: { createdAt: 'desc' },
       include: { recipients: { where: { recipientId: { not: accountId } }, include: { recipient: { select: { id: true, username: true, displayName: true, profilePhoto: true } } } } },
     });
@@ -287,7 +286,10 @@ export class MessageService {
       },
     });
     const nextCursor = messages.length > limit ? messages[limit - 1].id : null;
-    const items = this.sanitizeViewOnce(this.enrichPollResults(messages.slice(0, limit).reverse(), accountId), accountId);
+    const items = await this.sanitizeViewOnce(
+      this.enrichPollResults(messages.slice(0, limit).reverse(), accountId),
+      accountId,
+    );
     return { items, nextCursor };
   }
 

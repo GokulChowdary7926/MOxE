@@ -126,14 +126,14 @@ export class NoteService {
   }
 
   async listVisibleNotes(viewerAccountId: string) {
-    const [following, followers, closeFriends] = await Promise.all([
+    const [following, followers, closeFriendAuthors] = await Promise.all([
       prisma.follow.findMany({ where: { followerId: viewerAccountId }, select: { followingId: true } }),
       prisma.follow.findMany({ where: { followingId: viewerAccountId }, select: { followerId: true } }),
-      prisma.closeFriend.findMany({ where: { accountId: viewerAccountId }, select: { friendId: true } }),
+      prisma.closeFriend.findMany({ where: { friendId: viewerAccountId }, select: { accountId: true } }),
     ]);
     const followingSet = new Set(following.map((f) => f.followingId));
     const followersSet = new Set(followers.map((f) => f.followerId));
-    const closeFriendsSet = new Set(closeFriends.map((f) => f.friendId));
+    const closeFriendAuthorsSet = new Set(closeFriendAuthors.map((f) => f.accountId));
 
     const now = new Date();
     const notes = await prisma.note.findMany({
@@ -151,7 +151,7 @@ export class NoteService {
       if (note.accountId === viewerAccountId) return true;
       const audienceType = (note.audienceJson as { type?: string } | null)?.type;
       const isMutual = followingSet.has(note.accountId) && followersSet.has(note.accountId);
-      const isCloseFriend = closeFriendsSet.has(note.accountId);
+      const isCloseFriend = closeFriendAuthorsSet.has(note.accountId);
       return canViewByAudience(audienceType, isMutual, isCloseFriend);
     });
     return Promise.all(

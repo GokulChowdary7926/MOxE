@@ -7,12 +7,19 @@ jest.mock('../../server', () => ({
     },
     note: {
       count: jest.fn().mockResolvedValue(0),
+      findMany: jest.fn().mockResolvedValue([]),
       create: jest.fn().mockResolvedValue({
         id: 'n1',
         account: { id: 'acc1', username: 'u1', profilePhoto: null },
         likes: [],
         pollVotes: [],
       }),
+    },
+    follow: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    closeFriend: {
+      findMany: jest.fn().mockResolvedValue([]),
     },
     noteAnalytics: {
       create: jest.fn().mockResolvedValue({ id: 'na1' }),
@@ -78,5 +85,35 @@ describe('NoteService hidden-word enforcement', () => {
     });
     expect(created).toBeDefined();
     expect(mockPrisma.note.create).toHaveBeenCalled();
+  });
+
+  it('listVisibleNotes allows close-friends notes when viewer is in author close-friends list', async () => {
+    mockPrisma.follow.findMany
+      .mockResolvedValueOnce([]) // following
+      .mockResolvedValueOnce([]); // followers
+    mockPrisma.closeFriend.findMany.mockResolvedValue([{ accountId: 'author1' }]);
+    mockPrisma.note.findMany.mockResolvedValue([
+      {
+        id: 'n-cf',
+        accountId: 'author1',
+        audienceJson: { type: 'closeFriends' },
+        contentJson: { text: 'cf note' },
+        account: { id: 'author1', username: 'author', profilePhoto: null },
+        likes: [],
+        pollVotes: [],
+        status: 'ACTIVE',
+        deletedAt: null,
+        publishAt: new Date(Date.now() - 1000),
+        expiresAt: new Date(Date.now() + 3600_000),
+        createdAt: new Date(),
+      },
+    ]);
+
+    const out = await service.listVisibleNotes('viewer1');
+    expect(out.map((n: any) => n.id)).toEqual(['n-cf']);
+    expect(mockPrisma.closeFriend.findMany).toHaveBeenCalledWith({
+      where: { friendId: 'viewer1' },
+      select: { accountId: true },
+    });
   });
 });
