@@ -50,13 +50,13 @@ export class ArchiveService {
       orderBy: { archivedAt: 'desc' },
     });
     return {
-      items: items.map((item) => ({
-        ...item,
-        media:
-          typeof item.media === 'string'
-            ? normalizeStoredMediaUrl(item.media)
-            : item.media,
-      })),
+      items: await Promise.all(
+        items.map(async (item) => ({
+          ...item,
+          media:
+            typeof item.media === 'string' ? await normalizeStoredMediaUrl(item.media) : item.media,
+        })),
+      ),
     };
   }
 }

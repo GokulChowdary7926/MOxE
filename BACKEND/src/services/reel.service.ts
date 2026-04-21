@@ -62,8 +62,8 @@ export class ReelService {
     if (!reel) return null;
     return {
       ...reel,
-      video: normalizeStoredMediaUrl(reel.video),
-      thumbnail: normalizeStoredMediaUrl(reel.thumbnail),
+      video: await normalizeStoredMediaUrl(reel.video),
+      thumbnail: await normalizeStoredMediaUrl(reel.thumbnail),
     };
   }
 
@@ -102,8 +102,8 @@ export class ReelService {
       throw new AppError('Provide video and thumbnail, or media array with url', 400);
     }
 
-    video = normalizeStoredMediaUrl(video);
-    thumbnail = normalizeStoredMediaUrl(thumbnail);
+    video = await normalizeStoredMediaUrl(video);
+    thumbnail = await normalizeStoredMediaUrl(thumbnail);
     if (!video) throw new AppError('Invalid video URL', 400);
 
     const privacy = (data.privacy as 'PUBLIC' | 'FOLLOWERS_ONLY' | 'CLOSE_FRIENDS_ONLY' | 'ONLY_ME') || 'PUBLIC';
@@ -152,8 +152,8 @@ export class ReelService {
     }
     return {
       ...reel,
-      video: normalizeStoredMediaUrl(reel.video),
-      thumbnail: normalizeStoredMediaUrl(reel.thumbnail),
+      video: await normalizeStoredMediaUrl(reel.video),
+      thumbnail: await normalizeStoredMediaUrl(reel.thumbnail),
     };
   }
 
@@ -229,11 +229,13 @@ export class ReelService {
       },
     });
     const nextCursor = reels.length > limit ? reels[limit - 1].id : null;
-    const items = reels.slice(0, limit).map((r) => ({
-      ...r,
-      video: normalizeStoredMediaUrl(r.video),
-      thumbnail: normalizeStoredMediaUrl(r.thumbnail),
-    }));
+    const items = await Promise.all(
+      reels.slice(0, limit).map(async (r) => ({
+        ...r,
+        video: await normalizeStoredMediaUrl(r.video),
+        thumbnail: await normalizeStoredMediaUrl(r.thumbnail),
+      })),
+    );
     return { items, nextCursor };
   }
 
@@ -307,19 +309,21 @@ export class ReelService {
     const nextCursor = reels.length > limit ? reels[limit - 1].id : null;
     type Row = (typeof reels)[number];
     return {
-      items: reels.slice(0, limit).map((r: Row) => ({
-        id: r.id,
-        accountId: r.accountId,
-        username: r.account.username,
-        displayName: r.account.displayName,
-        profilePhoto: r.account.profilePhoto,
-        video: normalizeStoredMediaUrl(r.video),
-        thumbnail: normalizeStoredMediaUrl(r.thumbnail),
-        caption: r.caption,
-        likeCount: r.likes,
-        commentCount: r.comments,
-        createdAt: r.createdAt,
-      })),
+      items: await Promise.all(
+        reels.slice(0, limit).map(async (r: Row) => ({
+          id: r.id,
+          accountId: r.accountId,
+          username: r.account.username,
+          displayName: r.account.displayName,
+          profilePhoto: r.account.profilePhoto,
+          video: await normalizeStoredMediaUrl(r.video),
+          thumbnail: await normalizeStoredMediaUrl(r.thumbnail),
+          caption: r.caption,
+          likeCount: r.likes,
+          commentCount: r.comments,
+          createdAt: r.createdAt,
+        })),
+      ),
       nextCursor,
     };
   }

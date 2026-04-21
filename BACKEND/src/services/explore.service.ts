@@ -116,7 +116,7 @@ export class ExploreService {
         account: { select: { id: true, username: true, displayName: true, profilePhoto: true } },
       },
     });
-    return posts.map((p) => ({ ...p, media: normalizeMediaJsonForApi(p.media) }));
+    return Promise.all(posts.map(async (p) => ({ ...p, media: await normalizeMediaJsonForApi(p.media) })));
   }
 
   /** Posts tagged with a hashtag (by normalized name), excluding blocked authors. */
@@ -159,7 +159,7 @@ export class ExploreService {
 
     return {
       hashtag: { name: hashtag.name, postCount: hashtag.postCount },
-      posts: posts.map((p) => ({ ...p, media: normalizeMediaJsonForApi(p.media) })),
+      posts: await Promise.all(posts.map(async (p) => ({ ...p, media: await normalizeMediaJsonForApi(p.media) }))),
     };
   }
 }

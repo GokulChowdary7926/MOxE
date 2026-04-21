@@ -196,21 +196,23 @@ export class PostService {
     if (!Array.isArray(rawMediaArray) || rawMediaArray.length === 0) {
       throw new AppError('At least one media item is required', 400);
     }
-    const mediaArray = rawMediaArray
-      .map((item) => {
-        if (typeof item === 'string') {
-          const url = normalizeStoredMediaUrl(item);
-          return url ? { url } : null;
-        }
-        if (item && typeof item === 'object') {
-          const source = item as Record<string, unknown>;
-          const url = normalizeStoredMediaUrl(source.url ?? source.uri ?? source.mediaUrl);
-          if (!url) return null;
-          return { ...source, url };
-        }
-        return null;
-      })
-      .filter((item): item is { url: string } & Record<string, unknown> => !!item);
+    const mediaArray = (
+      await Promise.all(
+        rawMediaArray.map(async (item) => {
+          if (typeof item === 'string') {
+            const url = await normalizeStoredMediaUrl(item);
+            return url ? { url } : null;
+          }
+          if (item && typeof item === 'object') {
+            const source = item as Record<string, unknown>;
+            const url = await normalizeStoredMediaUrl(source.url ?? source.uri ?? source.mediaUrl);
+            if (!url) return null;
+            return { ...source, url };
+          }
+          return null;
+        }),
+      )
+    ).filter((item): item is { url: string } & Record<string, unknown> => !!item);
     if (mediaArray.length === 0) {
       throw new AppError('At least one valid media URL is required', 400);
     }
@@ -349,7 +351,7 @@ export class PostService {
     // Notify feed surfaces immediately after create so Home/Profile refresh without manual reload.
     emitFeedNewPost();
     const created = withTags ?? post;
-    return { ...created, media: normalizeMediaJsonForApi(created.media) };
+    return { ...created, media: await normalizeMediaJsonForApi(created.media) };
   }
 
   async getById(postId: string, viewerAccountId: string | null = null) {
@@ -384,7 +386,7 @@ export class PostService {
     }
     return {
       ...post,
-      media: normalizeMediaJsonForApi(post.media),
+      media: await normalizeMediaJsonForApi(post.media),
       brandedContentBrand,
     };
   }
@@ -858,20 +860,22 @@ export class PostService {
     const nextCursor = posts.length > limit ? posts[limit - 1].id : null;
     type Row = (typeof posts)[number];
     return {
-      items: posts.slice(0, limit).map((p: Row) => ({
-        id: p.id,
-        accountId: p.accountId,
-        username: p.account.username,
-        displayName: p.account.displayName,
-        profilePhoto: p.account.profilePhoto,
-        media: normalizeMediaJsonForApi(p.media),
-        caption: p.caption,
-        likeCount: p._count.likes,
-        commentCount: p._count.comments,
-        createdAt: p.createdAt,
-        allowComments: p.allowComments !== false,
-        hideLikeCount: !!p.hideLikeCount,
-      })),
+      items: await Promise.all(
+        posts.slice(0, limit).map(async (p: Row) => ({
+          id: p.id,
+          accountId: p.accountId,
+          username: p.account.username,
+          displayName: p.account.displayName,
+          profilePhoto: p.account.profilePhoto,
+          media: await normalizeMediaJsonForApi(p.media),
+          caption: p.caption,
+          likeCount: p._count.likes,
+          commentCount: p._count.comments,
+          createdAt: p.createdAt,
+          allowComments: p.allowComments !== false,
+          hideLikeCount: !!p.hideLikeCount,
+        })),
+      ),
       nextCursor,
     };
   }
@@ -898,20 +902,22 @@ export class PostService {
     const byId = new Map(posts.map((p) => [p.id, p]));
     const items = postIds.map((id) => byId.get(id)).filter(Boolean) as typeof posts;
     return {
-      items: items.map((p) => ({
-        id: p.id,
-        accountId: p.accountId,
-        username: p.account.username,
-        displayName: p.account.displayName,
-        profilePhoto: p.account.profilePhoto,
-        media: normalizeMediaJsonForApi(p.media),
-        caption: p.caption,
-        likeCount: p._count.likes,
-        commentCount: p._count.comments,
-        createdAt: p.createdAt,
-        allowComments: p.allowComments !== false,
-        hideLikeCount: !!p.hideLikeCount,
-      })),
+      items: await Promise.all(
+        items.map(async (p) => ({
+          id: p.id,
+          accountId: p.accountId,
+          username: p.account.username,
+          displayName: p.account.displayName,
+          profilePhoto: p.account.profilePhoto,
+          media: await normalizeMediaJsonForApi(p.media),
+          caption: p.caption,
+          likeCount: p._count.likes,
+          commentCount: p._count.comments,
+          createdAt: p.createdAt,
+          allowComments: p.allowComments !== false,
+          hideLikeCount: !!p.hideLikeCount,
+        })),
+      ),
       nextCursor,
     };
   }
@@ -960,21 +966,23 @@ export class PostService {
       },
     });
     return {
-      items: rows
-        .filter((r) => !!r.post)
-        .map((r) => ({
-          tagId: r.id,
-          postId: r.postId as string,
-          createdAt: r.createdAt,
-          post: r.post
-            ? {
-                id: r.post.id,
-                caption: r.post.caption,
-                media: normalizeMediaJsonForApi(r.post.media),
-                author: r.post.account,
-              }
-            : null,
-        })),
+      items: await Promise.all(
+        rows
+          .filter((r) => !!r.post)
+          .map(async (r) => ({
+            tagId: r.id,
+            postId: r.postId as string,
+            createdAt: r.createdAt,
+            post: r.post
+              ? {
+                  id: r.post.id,
+                  caption: r.post.caption,
+                  media: await normalizeMediaJsonForApi(r.post.media),
+                  author: r.post.account,
+                }
+              : null,
+          })),
+      ),
     };
   }
 

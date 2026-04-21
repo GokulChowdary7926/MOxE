@@ -143,26 +143,28 @@ export class FeedService {
     });
     const savedPostIds = new Set(savedByMe.map((s) => s.postId));
 
-    const items = posts.map((p) => ({
-      id: p.id,
-      accountId: p.accountId,
-      username: p.account.username,
-      displayName: p.account.displayName,
-      profilePhoto: p.account.profilePhoto,
-      accountType: p.account.accountType,
-      verifiedBadge: p.account.verifiedBadge ?? false,
-      media: normalizeMediaJsonForApi(p.media),
-      caption: p.caption,
-      location: p.location,
-      likeCount: p.likes.length,
-      commentCount: p.comments.length,
-      isLiked: p.likes.some((l) => l.accountId === accountId),
-      isSaved: savedPostIds.has(p.id),
-      createdAt: p.createdAt,
-      allowComments: (p as { allowComments?: boolean }).allowComments !== false,
-      hideLikeCount: !!(p as { hideLikeCount?: boolean }).hideLikeCount,
-      productTags: (p.ProductTag ?? []).map((t) => ({ productId: t.productId, x: t.x, y: t.y, product: t.product })),
-    }));
+    const items = await Promise.all(
+      posts.map(async (p) => ({
+        id: p.id,
+        accountId: p.accountId,
+        username: p.account.username,
+        displayName: p.account.displayName,
+        profilePhoto: p.account.profilePhoto,
+        accountType: p.account.accountType,
+        verifiedBadge: p.account.verifiedBadge ?? false,
+        media: await normalizeMediaJsonForApi(p.media),
+        caption: p.caption,
+        location: p.location,
+        likeCount: p.likes.length,
+        commentCount: p.comments.length,
+        isLiked: p.likes.some((l) => l.accountId === accountId),
+        isSaved: savedPostIds.has(p.id),
+        createdAt: p.createdAt,
+        allowComments: (p as { allowComments?: boolean }).allowComments !== false,
+        hideLikeCount: !!(p as { hideLikeCount?: boolean }).hideLikeCount,
+        productTags: (p.ProductTag ?? []).map((t) => ({ productId: t.productId, x: t.x, y: t.y, product: t.product })),
+      })),
+    );
 
     const rankedItems = await feedRankingService.rank(accountId, items);
     const nextCursor = rankedItems.length === take ? rankedItems[rankedItems.length - 1].id : null;
@@ -252,26 +254,28 @@ export class FeedService {
       select: { postId: true },
     });
     const savedPostIds = new Set(savedByMe.map((s) => s.postId));
-    const items = posts.map((p) => ({
-      id: p.id,
-      accountId: p.accountId,
-      username: p.account.username,
-      displayName: p.account.displayName,
-      profilePhoto: p.account.profilePhoto,
-      accountType: p.account.accountType,
-      verifiedBadge: p.account.verifiedBadge ?? false,
-      media: normalizeMediaJsonForApi(p.media),
-      caption: p.caption,
-      location: p.location,
-      likeCount: p.likes.length,
-      commentCount: p.comments.length,
-      isLiked: p.likes.some((l) => l.accountId === accountId),
-      isSaved: savedPostIds.has(p.id),
-      createdAt: p.createdAt,
-      allowComments: (p as { allowComments?: boolean }).allowComments !== false,
-      hideLikeCount: !!(p as { hideLikeCount?: boolean }).hideLikeCount,
-      productTags: (p.ProductTag ?? []).map((t) => ({ productId: t.productId, x: t.x, y: t.y, product: t.product })),
-    }));
+    const items = await Promise.all(
+      posts.map(async (p) => ({
+        id: p.id,
+        accountId: p.accountId,
+        username: p.account.username,
+        displayName: p.account.displayName,
+        profilePhoto: p.account.profilePhoto,
+        accountType: p.account.accountType,
+        verifiedBadge: p.account.verifiedBadge ?? false,
+        media: await normalizeMediaJsonForApi(p.media),
+        caption: p.caption,
+        location: p.location,
+        likeCount: p.likes.length,
+        commentCount: p.comments.length,
+        isLiked: p.likes.some((l) => l.accountId === accountId),
+        isSaved: savedPostIds.has(p.id),
+        createdAt: p.createdAt,
+        allowComments: (p as { allowComments?: boolean }).allowComments !== false,
+        hideLikeCount: !!(p as { hideLikeCount?: boolean }).hideLikeCount,
+        productTags: (p.ProductTag ?? []).map((t) => ({ productId: t.productId, x: t.x, y: t.y, product: t.product })),
+      })),
+    );
     const nextCursor = items.length === take ? items[items.length - 1].id : null;
     return { items, nextCursor };
   }
@@ -424,7 +428,7 @@ export class FeedService {
       profilePhoto: p.account.profilePhoto,
       accountType: p.account.accountType,
       verifiedBadge: p.account.verifiedBadge ?? false,
-      media: normalizeMediaJsonForApi(p.media),
+      media: await normalizeMediaJsonForApi(p.media),
       caption: p.caption,
       location: p.location,
       likeCount: p.likes.length,

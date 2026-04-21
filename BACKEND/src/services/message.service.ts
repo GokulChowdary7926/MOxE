@@ -234,27 +234,29 @@ export class MessageService {
     return { ok: true };
   }
 
-  private sanitizeViewOnce(messages: any[], accountId: string) {
-    return messages.map((m) => {
-      const normalizedMedia = normalizeMessageMediaForApi(m.media);
-      const isMine = m.senderId === accountId;
-      const recipients = Array.isArray(m.recipients) ? m.recipients : [];
-      const seenByEveryone = isMine
-        ? recipients
-            .filter((r: any) => r.recipientId !== accountId)
-            .every((r: any) => r.isRead)
-        : false;
+  private async sanitizeViewOnce(messages: any[], accountId: string) {
+    return Promise.all(
+      messages.map(async (m) => {
+        const normalizedMedia = await normalizeMessageMediaForApi(m.media);
+        const isMine = m.senderId === accountId;
+        const recipients = Array.isArray(m.recipients) ? m.recipients : [];
+        const seenByEveryone = isMine
+          ? recipients
+              .filter((r: any) => r.recipientId !== accountId)
+              .every((r: any) => r.isRead)
+          : false;
 
-      let next = m;
-      if (m.isVanish) {
-        const rec = recipients.find((r: any) => r.recipientId === accountId);
-        if (rec?.isRead) {
-          next = { ...next, media: null, content: 'Photo has been viewed' };
+        let next: any = { ...m, media: normalizedMedia };
+        if (m.isVanish) {
+          const rec = recipients.find((r: any) => r.recipientId === accountId);
+          if (rec?.isRead) {
+            next = { ...next, media: null, content: 'Photo has been viewed' };
+          }
         }
-      }
 
-      return { ...next, isMine, seenByEveryone };
-    });
+        return { ...next, isMine, seenByEveryone };
+      }),
+    );
   }
 
   async getThread(accountId: string, otherId: string, cursor?: string, limit: number = DEFAULT_LIMIT) {
@@ -307,7 +309,7 @@ export class MessageService {
       },
     });
     const nextCursor = messages.length > limit ? messages[limit - 1].id : null;
-    const items = this.sanitizeViewOnce(this.enrichPollResults(messages.slice(0, limit).reverse(), accountId), accountId);
+    const items = await this.sanitizeViewOnce(this.enrichPollResults(messages.slice(0, limit).reverse(), accountId), accountId);
     return { items, nextCursor };
   }
 
@@ -366,7 +368,7 @@ export class MessageService {
       if (/^[a-z][a-z0-9+.-]*:/i.test(raw) && !/^https?:/i.test(raw) && !raw.startsWith('data:')) {
         throw new AppError('Invalid media URL', 400);
       }
-      const url = normalizeStoredMediaUrl(raw);
+      const url = await normalizeStoredMediaUrl(raw);
       if (!url) {
         throw new AppError('Invalid media URL', 400);
       }

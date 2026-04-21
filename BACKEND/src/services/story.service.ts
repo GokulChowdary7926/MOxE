@@ -215,7 +215,7 @@ export class StoryService {
       throw new AppError('Invalid media', 400);
     }
 
-    mediaUrl = normalizeStoredMediaUrl(mediaUrl);
+    mediaUrl = await normalizeStoredMediaUrl(mediaUrl);
     if (!mediaUrl) {
       throw new AppError('Invalid media URL', 400);
     }
@@ -334,7 +334,10 @@ export class StoryService {
       }
     }
     emitStoriesNew();
-    return { ...story, media: normalizeStoredMediaUrl(typeof story.media === 'string' ? story.media : String(story.media ?? '')) };
+    return {
+      ...story,
+      media: await normalizeStoredMediaUrl(typeof story.media === 'string' ? story.media : String(story.media ?? '')),
+    };
   }
 
   async listForFeed(accountId: string, username?: string) {
@@ -435,23 +438,27 @@ export class StoryService {
       }
       byAccount.get(s.accountId)!.stories.push(s);
     }
-    return Array.from(byAccount.values()).map((group) => {
-      const normalizedStories = group.stories.map((s) => ({
-        ...s,
-        media: normalizeStoredMediaUrl(typeof s.media === 'string' ? s.media : String(s.media ?? '')),
-      }));
-      const hasUnseen = normalizedStories.some((s) => !viewedIds.has(s.id));
-      const closeFriends = normalizedStories.some((s) => s.privacy === 'CLOSE_FRIENDS_ONLY' || s.isCloseFriendsOnly);
-      return {
-        ...group,
-        stories: normalizedStories,
-        id: group.accountId,
-        username: group.account.username,
-        profilePhoto: group.account.profilePhoto,
-        hasUnseen,
-        closeFriends,
-      };
-    });
+    return Promise.all(
+      Array.from(byAccount.values()).map(async (group) => {
+        const normalizedStories = await Promise.all(
+          group.stories.map(async (s) => ({
+            ...s,
+            media: await normalizeStoredMediaUrl(typeof s.media === 'string' ? s.media : String(s.media ?? '')),
+          })),
+        );
+        const hasUnseen = normalizedStories.some((s) => !viewedIds.has(s.id));
+        const closeFriends = normalizedStories.some((s) => s.privacy === 'CLOSE_FRIENDS_ONLY' || s.isCloseFriendsOnly);
+        return {
+          ...group,
+          stories: normalizedStories,
+          id: group.accountId,
+          username: group.account.username,
+          profilePhoto: group.account.profilePhoto,
+          hasUnseen,
+          closeFriends,
+        };
+      }),
+    );
   }
 
   /** Create a story that shares a post (type "share", stickers include postId). */
@@ -468,7 +475,7 @@ export class StoryService {
       : typeof firstMedia === 'string'
         ? firstMedia
         : '';
-    const storyMedia = normalizeStoredMediaUrl(mediaUrl) || 'https://via.placeholder.com/400x600?text=Shared+post';
+    const storyMedia = (await normalizeStoredMediaUrl(mediaUrl)) || 'https://via.placeholder.com/400x600?text=Shared+post';
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + DEFAULT_DURATION_HOURS);
     const stickers = [{ type: 'post', postId }];
@@ -493,7 +500,10 @@ export class StoryService {
       data: { accountId, postId, sharedTo: 'STORY', storyId: story.id },
     });
     emitStoriesNew();
-    return { ...story, media: normalizeStoredMediaUrl(typeof story.media === 'string' ? story.media : String(story.media ?? '')) };
+    return {
+      ...story,
+      media: await normalizeStoredMediaUrl(typeof story.media === 'string' ? story.media : String(story.media ?? '')),
+    };
   }
 
   async likeStory(accountId: string, storyId: string): Promise<{ liked: boolean }> {
@@ -884,10 +894,12 @@ export class StoryService {
       },
     });
     return {
-      stories: list.map((s) => ({
-        ...s,
-        media: normalizeStoredMediaUrl(typeof s.media === 'string' ? s.media : String(s.media ?? '')),
-      })),
+      stories: await Promise.all(
+        list.map(async (s) => ({
+          ...s,
+          media: await normalizeStoredMediaUrl(typeof s.media === 'string' ? s.media : String(s.media ?? '')),
+        })),
+      ),
     };
   }
 

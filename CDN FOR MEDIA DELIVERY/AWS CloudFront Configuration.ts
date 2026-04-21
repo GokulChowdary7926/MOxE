@@ -1,6 +1,8 @@
 // backend/src/services/cdn.service.ts
 
-import AWS from 'aws-sdk';
+import { CreateInvalidationCommand, CloudFrontClient } from '@aws-sdk/client-cloudfront';
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { getSignedUrl as getCloudFrontSignedUrl } from '@aws-sdk/cloudfront-signer';
 import { v4 as uuidv4 } from 'uuid';
 
 interface CDNConfig {
@@ -11,13 +13,13 @@ interface CDNConfig {
 }
 
 export class CDNService {
-  private cloudFront: AWS.CloudFront;
-  private s3: AWS.S3;
+  private cloudFront: CloudFrontClient;
+  private s3: S3Client;
   private config: CDNConfig;
 
   constructor() {
-    this.cloudFront = new AWS.CloudFront({ region: process.env.AWS_REGION });
-    this.s3 = new AWS.S3({ region: process.env.AWS_REGION });
+    this.cloudFront = new CloudFrontClient({ region: process.env.AWS_REGION });
+    this.s3 = new S3Client({ region: process.env.AWS_REGION });
     
     this.config = {
       distributionId: process.env.CLOUDFRONT_DISTRIBUTION_ID!,
@@ -32,14 +34,11 @@ export class CDNService {
    */
   generateSignedUrl(key: string, expiresIn: number = 3600): string {
     const url = `https://${this.config.domainName}/${key}`;
-    const signer = new AWS.CloudFront.Signer(
-      process.env.CLOUDFRONT_KEY_PAIR_ID!,
-      process.env.CLOUDFRONT_PRIVATE_KEY!.replace(/\\n/g, '\n')
-    );
-
-    return signer.getSignedUrl({
+    return getCloudFrontSignedUrl({
       url,
-      expires: Math.floor(Date.now() / 1000) + expiresIn,
+      keyPairId: process.env.CLOUDFRONT_KEY_PAIR_ID!,
+      privateKey: process.env.CLOUDFRONT_PRIVATE_KEY!.replace(/\\n/g, '\n'),
+      dateLessThan: new Date(Date.now() + expiresIn * 1000).toISOString(),
     });
   }
 
@@ -49,7 +48,7 @@ export class CDNService {
   async invalidateCache(paths: string[]): Promise<void> {
     const callerReference = uuidv4();
 
-    await this.cloudFront.createInvalidation({
+    await this.cloudFront.send(new CreateInvalidationCommand({
       DistributionId: this.config.distributionId,
       InvalidationBatch: {
         CallerReference: callerReference,
@@ -58,7 +57,7 @@ export class CDNService {
           Items: paths,
         },
       },
-    }).promise();
+    }));
   }
 
   /**
@@ -81,14 +80,13 @@ export class CDNService {
     }
 
     // Upload to S3
-    await this.s3.putObject({
+    await this.s3.send(new PutObjectCommand({
       Bucket: this.config.bucketName,
       Key: key,
       Body: file,
       ContentType: contentType,
-      ACL: options?.makePublic ? 'public-read' : 'private',
       CacheControl: 'max-age=31536000', // 1 year cache
-    }).promise();
+    }));
 
     // Return CDN URL
     if (options?.makePublic) {
@@ -142,43 +140,39 @@ export class CDNService {
     const baseKey = `${folder}/${Date.now()}-${uuidv4()}`;
 
     // Upload original
-    await this.s3.putObject({
+    await this.s3.send(new PutObjectCommand({
       Bucket: this.config.bucketName,
       Key: baseKey,
       Body: file,
       ContentType: 'image/jpeg',
-      ACL: 'public-read',
       CacheControl: 'max-age=31536000',
-    }).promise();
+    }));
 
     // Generate and upload variants
     const variants = await this.generateVariants(file);
     
     await Promise.all([
-      this.s3.putObject({
+      this.s3.send(new PutObjectCommand({
         Bucket: this.config.bucketName,
         Key: `${baseKey}_thumb`,
         Body: variants.thumbnail,
         ContentType: 'image/jpeg',
-        ACL: 'public-read',
         CacheControl: 'max-age=31536000',
-      }).promise(),
-      this.s3.putObject({
+      })),
+      this.s3.send(new PutObjectCommand({
         Bucket: this.config.bucketName,
         Key: `${baseKey}_medium`,
         Body: variants.medium,
         ContentType: 'image/jpeg',
-        ACL: 'public-read',
         CacheControl: 'max-age=31536000',
-      }).promise(),
-      this.s3.putObject({
+      })),
+      this.s3.send(new PutObjectCommand({
         Bucket: this.config.bucketName,
         Key: `${baseKey}_large`,
         Body: variants.large,
         ContentType: 'image/jpeg',
-        ACL: 'public-read',
         CacheControl: 'max-age=31536000',
-      }).promise(),
+      })),
     ]);
 
     const cdnUrl = `https://${this.config.domainName}`;

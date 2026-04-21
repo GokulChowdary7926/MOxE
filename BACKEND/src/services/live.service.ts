@@ -12,18 +12,22 @@ export function normalizeLiveRecordingUrl(raw: string): string {
   throw new AppError('Invalid recording URL (use https:// or /uploads/…)', 400);
 }
 
-function normalizeLiveForApi<T extends { recording?: unknown; liveProducts?: Array<{ product?: { images?: unknown } }> }>(live: T): T {
+async function normalizeLiveForApi<T extends { recording?: unknown; liveProducts?: Array<{ product?: { images?: unknown } }> }>(
+  live: T,
+): Promise<T> {
   const normalizedRecording =
-    typeof live.recording === 'string' ? normalizeStoredMediaUrl(live.recording) : live.recording;
+    typeof live.recording === 'string' ? await normalizeStoredMediaUrl(live.recording) : live.recording;
   const normalizedProducts = Array.isArray(live.liveProducts)
-    ? live.liveProducts.map((lp) => {
-        const images = lp.product?.images;
-        if (!Array.isArray(images)) return lp;
-        const normalized = images.map((img) =>
-          typeof img === 'string' ? normalizeStoredMediaUrl(img) : img
-        );
-        return { ...lp, product: { ...(lp.product ?? {}), images: normalized } };
-      })
+    ? await Promise.all(
+        live.liveProducts.map(async (lp) => {
+          const images = lp.product?.images;
+          if (!Array.isArray(images)) return lp;
+          const normalized = await Promise.all(
+            images.map(async (img) => (typeof img === 'string' ? await normalizeStoredMediaUrl(img) : img)),
+          );
+          return { ...lp, product: { ...(lp.product ?? {}), images: normalized } };
+        }),
+      )
     : live.liveProducts;
   return { ...live, recording: normalizedRecording, liveProducts: normalizedProducts };
 }
@@ -117,7 +121,7 @@ export class LiveService {
         liveProducts: { include: { product: { select: { id: true, name: true, price: true, images: true } } }, orderBy: { sortOrder: 'asc' } },
       },
     });
-    return normalizeLiveForApi(created);
+    return await normalizeLiveForApi(created);
   }
 
   async list(viewerId: string | null = null) {
@@ -132,7 +136,7 @@ export class LiveService {
     const items = [];
     for (const live of baseItems) {
       const allowed = await this.canViewerAccessLive(viewerId, live.accountId, live.privacy as any);
-      if (allowed) items.push(normalizeLiveForApi(live));
+      if (allowed) items.push(await normalizeLiveForApi(live));
     }
     return { items, nextCursor: null as string | null };
   }
@@ -163,7 +167,7 @@ export class LiveService {
     const items = [];
     for (const live of baseItems) {
       const allowed = await this.canViewerAccessLive(viewerId, live.accountId, live.privacy as any);
-      if (allowed) items.push(normalizeLiveForApi(live));
+      if (allowed) items.push(await normalizeLiveForApi(live));
     }
     return { items };
   }
@@ -179,7 +183,7 @@ export class LiveService {
     if (!live || live.deletedAt) throw new AppError('Live not found', 404);
     const allowed = await this.canViewerAccessLive(viewerId, live.accountId, live.privacy as any);
     if (!allowed) throw new AppError('Live not found', 404);
-    return normalizeLiveForApi(live);
+    return await normalizeLiveForApi(live);
   }
 
   /** 4.8 Live replay: ended live with recording URL and product tray for replay view. */
@@ -203,7 +207,7 @@ export class LiveService {
     }
     const allowed = await this.canViewerAccessLive(viewerId, live.accountId, live.privacy as any);
     if (!allowed) throw new AppError('Replay not found', 404);
-    return normalizeLiveForApi({
+    return await normalizeLiveForApi({
       id: live.id,
       title: live.title,
       description: live.description,
@@ -236,7 +240,7 @@ export class LiveService {
         liveProducts: { include: { product: { select: { id: true, name: true, price: true, images: true } } }, orderBy: { sortOrder: 'asc' } },
       },
     });
-    return normalizeLiveForApi(updated);
+    return await normalizeLiveForApi(updated);
   }
 
   /** End an active live (set status ENDED, endedAt). Optionally attach a VOD `recording` URL (https or /uploads/…). */
@@ -259,7 +263,7 @@ export class LiveService {
         liveProducts: { include: { product: { select: { id: true, name: true, price: true, images: true } } }, orderBy: { sortOrder: 'asc' } },
       },
     });
-    return normalizeLiveForApi(updated);
+    return await normalizeLiveForApi(updated);
   }
 
   /** After a live has ended, set or replace the replay recording URL (host only). */
@@ -275,7 +279,7 @@ export class LiveService {
         liveProducts: { include: { product: { select: { id: true, name: true, price: true, images: true } } }, orderBy: { sortOrder: 'asc' } },
       },
     });
-    return normalizeLiveForApi(updated);
+    return await normalizeLiveForApi(updated);
   }
 
   async updateFundraiser(
@@ -320,7 +324,7 @@ export class LiveService {
         liveProducts: { include: { product: { select: { id: true, name: true, price: true, images: true } } }, orderBy: { sortOrder: 'asc' } },
       },
     });
-    return normalizeLiveForApi(updated);
+    return await normalizeLiveForApi(updated);
   }
 
   /** Add products to a live (Live Shopping). Products must belong to the same account as the live. */

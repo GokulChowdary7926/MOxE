@@ -122,7 +122,7 @@ export class NoteService {
     if (input.tier !== 'FREE') {
       await prisma.noteAnalytics.create({ data: { noteId: note.id } });
     }
-    return { ...note, contentJson: normalizeNoteContentJsonForApi(note.contentJson) };
+    return { ...note, contentJson: await normalizeNoteContentJsonForApi(note.contentJson) };
   }
 
   async listVisibleNotes(viewerAccountId: string) {
@@ -147,15 +147,19 @@ export class NoteService {
       },
     });
 
-    return notes
-      .filter((note) => {
-        if (note.accountId === viewerAccountId) return true;
-        const audienceType = (note.audienceJson as { type?: string } | null)?.type;
-        const isMutual = followingSet.has(note.accountId) && followersSet.has(note.accountId);
-        const isCloseFriend = closeFriendsSet.has(note.accountId);
-        return canViewByAudience(audienceType, isMutual, isCloseFriend);
-      })
-      .map((note) => ({ ...note, contentJson: normalizeNoteContentJsonForApi(note.contentJson) }));
+    const filtered = notes.filter((note) => {
+      if (note.accountId === viewerAccountId) return true;
+      const audienceType = (note.audienceJson as { type?: string } | null)?.type;
+      const isMutual = followingSet.has(note.accountId) && followersSet.has(note.accountId);
+      const isCloseFriend = closeFriendsSet.has(note.accountId);
+      return canViewByAudience(audienceType, isMutual, isCloseFriend);
+    });
+    return Promise.all(
+      filtered.map(async (note) => ({
+        ...note,
+        contentJson: await normalizeNoteContentJsonForApi(note.contentJson),
+      })),
+    );
   }
 
   async getMyActiveNote(accountId: string) {
@@ -170,7 +174,7 @@ export class NoteService {
       },
     });
     if (!note) return null;
-    return { ...note, contentJson: normalizeNoteContentJsonForApi(note.contentJson) };
+    return { ...note, contentJson: await normalizeNoteContentJsonForApi(note.contentJson) };
   }
 
   async deleteNote(noteId: string, accountId: string) {
