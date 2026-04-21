@@ -1,6 +1,9 @@
 {
   "name": "moxe",
   "private": true,
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "inventory": "node scripts/generate-moxe-inventory.mjs",
     "verify:functional-report": "node scripts/validate-functional-report.mjs",

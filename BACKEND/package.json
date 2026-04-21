@@ -2,6 +2,9 @@
   "name": "moxe-backend",
   "version": "1.0.0",
   "description": "MOxE Platform Backend",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "main": "dist/server.js",
   "scripts": {
     "dev": "NODE_OPTIONS=--max-old-space-size=4096 TS_NODE_TRANSPILE_ONLY=true nodemon --watch src --ext ts,json src/server.ts",

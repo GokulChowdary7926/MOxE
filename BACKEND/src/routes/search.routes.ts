@@ -13,7 +13,10 @@ router.post('/reindex', authenticate, async (req, res, next) => {
     const user = (req as any).user;
     if (!user?.isAdmin) return res.status(403).json({ error: 'Forbidden' });
     if (!searchService.isEnabled()) {
-      return res.status(503).json({ error: 'Search not configured' });
+      return res.status(503).json({
+        error: 'Search not configured (set ALGOLIA_APP_ID and ALGOLIA_API_KEY)',
+        code: 'SEARCH_NOT_CONFIGURED',
+      });
     }
     await searchService.reindexAll();
     res.json({ ok: true });
