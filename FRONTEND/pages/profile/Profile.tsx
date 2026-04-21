@@ -10,7 +10,7 @@ import { VerifiedBadge } from '../../components/atoms/VerifiedBadge';
 import { Grid3X3, User2, ChevronDown, Plus, Menu, Film, Bookmark, Star } from 'lucide-react';
 import QR from 'qrcode';
 import { getApiBase, getToken } from '../../services/api';
-import { getFirstMediaUrl, ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
+import { getFirstMediaUrl, ensureAbsoluteMediaUrl, isVideoMediaUrl } from '../../utils/mediaUtils';
 import { MobileShell } from '../../components/layout/MobileShell';
 import { MoxePageHeader } from '../../components/layout/MoxePageHeader';
 import { getSocket } from '../../services/socket';
@@ -651,13 +651,22 @@ export default function Profile() {
             >
               <div className="w-14 h-14 rounded-full border-2 border-moxe-border overflow-hidden mb-1 bg-moxe-surface">
                 {h.coverImage ? (
-                  <img src={ensureAbsoluteMediaUrl(h.coverImage)} alt="" className="w-full h-full object-cover" />
+                  isVideoMediaUrl(h.coverImage) ? (
+                    <video
+                      src={ensureAbsoluteMediaUrl(h.coverImage)}
+                      muted
+                      playsInline
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <img src={ensureAbsoluteMediaUrl(h.coverImage)} alt="" className="w-full h-full object-cover" />
+                  )
                 ) : (
-                          <div className="w-full h-full flex items-center justify-center text-moxe-text text-sm font-semibold">
+                  <div className="w-full h-full flex items-center justify-center text-moxe-text text-sm font-semibold">
                     {(h.name || 'Highlight').charAt(0)}
                   </div>
-              )}
-            </div>
+                )}
+              </div>
               <span className="text-moxe-textSecondary text-xs truncate max-w-[64px]">{h.name || 'Highlight'}</span>
             </Link>
           ))}
