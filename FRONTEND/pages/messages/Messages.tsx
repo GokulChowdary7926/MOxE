@@ -14,7 +14,7 @@ import { fetchClientSettings, patchClientSettings } from '../../services/clientS
 import { normalizeToArray } from '../../utils/safeAccess';
 import { DM_THEME_IDS, DM_THEME_LABELS, type DmThemeId, getDmThemeSkin, isDmThemeId } from '../../utils/dmTheme';
 import { getMyNote, getNotes, type NoteItem } from '../../services/noteService';
-import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
+import { ensureAbsoluteMediaUrl, isVideoMediaUrl } from '../../utils/mediaUtils';
 import {
   canUseMediaDevices,
   isSecureContextHintMessage,
@@ -1449,7 +1449,17 @@ export default function Messages() {
                 {m.media?.url && m.messageType === 'VOICE' && <audio src={ensureAbsoluteMediaUrl(m.media.url)} controls className="mt-2 w-full" />}
                 {m.media?.url && m.messageType === 'MEDIA' && (
                   <div className="mt-2 relative rounded-2xl overflow-hidden bg-black/30">
-                    <img src={ensureAbsoluteMediaUrl(m.media.url)} alt="" className="w-full max-h-64 object-cover" />
+                    {isVideoMediaUrl(m.media.url) ? (
+                      <video
+                        src={ensureAbsoluteMediaUrl(m.media.url)}
+                        className="w-full max-h-64 object-cover"
+                        muted
+                        playsInline
+                        controls
+                      />
+                    ) : (
+                      <img src={ensureAbsoluteMediaUrl(m.media.url)} alt="" className="w-full max-h-64 object-cover" />
+                    )}
                     <div className="absolute bottom-2 left-2 flex items-center gap-1 rounded-md bg-black/55 px-2 py-1 text-[10px] text-white">
                       <span className="font-semibold">Reels</span>
                     </div>

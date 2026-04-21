@@ -4,7 +4,8 @@ import { ChevronLeft, ChevronDown, MoreVertical, Play } from 'lucide-react';
 import { ThemedView } from '../../components/ui/Themed';
 import { MobileShell } from '../../components/layout/MobileShell';
 import { UI } from '../../constants/uiTheme';
-import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
+import { isVideoMediaUrl } from '../../utils/mediaUtils';
+import { MediaGridThumb } from '../../components/media/MediaGridThumb';
 
 export default function TaggedPage() {
   const navigate = useNavigate();
@@ -46,8 +47,8 @@ export default function TaggedPage() {
               {items.map((item) => (
                 <Link key={item.id} to={`/post/${item.id}`} className="relative block">
                   <div className={`${UI.gridItem} relative`}>
-                    <img src={ensureAbsoluteMediaUrl(item.thumbUrl)} alt="" className="w-full h-full object-cover" />
-                    {item.isVideo && (
+                    <MediaGridThumb url={item.thumbUrl} alt="" className="w-full h-full object-cover" />
+                    {(item.isVideo || isVideoMediaUrl(item.thumbUrl)) && (
                       <span className={UI.gridItemPlayIcon}>
                         <Play className="w-3.5 h-3.5 text-white" fill="currentColor" />
                       </span>

@@ -6,7 +6,8 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { UI } from '../../constants/uiTheme';
 import { getApiBase, getToken } from '../../services/api';
-import { getFirstMediaUrl, ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
+import { getFirstMediaUrl, isVideoMediaUrl } from '../../utils/mediaUtils';
+import { MediaGridThumb } from '../../components/media/MediaGridThumb';
 
 type ArchiveItem = {
   id: string;
@@ -183,8 +184,8 @@ export default function Archive() {
               {storyItems.map((item) => (
                 <div key={item.id} className="text-left block">
                   <div className={`${UI.gridItem} relative`}>
-                    <img src={ensureAbsoluteMediaUrl(item.thumbUrl)} alt="" className="w-full h-full object-cover" />
-                    {item.isVideo && (
+                    <MediaGridThumb url={item.thumbUrl} alt="" className="w-full h-full object-cover" />
+                    {(item.isVideo || isVideoMediaUrl(item.thumbUrl)) && (
                       <span className={UI.gridItemPlayIcon}>
                         <Play className="w-3 h-3 text-white fill-white" />
                       </span>
@@ -209,10 +210,12 @@ export default function Archive() {
                 onClick={() => navigate(`/post/${item.id}`)}
               >
                 <div className={`${UI.gridItem} relative`}>
-                  <img src={ensureAbsoluteMediaUrl(item.thumbUrl)} alt="" className="w-full h-full object-cover" />
-                  <span className={UI.gridItemPlayIcon}>
-                    <Play className="w-3 h-3 text-white fill-white" />
-                  </span>
+                  <MediaGridThumb url={item.thumbUrl} alt="" className="w-full h-full object-cover" />
+                  {(item.isVideo || isVideoMediaUrl(item.thumbUrl)) && (
+                    <span className={UI.gridItemPlayIcon}>
+                      <Play className="w-3 h-3 text-white fill-white" />
+                    </span>
+                  )}
                 </div>
               </button>
             ))}

@@ -5,7 +5,7 @@ import { Filter, Play } from 'lucide-react';
 import { getApiBase, getToken } from '../../services/api';
 import { readApiError } from '../../utils/readApiError';
 import { useCurrentAccount } from '../../hooks/useAccountCapabilities';
-import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
+import { MediaGridThumb } from '../../components/media/MediaGridThumb';
 
 type TopContentRow = {
   id: string;
@@ -239,7 +239,7 @@ export default function InsightsContentPage() {
                   className="aspect-[9/16] rounded-lg bg-[#262626] overflow-hidden relative block"
                 >
                   {thumb ? (
-                    <img src={ensureAbsoluteMediaUrl(thumb)} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                    <MediaGridThumb url={thumb} alt="" className="absolute inset-0 w-full h-full object-cover" />
                   ) : null}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
                   <span className="absolute top-2 right-2 text-white/90 text-xs flex items-center gap-1">

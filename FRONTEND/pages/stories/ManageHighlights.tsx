@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ThemedView, ThemedHeader, ThemedText, ThemedButton, ThemedInput } from '../../components/ui/Themed';
-import { ensureAbsoluteMediaUrl, isVideoMediaUrl } from '../../utils/mediaUtils';
+import { MediaGridThumb } from '../../components/media/MediaGridThumb';
 
 import { getApiBase } from '../../services/api';
 const API_BASE = getApiBase();
@@ -202,20 +202,7 @@ export default function ManageHighlights() {
                     selected ? 'border-moxe-primary' : 'border-moxe-border'
                   }`}
                 >
-                  {isVideoMediaUrl(a.media) ? (
-                    <video
-                      src={ensureAbsoluteMediaUrl(a.media)}
-                      muted
-                      playsInline
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <img
-                      src={ensureAbsoluteMediaUrl(a.media)}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
-                  )}
+                  <MediaGridThumb url={a.media} alt="" className="w-full h-full object-cover" />
                   {selected && (
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-moxe-primary text-xl">
                       ✓
@@ -249,7 +236,7 @@ export default function ManageHighlights() {
               >
                 <div className="w-12 h-12 rounded-full overflow-hidden border border-moxe-border flex-shrink-0">
                   {h.coverImage ? (
-                    <img src={ensureAbsoluteMediaUrl(h.coverImage)} alt={h.name} className="w-full h-full object-cover" />
+                    <MediaGridThumb url={h.coverImage} alt={h.name} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-moxe-caption">
                       ★

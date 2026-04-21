@@ -5,7 +5,7 @@ import { useAccountCapabilities, useCurrentAccount } from '../../hooks/useAccoun
 import { Heart, MessageCircle, Send, Bookmark, ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
 import { fetchApi, fetchApiJson, getApiBase, getToken } from '../../services/api';
 import { getSocket } from '../../services/socket';
-import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
+import { ensureAbsoluteMediaUrl, isVideoMediaUrl } from '../../utils/mediaUtils';
 import { SocialCommentsSheet, SocialCommentsEmpty } from '../comments/SocialCommentsSheet';
 import { SocialCommentRow } from '../comments/SocialCommentRow';
 import toast from 'react-hot-toast';
@@ -789,19 +789,36 @@ export function FeedPost({
         }}
         onDoubleClick={handleDoubleTapLike}
       >
-        <img
-          src={ensureAbsoluteMediaUrl(mediaUris[currentMediaIndex]) || ''}
-          alt=""
-          className="w-full h-full object-cover select-none"
-          onError={(e) => {
-            const t = e.currentTarget;
-            t.onerror = null;
-            t.src = 'https://via.placeholder.com/1080x1080/111111/666666?text=Media+Unavailable';
-          }}
-          onClick={() => {
-            if (isSponsored) recordAdClick();
-          }}
-        />
+        {isVideoMediaUrl(mediaUris[currentMediaIndex]) ? (
+          <video
+            src={ensureAbsoluteMediaUrl(mediaUris[currentMediaIndex]) || ''}
+            className="w-full h-full object-cover select-none"
+            muted
+            playsInline
+            onError={(e) => {
+              const t = e.currentTarget;
+              t.onerror = null;
+              t.removeAttribute('src');
+            }}
+            onClick={() => {
+              if (isSponsored) recordAdClick();
+            }}
+          />
+        ) : (
+          <img
+            src={ensureAbsoluteMediaUrl(mediaUris[currentMediaIndex]) || ''}
+            alt=""
+            className="w-full h-full object-cover select-none"
+            onError={(e) => {
+              const t = e.currentTarget;
+              t.onerror = null;
+              t.src = 'https://via.placeholder.com/1080x1080/111111/666666?text=Media+Unavailable';
+            }}
+            onClick={() => {
+              if (isSponsored) recordAdClick();
+            }}
+          />
+        )}
         {isSponsored && (
           <div className="absolute top-2 left-2 z-10">
             <span className="px-2 py-0.5 rounded-full bg-black/60 text-white text-[10px] font-semibold">

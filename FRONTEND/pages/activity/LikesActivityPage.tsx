@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronDown } from 'lucide-react';
 import { ThemedView } from '../../components/ui/Themed';
 import { MobileShell } from '../../components/layout/MobileShell';
 import { UI } from '../../constants/uiTheme';
-import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
+import { MediaGridThumb } from '../../components/media/MediaGridThumb';
 
 export default function LikesActivityPage() {
   const items: { id: string; thumbUrl: string }[] = [];
@@ -35,7 +35,7 @@ export default function LikesActivityPage() {
               {items.map((item) => (
                 <Link key={item.id} to={`/post/${item.id}`} className="block">
                   <div className={UI.gridItem}>
-                    <img src={ensureAbsoluteMediaUrl(item.thumbUrl)} alt="" className="w-full h-full object-cover" />
+                    <MediaGridThumb url={item.thumbUrl} alt="" className="w-full h-full object-cover" />
                   </div>
                 </Link>
               ))}

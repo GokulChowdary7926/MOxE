@@ -7,7 +7,8 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { UI } from '../../constants/uiTheme';
 import { getApiBase, getToken } from '../../services/api';
-import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
+import { isVideoMediaUrl } from '../../utils/mediaUtils';
+import { MediaGridThumb } from '../../components/media/MediaGridThumb';
 
 type Collection = {
   id: string;
@@ -327,7 +328,7 @@ export default function SavedCollections() {
                   >
                     <div className="w-14 h-14 rounded-full border border-[#363636] overflow-hidden mb-1 bg-[#262626]">
                       {c.coverImage ? (
-                        <img src={ensureAbsoluteMediaUrl(c.coverImage)} alt={c.name} className="w-full h-full object-cover" />
+                        <MediaGridThumb url={c.coverImage} alt={c.name} className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-[#737373]">
                           📁
@@ -479,15 +480,17 @@ export default function SavedCollections() {
                 >
                   <div className={`${UI.gridItem} relative`}>
                     {item.imageUrl ? (
-                      <img src={ensureAbsoluteMediaUrl(item.imageUrl)} alt="" className="w-full h-full object-cover" />
+                      <MediaGridThumb url={item.imageUrl} alt="" className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full bg-[#262626] flex items-center justify-center">
                         <span className="text-[#737373] text-xs">No preview</span>
                       </div>
                     )}
-                    <span className={UI.gridItemPlayIcon}>
-                      <Play className="w-3 h-3 text-white fill-white" />
-                    </span>
+                    {item.imageUrl && isVideoMediaUrl(item.imageUrl) && (
+                      <span className={UI.gridItemPlayIcon}>
+                        <Play className="w-3 h-3 text-white fill-white" />
+                      </span>
+                    )}
                   </div>
                 </button>
               ))}

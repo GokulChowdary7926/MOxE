@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronDown, Play } from 'lucide-react';
 import { ThemedView } from '../../components/ui/Themed';
 import { MobileShell } from '../../components/layout/MobileShell';
 import { UI } from '../../constants/uiTheme';
-import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
+import { MediaGridThumb } from '../../components/media/MediaGridThumb';
 
 export default function ReelsActivityPage() {
   const [items] = useState<{ id: string; thumbUrl: string }[]>([]);
@@ -39,7 +39,7 @@ export default function ReelsActivityPage() {
               {items.map((item) => (
                 <Link key={item.id} to={`/reels`} className="relative block">
                   <div className={`${UI.gridItem} relative`}>
-                    <img src={ensureAbsoluteMediaUrl(item.thumbUrl)} alt="" className="w-full h-full object-cover" />
+                    <MediaGridThumb url={item.thumbUrl} alt="" className="w-full h-full object-cover" />
                     <span className={UI.gridItemPlayIcon}>
                       <Play className="w-3.5 h-3.5 text-white" fill="currentColor" />
                     </span>

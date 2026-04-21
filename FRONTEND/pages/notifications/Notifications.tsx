@@ -10,6 +10,7 @@ import { UI } from '../../constants/uiTheme';
 import { getApiBase, getToken } from '../../services/api';
 import { readApiError } from '../../utils/readApiError';
 import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
+import { MediaGridThumb } from '../../components/media/MediaGridThumb';
 import { useCurrentAccount } from '../../hooks/useAccountCapabilities';
 import { getSocket } from '../../services/socket';
 import { MoxePageHeader } from '../../components/layout/MoxePageHeader';
@@ -447,7 +448,7 @@ export default function Notifications() {
                         </div>
                         {n.postThumbUrl ? (
                           <div className={UI.listThumb}>
-                            <img src={ensureAbsoluteMediaUrl(n.postThumbUrl)} alt="" className="w-full h-full object-cover" />
+                            <MediaGridThumb url={n.postThumbUrl} alt="" className="w-full h-full object-cover" />
                           </div>
                         ) : (
                           <div className={UI.listThumb} />

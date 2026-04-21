@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronDown } from 'lucide-react';
 import { ThemedView } from '../../components/ui/Themed';
 import { MobileShell } from '../../components/layout/MobileShell';
 import { UI } from '../../constants/uiTheme';
-import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
+import { MediaGridThumb } from '../../components/media/MediaGridThumb';
 
 export default function HighlightsActivityPage() {
   const [items] = useState<{ id: string; coverUrl?: string; icon?: string }[]>([]);
@@ -37,7 +37,7 @@ export default function HighlightsActivityPage() {
               {items.map((item) => (
                 <Link key={item.id} to={`/highlights/${item.id}`} className="block aspect-[4/5] rounded-lg overflow-hidden bg-[#262626]">
                   {item.coverUrl ? (
-                    <img src={ensureAbsoluteMediaUrl(item.coverUrl)} alt="" className="w-full h-full object-cover" />
+                    <MediaGridThumb url={item.coverUrl} alt="" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-end p-2">
                       <span className="text-2xl">{item.icon ?? '📌'}</span>

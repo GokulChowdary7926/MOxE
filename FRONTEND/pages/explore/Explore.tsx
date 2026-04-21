@@ -5,6 +5,7 @@ import { ThemedView, ThemedText } from '../../components/ui/Themed';
 import { getApiBase, getToken } from '../../services/api';
 import { normalizeToArray } from '../../utils/safeAccess';
 import { getFirstMediaUrl, ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
+import { MediaGridThumb } from '../../components/media/MediaGridThumb';
 import {
   loadSearchRecent,
   saveSearchRecent,
@@ -356,14 +357,18 @@ export default function Explore() {
                     meta.tall ? 'aspect-[3/5]' : 'aspect-square'
                   }`}
                 >
-                  <img
-                    src={ensureAbsoluteMediaUrl(item.thumbUrl)}
-                    alt=""
-                    className="w-full h-full object-cover select-none"
+                  <div
+                    className="w-full h-full"
                     onContextMenu={(e) => {
                       if (item.screenshotProtection) e.preventDefault();
                     }}
-                  />
+                  >
+                    <MediaGridThumb
+                      url={item.thumbUrl}
+                      alt=""
+                      className="w-full h-full object-cover select-none"
+                    />
+                  </div>
                   {meta.carousel && (
                     <span className="absolute top-1 right-1 text-white drop-shadow-md">
                       <Layers className="w-3.5 h-3.5" strokeWidth={2} />

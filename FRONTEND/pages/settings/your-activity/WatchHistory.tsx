@@ -7,6 +7,7 @@ import { ErrorState } from '../../../components/ui/ErrorState';
 import { UI } from '../../../constants/uiTheme';
 import { fetchApi, getToken } from '../../../services/api';
 import { ensureAbsoluteMediaUrl } from '../../../utils/mediaUtils';
+import { MediaGridThumb } from '../../../components/media/MediaGridThumb';
 
 type WatchItem = {
   id: string;
@@ -158,7 +159,7 @@ export default function WatchHistory() {
                       }}
                     />
                   ) : (
-                    <img src={ensureAbsoluteMediaUrl(item.thumbUrl)} alt="" className="w-full h-full object-cover" />
+                    <MediaGridThumb url={item.thumbUrl} alt="" className="w-full h-full object-cover" />
                   )}
                   {item.isReel && (
                     <span className="absolute inset-0 flex items-center justify-center pointer-events-none">

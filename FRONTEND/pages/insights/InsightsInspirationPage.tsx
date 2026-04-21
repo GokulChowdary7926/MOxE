@@ -4,7 +4,7 @@ import { SettingsPageShell } from '../../components/layout/SettingsPageShell';
 import { Plus, Eye, Bookmark } from 'lucide-react';
 import { getApiBase, getToken } from '../../services/api';
 import { Avatar } from '../../components/ui/Avatar';
-import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
+import { MediaGridThumb } from '../../components/media/MediaGridThumb';
 
 const TABS = ['Reels', 'Audio', 'Accounts'] as const;
 
@@ -153,7 +153,7 @@ export default function InsightsInspirationPage() {
                     className="flex-shrink-0 w-[200px] aspect-[9/16] rounded-xl bg-[#262626] overflow-hidden relative"
                   >
                     {r.thumbnail ? (
-                      <img src={ensureAbsoluteMediaUrl(r.thumbnail)} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                      <MediaGridThumb url={r.thumbnail} alt="" className="absolute inset-0 w-full h-full object-cover" />
                     ) : null}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
                     <p className="absolute top-2 left-2 right-2 text-white text-xs font-medium line-clamp-2">
@@ -183,7 +183,7 @@ export default function InsightsInspirationPage() {
                       className="aspect-[9/16] rounded-xl bg-[#262626] overflow-hidden relative block"
                     >
                       {thumb ? (
-                        <img src={ensureAbsoluteMediaUrl(thumb)} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                        <MediaGridThumb url={thumb} alt="" className="absolute inset-0 w-full h-full object-cover" />
                       ) : null}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
                       <p className="absolute bottom-2 left-2 right-2 text-white text-xs line-clamp-2">

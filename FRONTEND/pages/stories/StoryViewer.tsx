@@ -5,6 +5,7 @@ import { Avatar } from '../../components/ui/Avatar';
 import { getSocket } from '../../services/socket';
 import { getApiBase, getAuthHeaders } from '../../services/api';
 import { ensureAbsoluteMediaUrl, isVideoMediaUrl } from '../../utils/mediaUtils';
+import { MediaGridThumb } from '../../components/media/MediaGridThumb';
 import { mediaEntryToUrl } from '../../utils/mediaEntries';
 import { SocialCommentsSheet, SocialCommentsEmpty } from '../../components/comments/SocialCommentsSheet';
 import { SocialCommentRow } from '../../components/comments/SocialCommentRow';
@@ -1362,8 +1363,7 @@ export default function StoryViewer() {
                     className="flex-shrink-0 w-20 h-24 rounded-lg bg-black flex flex-col items-center justify-center gap-1 disabled:opacity-60"
                   >
                     {h.coverImage ? (
-                      // eslint-disable-next-line jsx-a11y/alt-text
-                      <img src={ensureAbsoluteMediaUrl(h.coverImage)} className="w-full h-14 rounded-t-lg object-cover" />
+                      <MediaGridThumb url={h.coverImage} className="w-full h-14 rounded-t-lg object-cover" />
                     ) : (
                       <span className="text-white/60 text-xs pt-2">No cover</span>
                     )}
