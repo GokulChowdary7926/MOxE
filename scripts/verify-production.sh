@@ -61,11 +61,10 @@ echo "----------"
 check "Prisma migrate status" "cd \"$ROOT_DIR/BACKEND\" && npx prisma migrate status"
 
 echo
-echo "🚀 Config Files"
-echo "--------------"
-check "render.yaml present" "[ -f \"$ROOT_DIR/render.yaml\" ]"
-check "vercel.json present" "[ -f \"$ROOT_DIR/vercel.json\" ]"
-check "GitHub workflow present" "[ -f \"$ROOT_DIR/.github/workflows/deploy.yml\" ]"
+echo "🚀 Deploy (AWS)"
+echo "---------------"
+check "EC2 deploy script present" "[ -f \"$ROOT_DIR/scripts/deploy-ec2-moxe.sh\" ]"
+check "GitHub CI workflow present" "[ -f \"$ROOT_DIR/.github/workflows/test.yml\" ]"
 
 echo
 echo "📊 Summary"
