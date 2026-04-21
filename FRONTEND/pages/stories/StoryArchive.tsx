@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ThemedView, ThemedHeader, ThemedText } from '../../components/ui/Themed';
-import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
+import { ensureAbsoluteMediaUrl, isVideoMediaUrl } from '../../utils/mediaUtils';
 import { mediaEntryToUrl } from '../../utils/mediaEntries';
 
 import { getApiBase } from '../../services/api';
@@ -72,15 +72,16 @@ export default function StoryArchive() {
           <div className="grid grid-cols-3 gap-2">
             {items.map((item) => {
               const first = extractArchivedMedia(item.media);
-              const isVideo = first && first.type === 'VIDEO';
+              const isVideo = Boolean(first && (first.type === 'VIDEO' || isVideoMediaUrl(first.url)));
+              const abs = first ? ensureAbsoluteMediaUrl(first.url) : '';
               return (
                 <div key={item.id} className="relative aspect-[9/16] rounded-moxe-md overflow-hidden bg-moxe-surface border border-moxe-border">
-                  {first && !isVideo ? (
-                    <img src={ensureAbsoluteMediaUrl(first.url)} alt="" className="w-full h-full object-cover" />
+                  {first && isVideo ? (
+                    <video src={abs} muted playsInline className="w-full h-full object-cover" />
+                  ) : first ? (
+                    <img src={abs} alt="" className="w-full h-full object-cover" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-moxe-caption">
-                      {isVideo ? 'Video' : 'Story'}
-                    </div>
+                    <div className="w-full h-full flex items-center justify-center text-moxe-caption">Story</div>
                   )}
                 </div>
               );

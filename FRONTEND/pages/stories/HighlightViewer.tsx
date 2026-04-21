@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ThemedView, ThemedText } from '../../components/ui/Themed';
-import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
+import { ensureAbsoluteMediaUrl, isVideoMediaUrl } from '../../utils/mediaUtils';
 import { mediaEntryToUrl } from '../../utils/mediaEntries';
 
 import { getApiBase } from '../../services/api';
@@ -22,12 +22,6 @@ function extractHighlightMediaUrl(story: any): string {
     if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
   }
   return '';
-}
-
-function isVideoMediaUrl(url: string): boolean {
-  if (!url) return false;
-  const normalized = url.split('?')[0].toLowerCase();
-  return /\.(mp4|mov|webm|m4v|ogg)$/.test(normalized);
 }
 
 export default function HighlightViewer() {

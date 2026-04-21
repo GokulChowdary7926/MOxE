@@ -4,7 +4,7 @@ import { ThemedView, ThemedText, ThemedButton } from '../../components/ui/Themed
 import { Avatar } from '../../components/ui/Avatar';
 import { getSocket } from '../../services/socket';
 import { getApiBase, getAuthHeaders } from '../../services/api';
-import { ensureAbsoluteMediaUrl } from '../../utils/mediaUtils';
+import { ensureAbsoluteMediaUrl, isVideoMediaUrl } from '../../utils/mediaUtils';
 import { mediaEntryToUrl } from '../../utils/mediaEntries';
 import { SocialCommentsSheet, SocialCommentsEmpty } from '../../components/comments/SocialCommentsSheet';
 import { SocialCommentRow } from '../../components/comments/SocialCommentRow';
@@ -43,12 +43,6 @@ function extractStoryMediaUrl(story: any): string {
     if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
   }
   return '';
-}
-
-function isVideoMediaUrl(url: string): boolean {
-  if (!url) return false;
-  const normalized = url.split('?')[0].toLowerCase();
-  return /\.(mp4|mov|webm|m4v|ogg)$/.test(normalized);
 }
 
 export default function StoryViewer() {

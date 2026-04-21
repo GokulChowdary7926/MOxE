@@ -45,3 +45,10 @@ export function ensureAbsoluteMediaUrl(url: string | null | undefined): string {
   if (!origin) return t;
   return t.startsWith('/') ? `${origin}${t}` : `${origin}/${t}`;
 }
+
+/** True when URL path looks like a video file (extension-based; strips query string first). */
+export function isVideoMediaUrl(url: string | null | undefined): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const normalized = url.split('?')[0].toLowerCase();
+  return /\.(mp4|mov|webm|m4v|ogg)$/.test(normalized);
+}
