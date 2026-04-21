@@ -24,11 +24,18 @@ function extractHighlightMediaUrl(story: any): string {
   return '';
 }
 
+function isVideoMediaUrl(url: string): boolean {
+  if (!url) return false;
+  const normalized = url.split('?')[0].toLowerCase();
+  return /\.(mp4|mov|webm|m4v|ogg)$/.test(normalized);
+}
+
 export default function HighlightViewer() {
   const { highlightId } = useParams();
   const navigate = useNavigate();
   const [items, setItems] = useState<HighlightStory[]>([]);
   const [index, setIndex] = useState(0);
+  const [videoMuted, setVideoMuted] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,6 +82,10 @@ export default function HighlightViewer() {
     else navigate(-1);
   }
 
+  useEffect(() => {
+    setVideoMuted(true);
+  }, [index]);
+
   return (
     <ThemedView className="fixed inset-0 z-40 flex items-center justify-center bg-black/90">
       <div className="w-full max-w-[428px] h-full flex flex-col">
@@ -111,7 +122,28 @@ export default function HighlightViewer() {
           )}
           {current && (
             <div className="relative w-full aspect-[9/16] max-h-[80vh] bg-moxe-surface rounded-moxe-lg overflow-hidden">
-              <img src={ensureAbsoluteMediaUrl(current.mediaUrl)} alt={current.text || 'Story'} className="w-full h-full object-cover" />
+              {isVideoMediaUrl(current.mediaUrl) ? (
+                <video
+                  src={ensureAbsoluteMediaUrl(current.mediaUrl)}
+                  className="w-full h-full object-cover"
+                  autoPlay
+                  muted={videoMuted}
+                  playsInline
+                  controls={false}
+                />
+              ) : (
+                <img src={ensureAbsoluteMediaUrl(current.mediaUrl)} alt={current.text || 'Story'} className="w-full h-full object-cover" />
+              )}
+              {isVideoMediaUrl(current.mediaUrl) && (
+                <button
+                  type="button"
+                  onClick={() => setVideoMuted((prev) => !prev)}
+                  className="absolute bottom-3 right-3 bg-black/50 rounded-full px-2 py-1 text-[11px] text-white"
+                  aria-label={videoMuted ? 'Unmute highlight video' : 'Mute highlight video'}
+                >
+                  {videoMuted ? 'Unmute' : 'Mute'}
+                </button>
+              )}
               {current.text && (
                 <div className="absolute bottom-4 left-4 right-4 bg-black/40 rounded-moxe-md px-3 py-2">
                   <ThemedText className="text-moxe-body">{current.text}</ThemedText>

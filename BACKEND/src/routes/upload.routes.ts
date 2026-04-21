@@ -16,11 +16,11 @@ const memoryStorage = multer.memoryStorage();
 
 const upload = multer({
   storage: memoryStorage,
-  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB (videos + audio clips)
   fileFilter: (_req, file, cb) => {
-    const allowed = /^image\/(jpeg|png|gif|webp)|video\/(mp4|webm)$/i;
+    const allowed = /^(image\/(jpeg|png|gif|webp)|video\/(mp4|webm)|audio\/(mpeg|mp3|wav|x-wav|ogg|webm|aac|mp4|x-m4a))$/i;
     if (allowed.test(file.mimetype)) cb(null, true);
-    else cb(new Error('Invalid file type. Use image (jpeg, png, gif, webp) or video (mp4, webm).'));
+    else cb(new Error('Invalid file type. Use image (jpeg, png, gif, webp), video (mp4, webm), or audio (mp3, wav, ogg, webm, aac, m4a).'));
   },
 });
 

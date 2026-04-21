@@ -92,6 +92,8 @@ export const prisma = new PrismaClient({
 const app = express();
 // API clients in this app expect JSON bodies; conditional 304 responses can return empty bodies and break screens.
 app.set('etag', false);
+// Behind Nginx, trust X-Forwarded-* so rate limiting uses the real client IP instead of flagging every request.
+app.set('trust proxy', 1);
 const httpServer = createServer(app);
 const isDev = process.env.NODE_ENV !== 'production';
 const io = new Server(httpServer, {

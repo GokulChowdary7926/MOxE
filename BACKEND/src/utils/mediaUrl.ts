@@ -54,8 +54,9 @@ export function normalizeStoredMediaUrl(raw: unknown): string {
   if (!value) return '';
   if (value.startsWith('data:')) return value;
   if (value.startsWith('http://') || value.startsWith('https://')) {
-    // Migrate absolute /uploads URLs from old hosts into stable relative upload paths.
-    const match = value.match(/^https?:\/\/[^/]+(\/uploads\/[^?#]+)/i);
+    // Migrate legacy/local absolute URLs (e.g. http://localhost:5007/uploads/x.jpg)
+    // into stable relative upload paths that frontend can resolve with current origin.
+    const match = value.match(/^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d+)?(\/uploads\/[^?#]+)/i);
     if (match) return match[1];
     // S3 objects may be private; return a signed URL when value points to configured bucket.
     return maybeSignS3ReadUrl(value);

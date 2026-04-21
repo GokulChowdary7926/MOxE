@@ -45,6 +45,12 @@ function extractStoryMediaUrl(story: any): string {
   return '';
 }
 
+function isVideoMediaUrl(url: string): boolean {
+  if (!url) return false;
+  const normalized = url.split('?')[0].toLowerCase();
+  return /\.(mp4|mov|webm|m4v|ogg)$/.test(normalized);
+}
+
 export default function StoryViewer() {
   const { username } = useParams();
   const navigate = useNavigate();
@@ -83,6 +89,7 @@ export default function StoryViewer() {
   const [mentionsError, setMentionsError] = useState<string | null>(null);
   const [showMoreSheet, setShowMoreSheet] = useState(false);
   const [showCommentsSheet, setShowCommentsSheet] = useState(false);
+  const [videoMuted, setVideoMuted] = useState(true);
   const storyCommentFooterRef = useRef<HTMLDivElement>(null);
   const [isCloseFriends, setIsCloseFriends] = useState(false);
   const [storyOwnerAvatar] = useState<string | null>(null);
@@ -180,6 +187,7 @@ export default function StoryViewer() {
   useEffect(() => {
     setReplyText('');
     setReplyError(null);
+    setVideoMuted(true);
   }, [index, activeStoryId]);
 
   useEffect(() => {
@@ -792,11 +800,22 @@ export default function StoryViewer() {
                   </div>
                 ))}
               </div>
-              <img
-                src={ensureAbsoluteMediaUrl(current.mediaUrl)}
-                alt={current.text || 'Story'}
-                className="w-full h-full object-cover select-none"
-              />
+              {isVideoMediaUrl(current.mediaUrl) ? (
+                <video
+                  src={ensureAbsoluteMediaUrl(current.mediaUrl)}
+                  className="w-full h-full object-cover select-none"
+                  autoPlay
+                  muted={videoMuted}
+                  playsInline
+                  controls={false}
+                />
+              ) : (
+                <img
+                  src={ensureAbsoluteMediaUrl(current.mediaUrl)}
+                  alt={current.text || 'Story'}
+                  className="w-full h-full object-cover select-none"
+                />
+              )}
               {current.text && (
                 <div className="absolute bottom-4 left-4 right-4 bg-black/40 rounded-moxe-md px-3 py-2">
                   <ThemedText className="text-moxe-body">{current.text}</ThemedText>
@@ -805,6 +824,16 @@ export default function StoryViewer() {
               <div className="absolute top-3 left-3 text-[10px] text-moxe-textSecondary bg-black/40 rounded-full px-2 py-0.5">
                 Alt text available
               </div>
+              {isVideoMediaUrl(current.mediaUrl) && (
+                <button
+                  type="button"
+                  onClick={() => setVideoMuted((prev) => !prev)}
+                  className="absolute bottom-3 right-3 bg-black/50 rounded-full px-2 py-1 text-[11px] text-white"
+                  aria-label={videoMuted ? 'Unmute story video' : 'Mute story video'}
+                >
+                  {videoMuted ? 'Unmute' : 'Mute'}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={toggleLike}
