@@ -3,6 +3,7 @@ import { setupTranslateNamespace } from './translate';
 import { LocationService } from '../services/location.service';
 import { AppError } from '../utils/AppError';
 import { NEARBY_HISTORY_MAX, NEARBY_HISTORY_TTL_MS } from './nearbyHistory';
+import { normalizeStoredMediaUrl } from '../utils/mediaUrl';
 
 let ioRef: Server | null = null;
 
@@ -29,6 +30,15 @@ const NEARBY_LOCATION_THROTTLE_MS = 800;
 const DM_TYPING_THROTTLE_MS = 400;
 const NEARBY_MAX_TEXT_LENGTH = 1200;
 const NEARBY_MAX_IMAGE_URL_LENGTH = 2048;
+
+async function normalizeNearbyPayloadImage(payload: unknown): Promise<unknown> {
+  if (!payload || typeof payload !== 'object') return payload;
+  const source = payload as Record<string, unknown>;
+  const raw = typeof source.imageUrl === 'string' ? source.imageUrl.trim() : '';
+  if (!raw) return payload;
+  const imageUrl = await normalizeStoredMediaUrl(raw);
+  return { ...source, imageUrl: imageUrl || raw };
+}
 
 function pruneNearbyDedupMap(now = Date.now()): void {
   for (const [accountId, entry] of nearbyRecentMessageByAccount.entries()) {
@@ -158,7 +168,7 @@ export function setupSocketHandlers(io: Server, prismaInstance?: PrismaLike) {
             take: NEARBY_HISTORY_MAX,
             select: { payload: true },
           });
-          const messages = rows.map((r: { payload: unknown }) => r.payload);
+          const messages = await Promise.all(rows.map((r: { payload: unknown }) => normalizeNearbyPayloadImage(r.payload)));
           if (messages.length > 0) {
             socket.emit('nearby:history', { messages });
           }
@@ -334,19 +344,20 @@ export function setupSocketHandlers(io: Server, prismaInstance?: PrismaLike) {
         ? { latitude: sender.latitude, longitude: sender.longitude }
         : null;
       const socketsInRoom = await io.in(NEARBY_FEED_ROOM).fetchSockets();
+      const outboundPayload = await normalizeNearbyPayloadImage(messagePayload);
       for (const s of socketsInRoom) {
         if (!senderLoc) {
-          s.emit('nearby:message', messagePayload);
+          s.emit('nearby:message', outboundPayload);
           continue;
         }
         const target = nearbyClients.get(s.id);
         if (!target) {
-          s.emit('nearby:message', messagePayload);
+          s.emit('nearby:message', outboundPayload);
           continue;
         }
         const distanceKm = haversineKm(senderLoc, target);
         if (!Number.isNaN(distanceKm) && distanceKm <= radiusKm) {
-          s.emit('nearby:message', messagePayload);
+          s.emit('nearby:message', outboundPayload);
         }
       }
     });

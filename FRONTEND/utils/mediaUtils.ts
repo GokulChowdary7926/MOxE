@@ -34,14 +34,27 @@ export function ensureAbsoluteMediaUrl(url: string | null | undefined): string {
   if (localHostUpload && origin) {
     return `${origin}${localHostUpload[1]}`;
   }
+  if (t.startsWith('http://') || t.startsWith('https://')) {
+    // Keep remote absolute URLs intact (especially signed S3 URLs with query params).
+    // Only normalize to current origin when the absolute URL already points to this host.
+    if (!origin) return t;
+    try {
+      const absolute = new URL(t);
+      const current = new URL(origin);
+      if (absolute.host === current.host && absolute.pathname.startsWith('/uploads/')) {
+        return `${origin}${absolute.pathname}${absolute.search}${absolute.hash}`;
+      }
+    } catch {
+      // Ignore parse errors and return original URL.
+    }
+    return t;
+  }
   if (!t.includes('/') && !t.includes('\\') && origin) {
     return `${origin}/uploads/${t}`;
   }
-  const pathMatch = t.match(/^(https?:\/\/[^/]+)?(\/uploads\/[^?#]+)/);
-  if (pathMatch && origin) {
-    return `${origin}${pathMatch[2]}`;
+  if (t.startsWith('/uploads/') && origin) {
+    return `${origin}${t}`;
   }
-  if (t.startsWith('http://') || t.startsWith('https://')) return t;
   if (!origin) return t;
   return t.startsWith('/') ? `${origin}${t}` : `${origin}/${t}`;
 }

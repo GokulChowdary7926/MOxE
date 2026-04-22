@@ -169,8 +169,10 @@ export default function Reels() {
       }
       const url = new URL(getApiFullUrl('reels'));
       url.searchParams.set('limit', '30');
+      url.searchParams.set('_ts', String(Date.now()));
       const res = await fetch(url.toString(), {
         headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
       });
       const data = (await res.json().catch(() => ({}))) as { reels?: ApiReelRow[]; items?: ApiReelRow[]; error?: string };
       if (!res.ok) {

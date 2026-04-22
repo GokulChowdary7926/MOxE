@@ -793,8 +793,12 @@ export function FeedPost({
           <video
             src={ensureAbsoluteMediaUrl(mediaUris[currentMediaIndex]) || ''}
             className="w-full h-full object-cover select-none"
+            autoPlay
+            loop
             muted
             playsInline
+            controls
+            preload="metadata"
             onError={(e) => {
               const t = e.currentTarget;
               t.onerror = null;
