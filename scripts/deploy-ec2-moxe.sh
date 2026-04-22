@@ -97,7 +97,7 @@ JWT_SECRET=${JWT_SECRET}
 JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
 
 PUBLIC_URL=http://${MOXE_PUBLIC_IP}
-VITE_API_URL=http://${MOXE_PUBLIC_IP}/api
+VITE_API_URL=/api
 
 Files:
   ${DB_PASSWORD_FILE}
@@ -284,7 +284,7 @@ if [[ -f package-lock.json ]]; then
 else
   npm install --no-audit --no-fund
 fi
-echo "VITE_API_URL=http://${MOXE_PUBLIC_IP}/api" > .env.production
+echo "VITE_API_URL=/api" > .env.production
 # NODE_OPTIONS from step 5 still applies if set (helps Vite on small instances)
 npm run build
 

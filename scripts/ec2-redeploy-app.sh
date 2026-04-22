@@ -79,7 +79,9 @@ if [[ -f package-lock.json ]]; then
 else
   npm install --no-audit --no-fund
 fi
-echo "VITE_API_URL=http://${MOXE_PUBLIC_IP}/api" > .env.production
+# Use same-origin API in production so frontend works behind HTTPS/reverse proxies
+# without hardcoded host/IP drift.
+echo "VITE_API_URL=/api" > .env.production
 npm run build
 sudo mkdir -p "$HTML_ROOT"
 sudo rm -rf "${HTML_ROOT}"/*
