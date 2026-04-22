@@ -1265,7 +1265,8 @@ export default function StoryViewer() {
                     displayName: c.account?.displayName ?? null,
                     profilePhoto: c.account?.profilePhoto ?? null,
                   }}
-                  usePseudoCounts
+                  likesCount={c.likesCount ?? c.likeCount ?? 0}
+                  repliesCount={c.repliesCount ?? c.replyCount ?? 0}
                   onReply={() =>
                     storyCommentFooterRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
                   }

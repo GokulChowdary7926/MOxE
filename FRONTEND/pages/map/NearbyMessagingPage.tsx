@@ -1014,7 +1014,7 @@ export default function NearbyMessagingPage() {
                             type="button"
                             className="flex items-center gap-1.5 p-1 -m-1 hover:text-[#1d9bf0]"
                             aria-label="Repost"
-                            onClick={() => toast.success('Reposted')}
+                            onClick={() => toast('Live repost is not enabled yet.')}
                           >
                             <Repeat2 className="w-4 h-4" />
                             <span className="text-[13px]">0</span>

@@ -1184,7 +1184,8 @@ export function FeedPost({
                             displayName: c.account?.displayName ?? null,
                             profilePhoto: c.account?.profilePhoto ?? c.account?.avatarUrl,
                           }}
-                          usePseudoCounts
+                          likesCount={c.likesCount ?? c.likeCount ?? 0}
+                          repliesCount={c.repliesCount ?? c.replyCount ?? 0}
                           onMenu={() => setCommentMenuId(commentMenuId === c.id ? null : c.id)}
                           onReply={
                             allowCommentsLocal

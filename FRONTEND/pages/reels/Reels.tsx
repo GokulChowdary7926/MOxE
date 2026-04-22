@@ -98,8 +98,6 @@ export default function Reels() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [tab, setTab] = useState<ReelsTab>('forYou');
   const [commentsOpen, setCommentsOpen] = useState(false);
-  const [likedReelIds, setLikedReelIds] = useState<Set<string>>(new Set());
-  const [savedReelIds, setSavedReelIds] = useState<Set<string>>(new Set());
   const reelCommentFooterRef = useRef<HTMLDivElement>(null);
   const nextCursorRef = useRef<string | null>(null);
   nextCursorRef.current = nextCursor;
@@ -262,9 +260,6 @@ export default function Reels() {
   }, [currentIndex, reels.length, navigate, launchedFromExplore]);
 
   const active = reels[currentIndex];
-  const isLiked = active ? likedReelIds.has(active.id) : false;
-  const isSaved = active ? savedReelIds.has(active.id) : false;
-
   useEffect(() => {
     if (!commentsOpen || !active?.id) {
       setReelComments([]);
@@ -493,22 +488,14 @@ export default function Reels() {
                 <button
                   type="button"
                   className="flex flex-col items-center gap-0.5"
-                  aria-label={isLiked ? 'Unlike' : 'Like'}
+                  aria-label="Like"
                   onClick={() => {
-                    if (!active) return;
-                    setLikedReelIds((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(active.id)) next.delete(active.id);
-                      else next.add(active.id);
-                      return next;
-                    });
+                    toast('Live reel likes are not enabled yet.');
                   }}
                 >
-                  <Heart className={`w-7 h-7 ${isLiked ? 'fill-[#f91880] text-[#f91880]' : ''}`} />
+                  <Heart className="w-7 h-7" />
                   {!hideLikeShareCounts && typeof active.likeCount === 'number' && active.likeCount > 0 && (
-                    <span className="text-moxe-caption text-xs">
-                      {(active.likeCount + (isLiked ? 1 : 0)).toLocaleString()}
-                    </span>
+                    <span className="text-moxe-caption text-xs">{active.likeCount.toLocaleString()}</span>
                   )}
                 </button>
                 <button
@@ -547,19 +534,12 @@ export default function Reels() {
                 </button>
                 <button
                   type="button"
-                  aria-label={isSaved ? 'Unsave' : 'Save'}
+                  aria-label="Save"
                   onClick={() => {
-                    if (!active) return;
-                    setSavedReelIds((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(active.id)) next.delete(active.id);
-                      else next.add(active.id);
-                      return next;
-                    });
-                    toast.success(isSaved ? 'Removed from saved.' : 'Saved.');
+                    toast('Live reel saves are not enabled yet.');
                   }}
                 >
-                  <Bookmark className={`w-7 h-7 ${isSaved ? 'fill-white' : ''}`} />
+                  <Bookmark className="w-7 h-7" />
                 </button>
                 <button
                   type="button"
@@ -663,7 +643,8 @@ export default function Reels() {
                   displayName: c.displayName ?? null,
                   profilePhoto: c.profilePhoto,
                 }}
-                usePseudoCounts
+                likesCount={0}
+                repliesCount={0}
                 onReply={() =>
                   reelCommentFooterRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
                 }

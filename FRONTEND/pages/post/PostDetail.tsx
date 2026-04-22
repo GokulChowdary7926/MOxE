@@ -286,7 +286,8 @@ export default function PostDetail() {
                     displayName: c.account?.displayName ?? null,
                     profilePhoto: c.account?.profilePhoto ?? c.account?.avatarUrl,
                   }}
-                  usePseudoCounts
+                  likesCount={c.likesCount ?? c.likeCount ?? 0}
+                  repliesCount={c.repliesCount ?? c.replyCount ?? 0}
                   onMenu={() => setCommentMenuId((prev) => (prev === c.id ? null : c.id))}
                   onReply={
                     allowComments

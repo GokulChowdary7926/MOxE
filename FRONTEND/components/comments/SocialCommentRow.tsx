@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Heart, MessageCircle, MoreHorizontal } from 'lucide-react';
 import { Avatar } from '../ui/Avatar';
-import { formatCommentRelativeTime, formatCompactCount, pseudoCommentCount } from './socialCommentUtils';
+import { formatCommentRelativeTime, formatCompactCount } from './socialCommentUtils';
 
 /** Default outline + label color (matches reference ~#8e8e8e) */
 const META_GRAY = 'text-[#8E8E8E]';
@@ -21,7 +21,6 @@ export type SocialCommentRowProps = {
   account: SocialCommentAccount;
   likesCount?: number;
   repliesCount?: number;
-  usePseudoCounts?: boolean;
   liked?: boolean;
   /** Server/parent-controlled like; if omitted, row toggles local visual state only. */
   onToggleLike?: () => void;
@@ -40,7 +39,6 @@ export function SocialCommentRow({
   account,
   likesCount,
   repliesCount,
-  usePseudoCounts = false,
   liked = false,
   onToggleLike,
   onReply,
@@ -56,12 +54,8 @@ export function SocialCommentRow({
 
   const displayLiked = onToggleLike ? !!liked : localLiked;
 
-  const likeLabel = usePseudoCounts
-    ? pseudoCommentCount(`like-${commentId}`, 5000)
-    : formatCompactCount(likesCount ?? 0);
-  const replyLabel = usePseudoCounts
-    ? pseudoCommentCount(`reply-${commentId}`, 4000)
-    : formatCompactCount(repliesCount ?? 0);
+  const likeLabel = formatCompactCount(likesCount ?? 0);
+  const replyLabel = formatCompactCount(repliesCount ?? 0);
 
   const handleLike = useCallback(
     (e: React.MouseEvent) => {

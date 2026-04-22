@@ -181,7 +181,8 @@ export default function CommentThread() {
                   displayName: r.account.displayName,
                   profilePhoto: r.account.profilePhoto ?? r.account.avatarUrl,
                 }}
-                usePseudoCounts
+                likesCount={r.likesCount ?? r.likeCount ?? 0}
+                repliesCount={r.repliesCount ?? r.replyCount ?? 0}
                 onReply={() => replyInputRef.current?.focus()}
               />
             ))}
