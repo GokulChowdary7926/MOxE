@@ -824,8 +824,13 @@ export default function StoryViewer() {
                     );
                     setStoryVideoHasAudio(hasAudio);
                   }}
+                  onCanPlay={() => {
+                    // Some mobile browsers do not expose audioTracks/decoded bytes reliably.
+                    // If media can play, default to allowing unmute unless explicitly known false later.
+                    setStoryVideoHasAudio((prev) => (prev === false ? false : true));
+                  }}
                   onClick={() => {
-                    if (!storyVideoHasAudio) return;
+                    if (storyVideoHasAudio === false) return;
                     setVideoMuted(false);
                     void storyVideoRef.current?.play().catch(() => {});
                   }}
@@ -849,19 +854,19 @@ export default function StoryViewer() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (!storyVideoHasAudio) return;
+                    if (storyVideoHasAudio === false) return;
                     setVideoMuted((prev) => !prev);
                     void storyVideoRef.current?.play().catch(() => {});
                   }}
-                  disabled={!storyVideoHasAudio}
+                  disabled={storyVideoHasAudio === false}
                   className="absolute bottom-3 right-3 bg-black/50 rounded-full px-2 py-1 text-[11px] text-white disabled:opacity-60"
                   aria-label={
-                    storyVideoHasAudio
-                      ? (videoMuted ? 'Unmute story video' : 'Mute story video')
-                      : 'Story audio unavailable'
+                    storyVideoHasAudio === false
+                      ? 'Story audio unavailable'
+                      : (videoMuted ? 'Unmute story video' : 'Mute story video')
                   }
                 >
-                  {!storyVideoHasAudio ? 'Audio unavailable' : (videoMuted ? 'Unmute' : 'Mute')}
+                  {storyVideoHasAudio === false ? 'Audio unavailable' : (videoMuted ? 'Unmute' : 'Mute')}
                 </button>
               )}
               <button
