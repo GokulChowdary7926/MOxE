@@ -350,9 +350,13 @@ export default function Explore() {
                 <button
                   key={`${item.kind}-${item.id}`}
                   type="button"
-                  onClick={() =>
-                    item.kind === 'reel' ? navigate('/reels') : navigate(`/post/${item.id}`)
-                  }
+                  onClick={() => {
+                    if (item.kind === 'reel') {
+                      navigate(`/reels?initialId=${encodeURIComponent(item.id)}&source=explore`);
+                      return;
+                    }
+                    navigate(`/post/${item.id}`);
+                  }}
                   className={`relative mb-[2px] w-full break-inside-avoid overflow-hidden bg-[#111] block ${
                     meta.tall ? 'aspect-[3/5]' : 'aspect-square'
                   }`}

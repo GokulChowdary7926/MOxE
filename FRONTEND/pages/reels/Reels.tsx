@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Heart, MessageCircle, Send, Bookmark, MoreVertical, Play, Volume2, VolumeX } from 'lucide-react';
 import { ThemedView, ThemedText } from '../../components/ui/Themed';
 import { Avatar } from '../../components/ui/Avatar';
@@ -80,6 +80,12 @@ type ReelsTab = 'forYou' | 'followed';
 
 export default function Reels() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const initialReelIdFromExplore = React.useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    const raw = params.get('initialId');
+    return raw && raw.trim() ? raw.trim() : null;
+  }, [location.search]);
   const [reels, setReels] = useState<ReelItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -179,10 +185,26 @@ export default function Reels() {
         throw new Error(data.error || 'Failed to load reels.');
       }
       const raw = Array.isArray(data.reels) ? data.reels : (Array.isArray(data.items) ? data.items : []);
-      const items = raw.map(mapApiReelToItem);
+      let items = raw.map(mapApiReelToItem);
+      if (initialReelIdFromExplore) {
+        const existingIdx = items.findIndex((x) => x.id === initialReelIdFromExplore);
+        if (existingIdx < 0) {
+          const oneRes = await fetch(`${getApiBase()}/reels/${encodeURIComponent(initialReelIdFromExplore)}`, {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: 'no-store',
+          });
+          const oneData = (await oneRes.json().catch(() => ({}))) as ApiReelRow;
+          if (oneRes.ok && oneData?.id && oneData?.video) {
+            items = [mapApiReelToItem(oneData), ...items];
+          }
+        }
+      }
+      const startIdx = initialReelIdFromExplore
+        ? Math.max(0, items.findIndex((x) => x.id === initialReelIdFromExplore))
+        : 0;
       setReels(items);
       setNextCursor(null);
-      setCurrentIndex(0);
+      setCurrentIndex(startIdx);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load reels.');
       setReels([]);
@@ -192,7 +214,7 @@ export default function Reels() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, []);
+  }, [initialReelIdFromExplore]);
 
   useEffect(() => {
     loadReels(null);
