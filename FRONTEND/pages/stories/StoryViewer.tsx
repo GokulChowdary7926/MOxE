@@ -86,6 +86,7 @@ export default function StoryViewer() {
   const [showCommentsSheet, setShowCommentsSheet] = useState(false);
   const [videoMuted, setVideoMuted] = useState(true);
   const storyVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [storyVideoHasAudio, setStoryVideoHasAudio] = useState<boolean | null>(null);
   const storyCommentFooterRef = useRef<HTMLDivElement>(null);
   const [isCloseFriends, setIsCloseFriends] = useState(false);
   const [storyOwnerAvatar] = useState<string | null>(null);
@@ -184,6 +185,7 @@ export default function StoryViewer() {
     setReplyText('');
     setReplyError(null);
     setVideoMuted(true);
+    setStoryVideoHasAudio(null);
   }, [index, activeStoryId]);
 
   useEffect(() => {
@@ -809,6 +811,24 @@ export default function StoryViewer() {
                   playsInline
                   controls={false}
                   onEnded={next}
+                  onLoadedMetadata={(e) => {
+                    const el = e.currentTarget as HTMLVideoElement & {
+                      mozHasAudio?: boolean;
+                      audioTracks?: { length: number };
+                      webkitAudioDecodedByteCount?: number;
+                    };
+                    const hasAudio = !!(
+                      el.mozHasAudio
+                      || (typeof el.audioTracks?.length === 'number' && el.audioTracks.length > 0)
+                      || (typeof el.webkitAudioDecodedByteCount === 'number' && el.webkitAudioDecodedByteCount > 0)
+                    );
+                    setStoryVideoHasAudio(hasAudio);
+                  }}
+                  onClick={() => {
+                    if (!storyVideoHasAudio) return;
+                    setVideoMuted(false);
+                    void storyVideoRef.current?.play().catch(() => {});
+                  }}
                 />
               ) : (
                 <img
@@ -828,11 +848,20 @@ export default function StoryViewer() {
               {isVideoMediaUrl(current.mediaUrl) && (
                 <button
                   type="button"
-                  onClick={() => setVideoMuted((prev) => !prev)}
-                  className="absolute bottom-3 right-3 bg-black/50 rounded-full px-2 py-1 text-[11px] text-white"
-                  aria-label={videoMuted ? 'Unmute story video' : 'Mute story video'}
+                  onClick={() => {
+                    if (!storyVideoHasAudio) return;
+                    setVideoMuted((prev) => !prev);
+                    void storyVideoRef.current?.play().catch(() => {});
+                  }}
+                  disabled={!storyVideoHasAudio}
+                  className="absolute bottom-3 right-3 bg-black/50 rounded-full px-2 py-1 text-[11px] text-white disabled:opacity-60"
+                  aria-label={
+                    storyVideoHasAudio
+                      ? (videoMuted ? 'Unmute story video' : 'Mute story video')
+                      : 'Story audio unavailable'
+                  }
                 >
-                  {videoMuted ? 'Unmute' : 'Mute'}
+                  {!storyVideoHasAudio ? 'Audio unavailable' : (videoMuted ? 'Unmute' : 'Mute')}
                 </button>
               )}
               <button
