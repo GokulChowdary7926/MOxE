@@ -74,28 +74,37 @@ export default function AccountEmailUsername() {
     }
   }
 
-  async function checkUsernameAvailability(name: string) {
+  async function checkUsernameAvailability(name: string): Promise<boolean> {
     setUsernameStatus(null);
     setUsernameError(null);
-    if (!name.trim()) return;
+    if (!name.trim()) return false;
     setUsernameChecking(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE}/accounts/username/${encodeURIComponent(name.trim())}`, {
+      const res = await fetch(`${API_BASE}/accounts/check-username?username=${encodeURIComponent(name.trim())}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      if (res.ok) {
-        // username exists already
-        setUsernameStatus(null);
-        setUsernameError('This username is already taken.');
-      } else if (res.status === 404) {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setUsernameError(data.error || 'Could not check username right now.');
+        return false;
+      }
+      if (data.available === true) {
         setUsernameStatus('This username is available.');
         setUsernameError(null);
-      } else {
-        setUsernameError('Could not check username right now.');
+        return true;
       }
+      if (typeof data.error === 'string' && data.error.trim()) {
+        setUsernameStatus(null);
+        setUsernameError(data.error);
+      } else {
+        setUsernameStatus(null);
+        setUsernameError('This username is already taken.');
+      }
+      return false;
     } catch {
       setUsernameError('Could not check username right now.');
+      return false;
     } finally {
       setUsernameChecking(false);
     }
@@ -127,8 +136,8 @@ export default function AccountEmailUsername() {
     }
     try {
       // Optional: quick availability recheck before saving
-      await checkUsernameAvailability(name);
-      if (usernameError) return;
+      const isAvailable = await checkUsernameAvailability(name);
+      if (!isAvailable) return;
       const res = await fetch(`${API_BASE}/accounts/${encodeURIComponent(accountId)}`, {
         method: 'PATCH',
         headers: {

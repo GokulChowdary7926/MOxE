@@ -352,10 +352,23 @@ export class StoryService {
     const closeFriendAuthorIds = closeFriendRows.map((x) => x.accountId);
 
     const accountIds = [...new Set([accountId, ...following, ...closeFriendAuthorIds])];
-    const blocked = await prisma.block.findMany({
-      where: { blockerId: accountId },
-      select: { blockedId: true, expiresAt: true },
-    }).then((r) => r.filter((x) => x.expiresAt == null || x.expiresAt > new Date()).map((x) => x.blockedId));
+    const [blockedByViewerRows, blockedViewerRows] = await Promise.all([
+      prisma.block.findMany({
+        where: { blockerId: accountId },
+        select: { blockedId: true, expiresAt: true },
+      }),
+      prisma.block.findMany({
+        where: { blockedId: accountId },
+        select: { blockerId: true, expiresAt: true },
+      }),
+    ]);
+    const blockedByViewer = blockedByViewerRows
+      .filter((x) => x.expiresAt == null || x.expiresAt > new Date())
+      .map((x) => x.blockedId);
+    const blockedViewer = blockedViewerRows
+      .filter((x) => x.expiresAt == null || x.expiresAt > new Date())
+      .map((x) => x.blockerId);
+    const blocked = [...new Set([...blockedByViewer, ...blockedViewer])];
     const allowed = accountIds.filter((id) => !blocked.includes(id));
     const allowedFollowing = following.filter((id) => !blocked.includes(id));
     const allowedCloseFriendAuthors = closeFriendAuthorIds.filter((id) => !blocked.includes(id));
@@ -382,7 +395,7 @@ export class StoryService {
           select: { id: true },
         })
       : null;
-    const requestedAccountId = usernameAccount?.id;
+    const requestedAccountId = usernameAccount?.id && !blocked.includes(usernameAccount.id) ? usernameAccount.id : null;
 
     const stories = await prisma.story.findMany({
       where: {
@@ -409,6 +422,8 @@ export class StoryService {
               { privacy: 'CLOSE_FRIENDS_ONLY', accountId: { in: allowedCloseFriendAuthors } },
               // Backward compatibility: older rows may use this flag while privacy is PUBLIC.
               { isCloseFriendsOnly: true, accountId: { in: allowedCloseFriendAuthors } },
+              // Direct profile lookup should allow public stories from non-followed accounts.
+              ...(requestedAccountId ? [{ accountId: requestedAccountId, privacy: 'PUBLIC' as const }] : []),
             ],
           },
           ...(requestedAccountId ? [{ accountId: requestedAccountId }] : []),

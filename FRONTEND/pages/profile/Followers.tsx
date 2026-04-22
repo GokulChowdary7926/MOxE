@@ -19,6 +19,8 @@ export default function Followers() {
   const [followers, setFollowers] = useState<Follower[]>([]);
   const [loading, setLoading] = useState(true);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [listPrivate, setListPrivate] = useState(false);
+  const [accountUnavailable, setAccountUnavailable] = useState(false);
 
   const isOwn = useIsOwnProfile();
 
@@ -30,14 +32,44 @@ export default function Followers() {
     const token = localStorage.getItem('token');
     const headers: HeadersInit = {};
     if (token) headers.Authorization = `Bearer ${token}`;
-    fetch(`${API_BASE}/follow/followers/by/${encodeURIComponent(username)}`, { headers })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
+    async function loadFollowers() {
+      try {
+        setLoading(true);
+        setListPrivate(false);
+        setAccountUnavailable(false);
+        let profileAccountId = '';
+        let isPrivate = false;
+        const accountRes = await fetch(`${API_BASE}/accounts/username/${encodeURIComponent(username)}`, { headers });
+        if (!accountRes.ok) {
+          setAccountUnavailable(true);
+          setFollowers([]);
+          return;
+        }
+        const accountData = await accountRes.json().catch(() => ({}));
+        profileAccountId = String(accountData?.id ?? accountData?.account?.id ?? '');
+        isPrivate = Boolean(accountData?.isPrivate ?? accountData?.account?.isPrivate);
+        let canViewPrivateGraph = isOwn;
+        if (!canViewPrivateGraph && isPrivate && token && profileAccountId) {
+          const statusRes = await fetch(`${API_BASE}/follow/status/${encodeURIComponent(profileAccountId)}`, { headers });
+          const status = statusRes.ok ? await statusRes.json().catch(() => ({})) : {};
+          canViewPrivateGraph = Boolean(status?.isFollowing);
+        }
+        if (!isOwn && isPrivate && !canViewPrivateGraph) {
+          setListPrivate(true);
+          setFollowers([]);
+          return;
+        }
+        const res = await fetch(`${API_BASE}/follow/followers/by/${encodeURIComponent(username)}`, { headers });
+        const data = res.ok ? await res.json().catch(() => ({})) : {};
         setFollowers(Array.isArray(data?.followers) ? data.followers : []);
-      })
-      .catch(() => setFollowers([]))
-      .finally(() => setLoading(false));
-  }, [username]);
+      } catch {
+        setFollowers([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadFollowers();
+  }, [username, isOwn]);
 
   async function removeFollower(followerId: string) {
     const token = localStorage.getItem('token');
@@ -77,6 +109,14 @@ export default function Followers() {
       <div className="flex-1 overflow-auto px-moxe-md py-moxe-md">
         {loading ? (
           <ThemedText secondary>Loading…</ThemedText>
+        ) : accountUnavailable ? (
+          <ThemedText secondary className="text-moxe-caption">
+            This account is unavailable.
+          </ThemedText>
+        ) : listPrivate ? (
+          <ThemedText secondary className="text-moxe-caption">
+            This follower list is private.
+          </ThemedText>
         ) : followers.length === 0 ? (
           <ThemedText secondary className="text-moxe-caption">
             {isOwn ? 'You have no followers yet.' : 'No followers.'}

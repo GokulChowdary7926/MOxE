@@ -792,8 +792,9 @@ export class PostService {
     let viewerIsMinor = false;
     let viewerFollows = false;
     let viewerIsCloseFriend = false;
+    let hasActiveBlock = false;
     if (viewerAccountId && !isOwn) {
-      const [acc, follow, closeFriend] = await Promise.all([
+      const [acc, follow, closeFriend, viewerBlockedTarget, targetBlockedViewer] = await Promise.all([
         prisma.account.findUnique({
           where: { id: viewerAccountId },
           select: { user: { select: { dateOfBirth: true } } },
@@ -804,6 +805,14 @@ export class PostService {
         prisma.closeFriend.findUnique({
           where: { accountId_friendId: { accountId, friendId: viewerAccountId } },
         }),
+        prisma.block.findUnique({
+          where: { blockerId_blockedId: { blockerId: viewerAccountId, blockedId: accountId } },
+          select: { expiresAt: true },
+        }),
+        prisma.block.findUnique({
+          where: { blockerId_blockedId: { blockerId: accountId, blockedId: viewerAccountId } },
+          select: { expiresAt: true },
+        }),
       ]);
       if (acc?.user?.dateOfBirth) {
         const age = (Date.now() - new Date(acc.user.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000);
@@ -811,7 +820,14 @@ export class PostService {
       }
       viewerFollows = !!follow;
       viewerIsCloseFriend = !!closeFriend;
+      const now = new Date();
+      const isActive = (expiresAt: Date | null) => expiresAt == null || expiresAt > now;
+      hasActiveBlock = !!(
+        (viewerBlockedTarget && isActive(viewerBlockedTarget.expiresAt))
+        || (targetBlockedViewer && isActive(targetBlockedViewer.expiresAt))
+      );
     }
+    if (hasActiveBlock) return { items: [], nextCursor: null };
     if (!isOwn && targetAccount.isPrivate && !viewerFollows) {
       return { items: [], nextCursor: null };
     }
@@ -893,8 +909,8 @@ export class PostService {
     };
   }
 
-  /** List posts where the given account is tagged (for profile Tagged tab). */
-  async listTaggedForAccount(accountId: string, cursor?: string, limit = 30) {
+  /** List approved tags for a profile, filtered by viewer visibility permissions. */
+  async listTaggedForAccount(viewerAccountId: string | null, accountId: string, cursor?: string, limit = 30) {
     const tags = await prisma.tag.findMany({
       where: { accountId, postId: { not: null }, approved: true },
       orderBy: { createdAt: 'desc' },
@@ -906,14 +922,27 @@ export class PostService {
     const postIds = tags.slice(0, limit).map((t) => t.postId).filter((id): id is string => id != null);
     if (postIds.length === 0) return { items: [], nextCursor: null };
     const posts = await prisma.post.findMany({
-      where: { id: { in: postIds }, isDeleted: false, isArchived: false, privacy: 'PUBLIC' },
+      where: { id: { in: postIds }, isDeleted: false, isArchived: false },
       include: {
         account: { select: { id: true, username: true, displayName: true, profilePhoto: true } },
         _count: { select: { likes: true, comments: true } },
       },
     });
+    const visiblePostIds = new Set<string>();
+    await Promise.all(
+      posts.map(async (p) => {
+        try {
+          await this.assertCanViewPost(viewerAccountId, p.id);
+          visiblePostIds.add(p.id);
+        } catch {
+          // hidden for this viewer
+        }
+      }),
+    );
     const byId = new Map(posts.map((p) => [p.id, p]));
-    const items = postIds.map((id) => byId.get(id)).filter(Boolean) as typeof posts;
+    const items = postIds
+      .map((id) => byId.get(id))
+      .filter((p): p is NonNullable<typeof p> => !!p && visiblePostIds.has(p.id));
     return {
       items: await Promise.all(
         items.map(async (p) => ({

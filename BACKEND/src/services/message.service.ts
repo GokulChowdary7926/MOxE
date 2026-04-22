@@ -358,7 +358,7 @@ export class MessageService {
     recipientId: string,
     content: string,
     messageType: string = 'TEXT',
-    opts?: { media?: { url: string; [k: string]: unknown }; isVanish?: boolean; groupId?: string }
+    opts?: { media?: { url?: string; [k: string]: unknown }; isVanish?: boolean; groupId?: string }
   ) {
     const isGroup = !!opts?.groupId;
     const hasContent = (content?.trim()?.length ?? 0) > 0;
@@ -427,6 +427,21 @@ export class MessageService {
         if (!senderFollowsRecipient)
           throw new AppError('You can only message people you follow.', 403);
       }
+      const [recipientFollowsSender, restrictedByRecipient] = await Promise.all([
+        prisma.follow.findUnique({
+          where: { followerId_followingId: { followerId: recipientId, followingId: accountId } },
+          select: { followerId: true },
+        }),
+        typeof (prisma.restrict as any).findUnique === 'function'
+          ? (prisma.restrict as any).findUnique({
+              where: {
+                restrictorId_restrictedId: { restrictorId: recipientId, restrictedId: accountId },
+              },
+              select: { restrictedId: true },
+            })
+          : null,
+      ]);
+      const isRequestThread = !recipientFollowsSender || !!restrictedByRecipient;
 
       const recipientConfig = parseHiddenWordsConfig(
         (recipientAccount?.clientSettings as Record<string, unknown> | null)?.hiddenWordsConfig,
@@ -480,8 +495,10 @@ export class MessageService {
       const io = getIo();
       if (io) {
         const dm = io.of('/dm');
-        // Only notify recipient; sender already has the HTTP response.
-        dm.to(recipientId).emit('message', { message });
+        // DM requests/restricted/filtered messages are intentionally silent.
+        if (!isRequestThread && !isHiddenForRecipient) {
+          dm.to(recipientId).emit('message', { message });
+        }
       }
       return message;
     }
@@ -708,16 +725,8 @@ export class MessageService {
     });
     const baseUrl = process.env.APP_BASE_URL || 'https://moxe.app';
     const content = `Shared a post: ${baseUrl}/p/${postId}`;
-    const message = await prisma.message.create({
-      data: {
-        senderId: accountId,
-        content,
-        messageType: 'TEXT',
-        media: { sharedPostId: postId },
-        recipients: { create: [{ recipientId }] },
-      },
-      include: { sender: { select: { id: true, username: true, displayName: true, profilePhoto: true } }, recipients: true },
+    return this.send(accountId, recipientId, content, 'TEXT', {
+      media: { sharedPostId: postId },
     });
-    return message;
   }
 }

@@ -20,6 +20,62 @@ const reviewService = new ReviewService();
 const creatorSubscriptionService = new CreatorSubscriptionService();
 const messageService = new MessageService();
 
+function isActiveBlock(expiresAt: Date | null): boolean {
+  return expiresAt == null || expiresAt > new Date();
+}
+
+async function getViewerRelationship(viewerId: string | undefined, targetId: string) {
+  if (!viewerId || viewerId === targetId) {
+    return { isOwn: !!viewerId && viewerId === targetId, canViewFull: true, isFollowing: false, isBlocked: false };
+  }
+  const [viewerBlockedTarget, targetBlockedViewer, follow] = await Promise.all([
+    prisma.block.findUnique({
+      where: { blockerId_blockedId: { blockerId: viewerId, blockedId: targetId } },
+      select: { expiresAt: true },
+    }),
+    prisma.block.findUnique({
+      where: { blockerId_blockedId: { blockerId: targetId, blockedId: viewerId } },
+      select: { expiresAt: true },
+    }),
+    prisma.follow.findUnique({
+      where: { followerId_followingId: { followerId: viewerId, followingId: targetId } },
+      select: { followerId: true },
+    }),
+  ]);
+  const blocked =
+    (viewerBlockedTarget && isActiveBlock(viewerBlockedTarget.expiresAt))
+    || (targetBlockedViewer && isActiveBlock(targetBlockedViewer.expiresAt));
+  return {
+    isOwn: false,
+    isBlocked: !!blocked,
+    isFollowing: !!follow,
+    canViewFull: !blocked,
+  };
+}
+
+function toLimitedAccountPayload(account: any) {
+  return {
+    id: account.id,
+    username: account.username,
+    displayName: account.displayName,
+    profilePhoto: account.profilePhoto ?? null,
+    avatarUri: account.avatarUri ?? account.profilePhoto ?? null,
+    bio: account.bio ?? null,
+    location: account.location ?? null,
+    website: account.website ?? null,
+    link: account.link ?? account.website ?? null,
+    isPrivate: !!account.isPrivate,
+    accountType: account.accountType,
+    verifiedBadge: !!account.verifiedBadge,
+    businessCategory: account.businessCategory ?? null,
+    postsCount: account.postsCount ?? account.postCount ?? 0,
+    postCount: account.postCount ?? account.postsCount ?? 0,
+    followersCount: account.followersCount ?? account.followerCount ?? 0,
+    followerCount: account.followerCount ?? account.followersCount ?? 0,
+    followingCount: account.followingCount ?? 0,
+  };
+}
+
 // Instagram-style username availability check (used by frontend EditUsernamePage).
 // GET /accounts/check-username?username=...
 router.get('/check-username', optionalAuthenticate, async (req, res, next) => {
@@ -367,6 +423,41 @@ router.get('/capabilities', authenticate, async (req, res, next) => {
 
 router.get('/:accountId/highlights', optionalAuthenticate, async (req, res, next) => {
   try {
+    const viewerId = (req as any).user?.accountId as string | undefined;
+    const targetId = req.params.accountId;
+    const target = await prisma.account.findUnique({
+      where: { id: targetId },
+      select: { id: true, isPrivate: true },
+    });
+    if (!target) return res.status(404).json({ error: 'Account not found' });
+    if (viewerId && viewerId !== targetId) {
+      const [viewerBlockedTarget, targetBlockedViewer] = await Promise.all([
+        prisma.block.findUnique({
+          where: { blockerId_blockedId: { blockerId: viewerId, blockedId: targetId } },
+          select: { expiresAt: true },
+        }),
+        prisma.block.findUnique({
+          where: { blockerId_blockedId: { blockerId: targetId, blockedId: viewerId } },
+          select: { expiresAt: true },
+        }),
+      ]);
+      const now = new Date();
+      const isActive = (expiresAt: Date | null) => expiresAt == null || expiresAt > now;
+      if (
+        (viewerBlockedTarget && isActive(viewerBlockedTarget.expiresAt))
+        || (targetBlockedViewer && isActive(targetBlockedViewer.expiresAt))
+      ) {
+        return res.status(404).json({ error: 'Account not found' });
+      }
+    }
+    if (target.isPrivate && viewerId !== targetId) {
+      if (!viewerId) return res.json({ highlights: [] });
+      const follow = await prisma.follow.findUnique({
+        where: { followerId_followingId: { followerId: viewerId, followingId: targetId } },
+        select: { followerId: true },
+      });
+      if (!follow) return res.json({ highlights: [] });
+    }
     const list = await highlightService.list(req.params.accountId);
     res.json({ highlights: list });
   } catch (e) {
@@ -441,8 +532,14 @@ router.post('/me/subscribers/broadcast', authenticate, async (req, res, next) =>
 
 router.get('/:accountId', optionalAuthenticate, async (req, res, next) => {
   try {
+    const viewerId = (req as any).user?.accountId as string | undefined;
+    const targetId = req.params.accountId;
+    const rel = await getViewerRelationship(viewerId, targetId);
+    if (rel.isBlocked) return res.status(404).json({ error: 'Account not found' });
     const account = await accountService.getAccountById(req.params.accountId);
-    const viewerId = (req as any).user?.accountId;
+    if (!rel.isOwn && account.isPrivate && !rel.isFollowing) {
+      return res.json(toLimitedAccountPayload(account));
+    }
     if (viewerId && viewerId !== req.params.accountId) {
       accountService.recordProfileView(viewerId, req.params.accountId).catch(() => {});
     }
@@ -455,6 +552,9 @@ router.get('/:accountId', optionalAuthenticate, async (req, res, next) => {
 router.get('/username/:username', optionalAuthenticate, async (req, res, next) => {
   try {
     const account = await accountService.getAccountByUsername(req.params.username);
+    const viewerId = (req as any).user?.accountId as string | undefined;
+    const rel = await getViewerRelationship(viewerId, account.id);
+    if (rel.isBlocked) return res.status(404).json({ error: 'Account not found' });
     const payload = account as Record<string, unknown>;
     if (account.accountType === 'BUSINESS') {
       const { rating, reviewsCount } = await reviewService.getRatingForSeller(account.id);
@@ -471,6 +571,9 @@ router.get('/username/:username', optionalAuthenticate, async (req, res, next) =
     payload.followersCount = followersCount;
     payload.followerCount = followersCount;
     payload.followingCount = followingCount;
+    if (!rel.isOwn && account.isPrivate && !rel.isFollowing) {
+      return res.json(toLimitedAccountPayload(payload));
+    }
     res.json(payload);
   } catch (e) {
     next(e);

@@ -257,6 +257,7 @@ export class AccountService {
         (data as any).subscriptionTier = 'THICK';
         (data as any).subscriptionsEnabled = true;
         (data as any).badgesEnabled = true;
+        (data as any).isPrivate = false;
       }
       if (newType === 'CREATOR') {
         // Creator Free by default; upgrade to THICK (Creator Paid $5) for monetization + Blue Badge
@@ -268,6 +269,7 @@ export class AccountService {
       if (newType === 'JOB') {
         // Job: guide says paid-only $10/mo; default to FREE on convert, user upgrades for Purple Badge + full tools
         (data as any).subscriptionTier = 'FREE';
+        (data as any).isPrivate = false;
       }
     }
     const allowed = [
@@ -285,6 +287,11 @@ export class AccountService {
     const update: Record<string, unknown> = {};
     for (const key of allowed) {
       if (data[key] !== undefined) update[key] = data[key];
+    }
+    const effectiveType = ((update.accountType as PrismaAccountType | undefined) ?? account.accountType) as PrismaAccountType;
+    if (effectiveType === 'BUSINESS' || effectiveType === 'JOB') {
+      // Business/Job profiles are always public in MOxE logic.
+      update.isPrivate = false;
     }
     if (data.username && data.username !== account.username) {
       (update as any).usernameChangedAt = new Date();

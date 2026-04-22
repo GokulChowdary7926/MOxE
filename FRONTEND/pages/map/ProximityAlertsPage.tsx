@@ -100,7 +100,11 @@ export default function ProximityAlertsPage() {
       });
       if (!accRes.ok) {
         const err = await accRes.json().catch(() => ({}));
-        setError(err.error || 'User not found. Check the username.');
+        if (accRes.status === 404) {
+          setError('User is unavailable (possibly blocked, removed, or not found).');
+        } else {
+          setError(err.error || 'User not found. Check the username.');
+        }
         return;
       }
       const acc = await accRes.json();

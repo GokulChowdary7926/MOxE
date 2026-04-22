@@ -8,7 +8,8 @@ const highlightService = new HighlightService();
 /** Public: view any highlight by id */
 router.get('/view/:id', optionalAuthenticate, async (req, res, next) => {
   try {
-    const h = await highlightService.getByIdPublic(req.params.id);
+    const viewerId = (req as any).user?.accountId ?? null;
+    const h = await highlightService.getByIdPublic(req.params.id, viewerId);
     res.json(h);
   } catch (e) {
     next(e);

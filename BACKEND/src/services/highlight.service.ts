@@ -77,9 +77,47 @@ export class HighlightService {
     return await normalizeHighlightMedia(h);
   }
 
-  /** Public: get any highlight by id (for viewing on profile). */
-  async getByIdPublic(highlightId: string) {
+  /** Public: get highlight by id, with viewer privacy/block checks. */
+  async getByIdPublic(highlightId: string, viewerAccountId?: string | null) {
     const h = await prisma.highlight.findFirst({
+      where: { id: highlightId, deletedAt: null },
+      select: { id: true, accountId: true },
+    });
+    if (!h) throw new AppError('Highlight not found', 404);
+    const owner = await prisma.account.findUnique({
+      where: { id: h.accountId },
+      select: { isPrivate: true },
+    });
+    if (!owner) throw new AppError('Highlight not found', 404);
+    if (viewerAccountId && viewerAccountId !== h.accountId) {
+      const [viewerBlockedOwner, ownerBlockedViewer] = await Promise.all([
+        prisma.block.findUnique({
+          where: { blockerId_blockedId: { blockerId: viewerAccountId, blockedId: h.accountId } },
+          select: { expiresAt: true },
+        }),
+        prisma.block.findUnique({
+          where: { blockerId_blockedId: { blockerId: h.accountId, blockedId: viewerAccountId } },
+          select: { expiresAt: true },
+        }),
+      ]);
+      const now = new Date();
+      const isActive = (expiresAt: Date | null) => expiresAt == null || expiresAt > now;
+      if (
+        (viewerBlockedOwner && isActive(viewerBlockedOwner.expiresAt))
+        || (ownerBlockedViewer && isActive(ownerBlockedViewer.expiresAt))
+      ) {
+        throw new AppError('Highlight not found', 404);
+      }
+    }
+    if (owner.isPrivate && viewerAccountId !== h.accountId) {
+      if (!viewerAccountId) throw new AppError('Highlight not found', 404);
+      const follow = await prisma.follow.findUnique({
+        where: { followerId_followingId: { followerId: viewerAccountId, followingId: h.accountId } },
+        select: { followerId: true },
+      });
+      if (!follow) throw new AppError('Highlight not found', 404);
+    }
+    const full = await prisma.highlight.findFirst({
       where: { id: highlightId, deletedAt: null },
       include: {
         items: {
@@ -91,8 +129,8 @@ export class HighlightService {
         },
       },
     });
-    if (!h) throw new AppError('Highlight not found', 404);
-    return await normalizeHighlightMedia(h);
+    if (!full) throw new AppError('Highlight not found', 404);
+    return await normalizeHighlightMedia(full);
   }
 
   async create(accountId: string, data: { name: string; coverImage?: string; archivedStoryIds: string[] }) {

@@ -12,7 +12,8 @@ const service = new FollowService();
 /** Public or authenticated: list followers of an account by username (for profile follower list). */
 router.get('/followers/by/:username', optionalAuthenticate, async (req, res, next) => {
   try {
-    const list = await service.listFollowersByUsername(req.params.username);
+    const viewerId = (req as any).user?.accountId ?? null;
+    const list = await service.listFollowersByUsername(req.params.username, viewerId);
     res.json({ followers: list });
   } catch (e) {
     next(e);
@@ -22,7 +23,8 @@ router.get('/followers/by/:username', optionalAuthenticate, async (req, res, nex
 /** Public or authenticated: list following of an account by username (for profile following list). */
 router.get('/following/by/:username', optionalAuthenticate, async (req, res, next) => {
   try {
-    const list = await service.listFollowingByUsername(req.params.username);
+    const viewerId = (req as any).user?.accountId ?? null;
+    const list = await service.listFollowingByUsername(req.params.username, viewerId);
     res.json({ following: list });
   } catch (e) {
     next(e);

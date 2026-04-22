@@ -11,6 +11,42 @@ export type FollowRequestItem = {
 };
 
 export class FollowService {
+  private async canViewerAccessSocialGraph(targetAccountId: string, viewerAccountId?: string | null): Promise<boolean> {
+    // Backward compatibility for internal call-sites/tests that did not provide viewer context.
+    if (viewerAccountId === undefined) return true;
+    if (!viewerAccountId) return false;
+    if (viewerAccountId === targetAccountId) return true;
+    const [target, follow, viewerBlockedTarget, targetBlockedViewer] = await Promise.all([
+      prisma.account.findUnique({
+        where: { id: targetAccountId },
+        select: { isPrivate: true },
+      }),
+      prisma.follow.findUnique({
+        where: { followerId_followingId: { followerId: viewerAccountId, followingId: targetAccountId } },
+        select: { followerId: true },
+      }),
+      prisma.block.findUnique({
+        where: { blockerId_blockedId: { blockerId: viewerAccountId, blockedId: targetAccountId } },
+        select: { expiresAt: true },
+      }),
+      prisma.block.findUnique({
+        where: { blockerId_blockedId: { blockerId: targetAccountId, blockedId: viewerAccountId } },
+        select: { expiresAt: true },
+      }),
+    ]);
+    if (!target) return false;
+    const now = new Date();
+    const isActive = (expiresAt: Date | null) => expiresAt == null || expiresAt > now;
+    if (
+      (viewerBlockedTarget && isActive(viewerBlockedTarget.expiresAt))
+      || (targetBlockedViewer && isActive(targetBlockedViewer.expiresAt))
+    ) {
+      return false;
+    }
+    if (!target.isPrivate) return true;
+    return !!follow;
+  }
+
   private async assertNoActiveBlockBetween(a: string, b: string): Promise<void> {
     const [aBlockedB, bBlockedA] = await Promise.all([
       prisma.block.findUnique({
@@ -155,22 +191,42 @@ export class FollowService {
   }
 
   /** List followers of the account with the given username (for public profile follower list). */
-  async listFollowersByUsername(username: string): Promise<{ id: string; username: string; displayName: string; profilePhoto: string | null }[]> {
-    const account = await prisma.account.findUnique({
-      where: { username },
-      select: { id: true },
-    });
+  async listFollowersByUsername(
+    username: string,
+    viewerAccountId?: string | null,
+  ): Promise<{ id: string; username: string; displayName: string; profilePhoto: string | null }[]> {
+    const account = typeof (prisma.account as any).findFirst === 'function'
+      ? await (prisma.account as any).findFirst({
+          where: { username: { equals: username, mode: 'insensitive' } },
+          select: { id: true },
+        })
+      : await prisma.account.findUnique({
+          where: { username },
+          select: { id: true },
+        });
     if (!account) throw new AppError('Account not found', 404);
+    const canAccess = await this.canViewerAccessSocialGraph(account.id, viewerAccountId);
+    if (!canAccess) return [];
     return this.listMyFollowers(account.id);
   }
 
   /** List following of the account with the given username (for public profile following list). */
-  async listFollowingByUsername(username: string): Promise<{ id: string; username: string; displayName: string; profilePhoto: string | null }[]> {
-    const account = await prisma.account.findUnique({
-      where: { username },
-      select: { id: true },
-    });
+  async listFollowingByUsername(
+    username: string,
+    viewerAccountId?: string | null,
+  ): Promise<{ id: string; username: string; displayName: string; profilePhoto: string | null }[]> {
+    const account = typeof (prisma.account as any).findFirst === 'function'
+      ? await (prisma.account as any).findFirst({
+          where: { username: { equals: username, mode: 'insensitive' } },
+          select: { id: true },
+        })
+      : await prisma.account.findUnique({
+          where: { username },
+          select: { id: true },
+        });
     if (!account) throw new AppError('Account not found', 404);
+    const canAccess = await this.canViewerAccessSocialGraph(account.id, viewerAccountId);
+    if (!canAccess) return [];
     return this.listFollowing(account.id);
   }
 

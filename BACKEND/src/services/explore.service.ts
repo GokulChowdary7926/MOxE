@@ -78,8 +78,37 @@ export class ExploreService {
         if (vis === 'FOLLOWERS_ONLY' && !followingIds.includes(a.id)) return false;
         return true;
       });
-      // 2.26 Verified benefits: boost verified accounts in search (priority)
-      filtered.sort((a, b) => (b.verifiedBadge ? 1 : 0) - (a.verifiedBadge ? 1 : 0));
+      const followerCounts = typeof (prisma.follow as any).groupBy === 'function'
+        ? await (prisma.follow as any).groupBy({
+            by: ['followingId'],
+            where: { followingId: { in: filtered.map((a) => a.id) } },
+            _count: { followingId: true },
+          })
+        : [];
+      const followerCountByAccountId = new Map(
+        (followerCounts as Array<{ followingId: string; _count: { followingId: number } }>).map((row) => [
+          row.followingId,
+          row._count.followingId,
+        ]),
+      );
+      const relevanceScore = (a: { username: string; displayName: string | null }) => {
+        const username = a.username.toLowerCase();
+        const displayName = (a.displayName ?? '').toLowerCase();
+        if (username === term || displayName === term) return 400;
+        if (username.startsWith(term)) return 300;
+        if (displayName.startsWith(term)) return 250;
+        if (username.includes(term)) return 150;
+        if (displayName.includes(term)) return 100;
+        return 0;
+      };
+      filtered.sort((a, b) => {
+        const rel = relevanceScore(b) - relevanceScore(a);
+        if (rel !== 0) return rel;
+        const followers = (followerCountByAccountId.get(b.id) ?? 0) - (followerCountByAccountId.get(a.id) ?? 0);
+        if (followers !== 0) return followers;
+        // Keep verified accounts slightly boosted only when relevance and followers tie.
+        return (b.verifiedBadge ? 1 : 0) - (a.verifiedBadge ? 1 : 0);
+      });
       results.users = filtered.slice(0, SEARCH_LIMIT).map(({ searchVisibility: _, verifiedBadge, ...u }) => ({ ...u, verifiedBadge: verifiedBadge ?? false }));
     }
     if (type === 'all' || type === 'hashtags') {
@@ -106,10 +135,36 @@ export class ExploreService {
   }
 
   /** Recent public posts for Explore grid when ranking/feed are empty. */
-  async getRecentPublicPosts(limit = 30) {
+  async getRecentPublicPosts(accountId: string, limit = 30) {
     const take = Math.min(Math.max(1, limit), 50);
+    const [blockedByViewerRows, blockedViewerRows, followingRows] = await Promise.all([
+      prisma.block.findMany({
+        where: { blockerId: accountId },
+        select: { blockedId: true, expiresAt: true },
+      }),
+      prisma.block.findMany({
+        where: { blockedId: accountId },
+        select: { blockerId: true, expiresAt: true },
+      }),
+      prisma.follow.findMany({
+        where: { followerId: accountId },
+        select: { followingId: true },
+      }),
+    ]);
+    const blockedByViewer = blockedByViewerRows
+      .filter((x) => x.expiresAt == null || x.expiresAt > new Date())
+      .map((x) => x.blockedId);
+    const blockedViewer = blockedViewerRows
+      .filter((x) => x.expiresAt == null || x.expiresAt > new Date())
+      .map((x) => x.blockerId);
+    const followingIds = followingRows.map((x) => x.followingId);
+    const excludedAuthorIds = [...new Set([accountId, ...followingIds, ...blockedByViewer, ...blockedViewer])];
     const posts = await prisma.post.findMany({
-      where: { isDeleted: false, privacy: 'PUBLIC' },
+      where: {
+        isDeleted: false,
+        privacy: 'PUBLIC',
+        accountId: { notIn: excludedAuthorIds },
+      },
       orderBy: { createdAt: 'desc' },
       take,
       include: {

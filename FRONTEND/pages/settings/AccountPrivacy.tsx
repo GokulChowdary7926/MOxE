@@ -4,6 +4,7 @@ import { getApiBase } from '../../services/api';
 
 export default function AccountPrivacy() {
   const [isPrivate, setIsPrivate] = useState(false);
+  const [accountType, setAccountType] = useState<string>('PERSONAL');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -15,13 +16,17 @@ export default function AccountPrivacy() {
     fetch(`${getApiBase()}/accounts/me`, { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data?.account) setIsPrivate(!!data.account.isPrivate);
+        if (data?.account) {
+          setIsPrivate(!!data.account.isPrivate);
+          setAccountType(String(data.account.accountType || 'PERSONAL').toUpperCase());
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
   async function togglePrivate() {
+    if (accountType === 'BUSINESS' || accountType === 'JOB') return;
     const next = !isPrivate;
     setIsPrivate(next);
     const token = localStorage.getItem('token');
@@ -46,13 +51,18 @@ export default function AccountPrivacy() {
             type="button"
             role="switch"
             aria-checked={isPrivate}
-            disabled={loading}
+            disabled={loading || accountType === 'BUSINESS' || accountType === 'JOB'}
             onClick={togglePrivate}
-            className={`relative w-11 h-6 rounded-full flex-shrink-0 transition-colors ${isPrivate ? 'bg-[#0095f6]' : 'bg-[#363636]'}`}
+            className={`relative w-11 h-6 rounded-full flex-shrink-0 transition-colors disabled:opacity-60 ${isPrivate ? 'bg-[#0095f6]' : 'bg-[#363636]'}`}
           >
             <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${isPrivate ? 'left-5' : 'left-0.5'}`} />
           </button>
         </div>
+        {(accountType === 'BUSINESS' || accountType === 'JOB') && (
+          <p className="text-[#a8a8a8] text-sm mb-3">
+            {accountType === 'BUSINESS' ? 'Business' : 'Job'} accounts are always public.
+          </p>
+        )}
         <p className="text-[#a8a8a8] text-sm mb-3">
           When your account is public, your profile and posts can be seen by anyone, on or off MOxE, even if they don&apos;t have a MOxE account.
         </p>

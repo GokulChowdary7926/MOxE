@@ -33,8 +33,10 @@ router.get('/hashtag/:name/posts', authenticate, async (req, res, next) => {
 /** Masonry-friendly public posts when personalized ranking / feed have no items. */
 router.get('/discover', authenticate, async (req, res, next) => {
   try {
+    const accountId = (req as any).user?.accountId;
+    if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
     const limit = Math.min(Number(req.query.limit) || 30, 50);
-    const posts = await exploreService.getRecentPublicPosts(limit);
+    const posts = await exploreService.getRecentPublicPosts(accountId, limit);
     res.json({ posts });
   } catch (e) {
     next(e);

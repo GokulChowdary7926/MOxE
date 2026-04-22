@@ -37,6 +37,7 @@ export default function PrivacySettings() {
   const currentAccount = useSelector((state: RootState) => state.account.currentAccount) as { username?: string } | null;
   const myUsername = currentAccount?.username ?? '';
   const [isPrivate, setIsPrivate] = useState(false);
+  const [accountType, setAccountType] = useState<string>('PERSONAL');
   const [showActivity, setShowActivity] = useState(true);
   const [searchVisibility, setSearchVisibility] = useState<'EVERYONE' | 'FOLLOWERS_ONLY' | 'NO_ONE'>('EVERYONE');
   const [storyReplies, setStoryReplies] = useState<'EVERYONE' | 'FOLLOWERS' | 'OFF'>('EVERYONE');
@@ -56,6 +57,7 @@ export default function PrivacySettings() {
         if (!data?.account) return;
         const acc = data.account;
         setIsPrivate(!!acc.isPrivate);
+        setAccountType(String(acc.accountType || 'PERSONAL').toUpperCase());
         setShowActivity(acc.showActivityStatus !== false);
         if (acc.searchVisibility) {
           setSearchVisibility(acc.searchVisibility as any);
@@ -126,14 +128,16 @@ export default function PrivacySettings() {
               trailing={
                 <button
                   type="button"
+                  disabled={accountType === 'BUSINESS' || accountType === 'JOB'}
                   onClick={() => {
+                    if (accountType === 'BUSINESS' || accountType === 'JOB') return;
                     setIsPrivate((v) => {
                       const next = !v;
                       updateAccount({ isPrivate: next });
                       return next;
                     });
                   }}
-                  className={`w-10 h-6 rounded-full flex items-center ${
+                  className={`w-10 h-6 rounded-full flex items-center disabled:opacity-60 ${
                     isPrivate ? 'bg-moxe-primary' : 'bg-moxe-border'
                   }`}
                 >
@@ -145,6 +149,13 @@ export default function PrivacySettings() {
                 </button>
               }
             />
+            {(accountType === 'BUSINESS' || accountType === 'JOB') && (
+              <div className="px-3 pb-2 -mt-1">
+                <ThemedText secondary className="text-moxe-caption">
+                  {accountType === 'BUSINESS' ? 'Business' : 'Job'} accounts are always public.
+                </ThemedText>
+              </div>
+            )}
             <Link to="/follow/requests" className="block">
               <SettingsRow
                 label="Follow requests"

@@ -73,7 +73,7 @@ router.get('/tagged', authenticate, async (req, res, next) => {
     if (!accountId) return res.status(401).json({ error: 'Unauthorized' });
     const cursor = req.query.cursor as string | undefined;
     const limit = Math.min(Number(req.query.limit) || 30, 50);
-    const result = await postService.listTaggedForAccount(accountId, cursor, limit);
+    const result = await postService.listTaggedForAccount(accountId, accountId, cursor, limit);
     res.json(result);
   } catch (e) {
     next(e);
@@ -83,9 +83,10 @@ router.get('/tagged', authenticate, async (req, res, next) => {
 /** Approved tags only — for profile “Tagged” grid (any profile). */
 router.get('/tagged/by/:profileAccountId', optionalAuthenticate, async (req, res, next) => {
   try {
+    const viewerId = (req as any).user?.accountId ?? null;
     const cursor = req.query.cursor as string | undefined;
     const limit = Math.min(Number(req.query.limit) || 30, 50);
-    const result = await postService.listTaggedForAccount(req.params.profileAccountId, cursor, limit);
+    const result = await postService.listTaggedForAccount(viewerId, req.params.profileAccountId, cursor, limit);
     res.json(result);
   } catch (e) {
     next(e);

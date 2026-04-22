@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAccountCapabilities, useCurrentAccount } from '../../hooks/useAccountCapabilities';
-import { useIsOwnProfile } from '../../hooks/useIsOwnProfile';
 import { ACCOUNT_TYPE_LABELS } from '../../constants/accountTypes';
 import { ThemedView, ThemedText, ThemedButton } from '../../components/ui/Themed';
 import { Avatar } from '../../components/ui/Avatar';
@@ -21,7 +20,10 @@ export default function Profile() {
   const currentAccount = useCurrentAccount();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const isOwn = useIsOwnProfile();
+  const isOwn = !!(
+    (profile?.id && (currentAccount as any)?.id && profile.id === (currentAccount as any).id)
+    || (!username && (currentAccount as any)?.id)
+  );
   const accountType = (profile?.accountType || (currentAccount as any)?.accountType || 'PERSONAL').toLowerCase();
   const effectiveAccountType = (profile?.accountType || (currentAccount as any)?.accountType || 'PERSONAL') as keyof typeof ACCOUNT_TYPE_LABELS;
   const label = ACCOUNT_TYPE_LABELS[effectiveAccountType] ?? 'Personal';
@@ -47,7 +49,7 @@ export default function Profile() {
   useEffect(() => {
     const token = getToken();
     const API_BASE = getApiBase();
-    const ownProfile = isOwn;
+    const ownProfile = !username;
     const url = username ? `${API_BASE}/accounts/username/${username}` : `${API_BASE}/accounts/me`;
     const opts: RequestInit = {};
     if (token) opts.headers = { Authorization: `Bearer ${token}` };
@@ -104,7 +106,7 @@ export default function Profile() {
         }
       })
       .finally(() => setLoading(false));
-  }, [username, currentAccount?.id, (currentAccount as any)?.username, isOwn]);
+  }, [username, currentAccount?.id, (currentAccount as any)?.username]);
 
   useEffect(() => {
     const token = getToken();

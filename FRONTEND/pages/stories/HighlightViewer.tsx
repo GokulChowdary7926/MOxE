@@ -4,7 +4,7 @@ import { ThemedView, ThemedText } from '../../components/ui/Themed';
 import { ensureAbsoluteMediaUrl, isVideoMediaUrl } from '../../utils/mediaUtils';
 import { mediaEntryToUrl } from '../../utils/mediaEntries';
 
-import { getApiBase } from '../../services/api';
+import { getApiBase, getToken } from '../../services/api';
 const API_BASE = getApiBase();
 
 type HighlightStory = {
@@ -40,7 +40,10 @@ export default function HighlightViewer() {
       try {
         setLoading(true);
         setError(null);
-        const res = await fetch(`${API_BASE}/highlights/view/${encodeURIComponent(highlightId ?? '')}`);
+        const token = getToken();
+        const headers: HeadersInit = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+        const res = await fetch(`${API_BASE}/highlights/view/${encodeURIComponent(highlightId ?? '')}`, { headers });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           throw new Error(data.error || 'Failed to load highlight.');

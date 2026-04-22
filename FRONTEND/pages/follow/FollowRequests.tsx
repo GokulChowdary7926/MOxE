@@ -21,6 +21,7 @@ export default function FollowRequests() {
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [preview, setPreview] = useState<any | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -103,17 +104,22 @@ export default function FollowRequests() {
     if (!token) return;
     setPreviewId(req.id);
     setPreviewLoading(true);
+    setPreviewError(null);
     try {
       const res = await fetch(`${API_BASE}/accounts/username/${encodeURIComponent(req.username)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (res.status === 404) {
+          throw new Error('Profile is unavailable (possibly blocked or removed).');
+        }
         throw new Error(data.error || 'Failed to load profile.');
       }
       setPreview(data.account ?? data);
-    } catch {
+    } catch (e: any) {
       setPreview(null);
+      setPreviewError(e?.message || 'Failed to load profile preview.');
     } finally {
       setPreviewLoading(false);
     }
@@ -211,6 +217,9 @@ export default function FollowRequests() {
                     </ThemedText>
                   )}
                 </div>
+              )}
+              {previewError && previewId === r.id && (
+                <ThemedText className="text-moxe-caption text-moxe-danger">{previewError}</ThemedText>
               )}
             </div>
           ))}

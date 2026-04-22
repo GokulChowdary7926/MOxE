@@ -9,6 +9,7 @@ import { useCurrentAccount } from './useAccountCapabilities';
 export function useIsOwnProfile(): boolean {
   const { username } = useParams<{ username?: string }>();
   const currentAccount = useCurrentAccount();
-  const currentUsername = (currentAccount as { username?: string } | null)?.username;
-  return !username || currentUsername === username;
+  const currentUsername = (currentAccount as { username?: string } | null)?.username?.toLowerCase();
+  const targetUsername = username?.toLowerCase();
+  return !targetUsername || currentUsername === targetUsername;
 }

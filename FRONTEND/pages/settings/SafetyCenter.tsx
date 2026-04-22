@@ -584,7 +584,11 @@ export default function SafetyCenter() {
                     );
                     const uData = await uRes.json().catch(() => ({}));
                     if (!uRes.ok || !uData.id) {
-                      setError('Could not find that account to block.');
+                      setError(
+                        uRes.status === 404
+                          ? 'That account is unavailable (possibly blocked, removed, or not found).'
+                          : 'Could not find that account to block.',
+                      );
                       return;
                     }
                     const durationDays =
