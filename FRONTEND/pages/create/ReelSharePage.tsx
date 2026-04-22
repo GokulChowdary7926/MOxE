@@ -75,8 +75,13 @@ export default function ReelSharePage() {
       if (!res.ok) {
         throw new Error(await userFacingApiError(res, 'Could not share your reel.'));
       }
+      const created = (await res.json().catch(() => ({}))) as { id?: string };
       toast.success('Reel shared');
-      navigate('/reels');
+      if (created?.id) {
+        navigate(`/reels?initialId=${encodeURIComponent(created.id)}&source=create`);
+      } else {
+        navigate('/reels');
+      }
     } catch (e: unknown) {
       setError(messageFromUnknown(e, 'Something went wrong while sharing your reel.'));
     } finally {

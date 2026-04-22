@@ -272,7 +272,12 @@ export default function CreateReel() {
       if (!res.ok) {
         throw new Error(await userFacingApiError(res, 'Could not publish your reel.'));
       }
-      navigate('/reels');
+      const created = (await res.json().catch(() => ({}))) as { id?: string };
+      if (created?.id) {
+        navigate(`/reels?initialId=${encodeURIComponent(created.id)}&source=create`);
+      } else {
+        navigate('/reels');
+      }
     } catch (e: unknown) {
       setError(messageFromUnknown(e, 'Could not publish your reel.'));
     } finally {
