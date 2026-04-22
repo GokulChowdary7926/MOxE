@@ -86,6 +86,10 @@ export default function Reels() {
     const raw = params.get('initialId');
     return raw && raw.trim() ? raw.trim() : null;
   }, [location.search]);
+  const launchedFromExplore = React.useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('source') === 'explore';
+  }, [location.search]);
   const [reels, setReels] = useState<ReelItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -222,6 +226,10 @@ export default function Reels() {
 
   // Handle vertical scroll / wheel and arrow keys to move between reels.
   useEffect(() => {
+    const exitViewer = () => {
+      if (launchedFromExplore) navigate(-1);
+      else navigate('/explore');
+    };
     const wheelHandler = (e: WheelEvent) => {
       if (!reels.length) return;
       if (Math.abs(e.deltaY) < 30) return;
@@ -229,8 +237,9 @@ export default function Reels() {
       if (e.deltaY > 0 && currentIndex < reels.length - 1) {
         const next = currentIndex + 1;
         setCurrentIndex(next);
-      } else if (e.deltaY < 0 && currentIndex > 0) {
-        setCurrentIndex((i) => Math.max(0, i - 1));
+      } else if (e.deltaY < 0) {
+        if (currentIndex > 0) setCurrentIndex((i) => Math.max(0, i - 1));
+        else exitViewer();
       }
     };
     const keyHandler = (e: KeyboardEvent) => {
@@ -238,9 +247,10 @@ export default function Reels() {
       if (e.key === 'ArrowDown' && currentIndex < reels.length - 1) {
         e.preventDefault();
         setCurrentIndex((i) => i + 1);
-      } else if (e.key === 'ArrowUp' && currentIndex > 0) {
+      } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setCurrentIndex((i) => i - 1);
+        if (currentIndex > 0) setCurrentIndex((i) => i - 1);
+        else exitViewer();
       }
     };
     window.addEventListener('wheel', wheelHandler, { passive: false });
@@ -249,7 +259,7 @@ export default function Reels() {
       window.removeEventListener('wheel', wheelHandler);
       window.removeEventListener('keydown', keyHandler);
     };
-  }, [currentIndex, reels.length]);
+  }, [currentIndex, reels.length, navigate, launchedFromExplore]);
 
   const active = reels[currentIndex];
   const isLiked = active ? likedReelIds.has(active.id) : false;
