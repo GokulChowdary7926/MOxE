@@ -179,7 +179,7 @@ export default function BusinessDashboard() {
                     Today
                   </ThemedText>
                   <ThemedText className="text-white font-semibold text-[15px]">
-                    ₹{(dashboard?.salesOverview.today ?? 0).toLocaleString()}
+                    ₹{(dashboard?.salesOverview?.today ?? 0).toLocaleString()}
                   </ThemedText>
                 </div>
                 <div className="rounded-moxe-md bg-moxe-surface border border-moxe-border px-3 py-2">
@@ -187,7 +187,7 @@ export default function BusinessDashboard() {
                     Last 7 days
                   </ThemedText>
                   <ThemedText className="text-moxe-body font-semibold text-[15px]">
-                    ₹{(dashboard?.salesOverview.week ?? 0).toLocaleString()}
+                    ₹{(dashboard?.salesOverview?.week ?? 0).toLocaleString()}
                   </ThemedText>
                 </div>
                 <div className="rounded-moxe-md bg-moxe-surface border border-moxe-border px-3 py-2">
@@ -195,7 +195,7 @@ export default function BusinessDashboard() {
                     This month
                   </ThemedText>
                   <ThemedText className="text-moxe-body font-semibold text-[15px]">
-                    ₹{(dashboard?.salesOverview.month ?? 0).toLocaleString()}
+                    ₹{(dashboard?.salesOverview?.month ?? 0).toLocaleString()}
                   </ThemedText>
                 </div>
               </div>
@@ -209,7 +209,7 @@ export default function BusinessDashboard() {
                     Total orders
                   </ThemedText>
                   <ThemedText className="text-moxe-body font-semibold text-[15px]">
-                    {dashboard?.orderStats.totalOrders ?? 0}
+                    {dashboard?.orderStats?.totalOrders ?? 0}
                   </ThemedText>
                 </div>
                 <div className="rounded-moxe-md bg-moxe-surface border border-moxe-border px-3 py-2">
@@ -217,7 +217,7 @@ export default function BusinessDashboard() {
                     Pending
                   </ThemedText>
                   <ThemedText className="text-moxe-body font-semibold text-[15px]">
-                    {dashboard?.orderStats.pendingOrders ?? 0}
+                    {dashboard?.orderStats?.pendingOrders ?? 0}
                   </ThemedText>
                 </div>
                 <div className="rounded-moxe-md bg-moxe-surface border border-moxe-border px-3 py-2">
@@ -225,7 +225,7 @@ export default function BusinessDashboard() {
                     Delivered
                   </ThemedText>
                   <ThemedText className="text-moxe-body font-semibold text-[15px]">
-                    {dashboard?.orderStats.deliveredOrders ?? 0}
+                    {dashboard?.orderStats?.deliveredOrders ?? 0}
                   </ThemedText>
                 </div>
               </div>
