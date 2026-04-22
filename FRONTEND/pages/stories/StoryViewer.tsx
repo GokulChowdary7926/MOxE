@@ -85,6 +85,7 @@ export default function StoryViewer() {
   const [showMoreSheet, setShowMoreSheet] = useState(false);
   const [showCommentsSheet, setShowCommentsSheet] = useState(false);
   const [videoMuted, setVideoMuted] = useState(true);
+  const storyVideoRef = useRef<HTMLVideoElement | null>(null);
   const storyCommentFooterRef = useRef<HTMLDivElement>(null);
   const [isCloseFriends, setIsCloseFriends] = useState(false);
   const [storyOwnerAvatar] = useState<string | null>(null);
@@ -420,9 +421,12 @@ export default function StoryViewer() {
     }).catch(() => {});
   }, [index, stories]);
 
-  // Auto‑advance current story after a short duration (MOxE stories)
+  // Auto-advance image stories after a short duration.
+  // Video stories should play their full media duration and advance on `ended`.
   useEffect(() => {
-    if (!stories[index]) return undefined;
+    const active = stories[index];
+    if (!active) return undefined;
+    if (isVideoMediaUrl(active.mediaUrl)) return undefined;
     const timer = setTimeout(() => {
       if (index + 1 < stories.length) setIndex((prev) => prev + 1);
       else navigate(-1);
@@ -797,12 +801,14 @@ export default function StoryViewer() {
               </div>
               {isVideoMediaUrl(current.mediaUrl) ? (
                 <video
+                  ref={storyVideoRef}
                   src={ensureAbsoluteMediaUrl(current.mediaUrl)}
                   className="w-full h-full object-cover select-none"
                   autoPlay
                   muted={videoMuted}
                   playsInline
                   controls={false}
+                  onEnded={next}
                 />
               ) : (
                 <img
