@@ -345,6 +345,9 @@ export default function NearbyMessagingPage() {
             const next = [...kept];
             next[dupIdx] = {
               ...next[dupIdx],
+              text: text || next[dupIdx].text,
+              imageUrl: imageUrl ?? next[dupIdx].imageUrl,
+              sentAt: sentAt || next[dupIdx].sentAt,
               fromUserId: fromUserId ?? next[dupIdx].fromUserId,
               fromAccountId: fromAccountId ?? next[dupIdx].fromAccountId,
               fromUsername: fromUsername ?? next[dupIdx].fromUsername,
