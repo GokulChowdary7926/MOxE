@@ -11,7 +11,14 @@ async function maybeSignS3ReadUrl(value: string): Promise<string> {
     const bucketHost = `${bucket}.s3.${(process.env.AWS_REGION || '').trim()}.amazonaws.com`.toLowerCase();
     const legacyHost = `${bucket}.s3.amazonaws.com`.toLowerCase();
     if (host !== bucketHost && host !== legacyHost) return value;
-    const key = u.pathname.replace(/^\/+/, '');
+    const rawPathKey = u.pathname.replace(/^\/+/, '');
+    const key = (() => {
+      try {
+        return decodeURIComponent(rawPathKey);
+      } catch {
+        return rawPathKey;
+      }
+    })();
     if (!key) return value;
     const ttlRaw = Number(process.env.AWS_S3_READ_URL_TTL_SECONDS || '86400');
     const expiresIn = Number.isFinite(ttlRaw) ? Math.max(60, Math.min(604800, Math.floor(ttlRaw))) : 86400;
