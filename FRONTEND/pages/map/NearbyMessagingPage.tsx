@@ -98,6 +98,47 @@ function nearbyFingerprint(m: {
   return `${author}|${text}|${image}|${ts}`;
 }
 
+function nearbyDuplicateKey(m: {
+  fromUserId?: string | null;
+  fromAccountId?: string | null;
+  fromUsername?: string | null;
+  text?: string | null;
+  imageUrl?: string | null;
+}): string {
+  const author = (m.fromAccountId || m.fromUserId || m.fromUsername || 'unknown').toLowerCase();
+  const text = (m.text || '').trim().toLowerCase();
+  const image = (m.imageUrl || '').trim();
+  return `${author}|${text}|${image}`;
+}
+
+function isNearDuplicate(
+  a: {
+    messageId?: string | null;
+    fromUserId?: string | null;
+    fromAccountId?: string | null;
+    fromUsername?: string | null;
+    text?: string | null;
+    imageUrl?: string | null;
+    sentAt?: string | null;
+  },
+  b: {
+    messageId?: string | null;
+    fromUserId?: string | null;
+    fromAccountId?: string | null;
+    fromUsername?: string | null;
+    text?: string | null;
+    imageUrl?: string | null;
+    sentAt?: string | null;
+  },
+): boolean {
+  if (a.messageId && b.messageId && a.messageId === b.messageId) return true;
+  if (nearbyDuplicateKey(a) !== nearbyDuplicateKey(b)) return false;
+  const at = parseTimestamp(a.sentAt);
+  const bt = parseTimestamp(b.sentAt);
+  if (at == null || bt == null) return true;
+  return Math.abs(at - bt) <= 15_000;
+}
+
 function formatTimeAgo(iso: string): string {
   const d = new Date(iso);
   const diff = (Date.now() - d.getTime()) / 1000;
@@ -220,6 +261,8 @@ export default function NearbyMessagingPage() {
             };
             const fp = nearbyFingerprint(candidate);
             if (seen.has(fp)) continue;
+            if (kept.some((m) => isNearDuplicate(m, candidate))) continue;
+            if (toAdd.some((m) => isNearDuplicate(m, candidate))) continue;
             seen.add(fp);
             toAdd.push(candidate);
           }
@@ -289,7 +332,15 @@ export default function NearbyMessagingPage() {
             imageUrl: imageUrl || null,
             sentAt,
           });
-          const dupIdx = kept.findIndex((m) => nearbyFingerprint(m) === incomingFp);
+          const dupIdx = kept.findIndex((m) => nearbyFingerprint(m) === incomingFp || isNearDuplicate(m, {
+            messageId,
+            fromUserId,
+            fromAccountId,
+            fromUsername: fromUsername ?? undefined,
+            text: text || '[Photo]',
+            imageUrl: imageUrl || null,
+            sentAt,
+          }));
           if (dupIdx >= 0) {
             const next = [...kept];
             next[dupIdx] = {
